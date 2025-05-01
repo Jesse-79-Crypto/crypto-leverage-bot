@@ -38,7 +38,11 @@ def get_google_service():
     return build("sheets", "v4", credentials=creds).spreadsheets()
 
 def read_latest_signal(service):
-    result = service.values().get(spreadsheetId=SHEET_ID, range=f"{Signal Inbox}!A1:Z").execute()
+    result = service.values().get(
+        spreadsheetId=SHEET_ID,
+        range=f"{SIGNAL_TAB_NAME}!A1:Z"
+    ).execute()
+
     rows = result.get("values", [])
     if len(rows) <= 1:
         return None, None
