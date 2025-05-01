@@ -56,8 +56,7 @@ def mark_signal_processed(service, row_number):
     ).execute()
 
 def send_email(subject, body):
-    print(f"[EMAIL TO {EMAIL_ALERT_ADDRESS}] {subject}"
-{body}")
+ print(f"[EMAIL TO {EMAIL_ALERT_ADDRESS}] {subject}\n{body}")
 
 def simulate_trade_execution(signal):
     trade_direction = signal.get("Trade Direction")
