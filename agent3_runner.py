@@ -12,7 +12,18 @@ TRADE_LOG_SHEET_ID = os.getenv("TRADE_LOG_SHEET_ID")
 TRADE_LOG_TAB_NAME = os.getenv("TRADE_LOG_TAB_NAME")
 HOT_WALLET_ADDRESS = os.getenv("HOT_WALLET_ADDRESS")
 HOT_WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY")
-GOOGLE_CREDS_JSON = json.loads(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
+GOOGLE_CREDS_JSON = {
+    "type": "service_account",
+    "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+    "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace('\\n', '\n'),
+    "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+    "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+    "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_CERT_URL"),
+    "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_CERT_URL")
+}
 EMAIL_ALERT_ADDRESS = os.getenv("EMAIL_ALERT_ADDRESS")
 LEVERAGE = float(os.getenv("LEVERAGE", 5))
 MAX_RISK = float(os.getenv("MAX_RISK_PCT", 15))
