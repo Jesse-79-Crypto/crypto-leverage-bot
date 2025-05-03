@@ -72,27 +72,74 @@ def mark_signal_processed(service, row_number):
 def send_email(subject, body):
     print(f"[EMAIL TO {EMAIL_ALERT_ADDRESS}] {subject}\n{body}")
 
-def simulate_trade_execution(signal):
-    trade_direction = signal.get("Trade Direction")
+from web3 import Web3
+import json
+
+def execute_trade_on_gains(signal):
+    # Connect to BASE via Alchemy
+    w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
+    if not w3.is_connected():
+        raise ConnectionError("Failed to connect to BASE network.")
+
+    # Load wallet
+    private_key = os.getenv("WALLET_PRIVATE_KEY")
+    account = w3.eth.account.from_key(private_key)
+
+    # Load ABI
+    with open("abi/gains_base_abi.json", "r") as abi_file:
+        gains_abi = json.load(abi_file)
+
+    # Load contract
+    contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
+    contract = w3.eth.contract(address=contract_address, abi=gains_abi)
+
+    # Extract signal data
+    market = "ETH/USD"  # Placeholder; adjust to match Gains contract
+    is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
+    leverage = int(os.getenv("LEVERAGE", 5))
     entry_price = float(signal.get("Entry Price"))
     stop_loss = float(signal.get("Stop-Loss"))
     tp1 = float(signal.get("TP1"))
     tp2 = float(signal.get("TP2"))
     tp3 = float(signal.get("TP3"))
+    amount_usd = 100 * (float(os.getenv("MAX_RISK_PCT", 15)) / 100)
 
-    # Simulated result
+    # Estimate gas + nonce
+    nonce = w3.eth.get_transaction_count(account.address)
+    gas_price = w3.eth.gas_price
+
+    # Build transaction (placeholder function, update to match actual Gains method)
+    txn = contract.functions.openTrade(
+        market,
+        is_long,
+        int(amount_usd * 1e18),
+        leverage
+    ).build_transaction({
+        'from': account.address,
+        'nonce': nonce,
+        'gas': 500000,
+        'gasPrice': gas_price,
+    })
+
+    # Sign + send
+    signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
+    tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+
+    print(f"🚀 Trade sent! TX hash: {tx_hash.hex()}")
+
     return {
-        "status": "TRADE EXECUTED",
+        "status": "TRADE SENT",
+        "tx_hash": tx_hash.hex(),
         "entry_price": entry_price,
         "stop_loss": stop_loss,
         "tp1": tp1,
         "tp2": tp2,
         "tp3": tp3,
-        "leverage": LEVERAGE,
+        "leverage": leverage,
         "wallet_balance": 100,  # Placeholder
-        "position_size_usd": 100 * (MAX_RISK / 100),
-        "position_size_token": round((100 * (MAX_RISK / 100)) / entry_price, 4),
-        "log_link": f"https://docs.google.com/spreadsheets/d/{TRADE_LOG_SHEET_ID}",
+        "position_size_usd": amount_usd,
+        "position_size_token": round(amount_usd / entry_price, 4),
+        "log_link": f"https://basescan.org/tx/{tx_hash.hex()}",
     }
 
 def log_trade(service, result):
@@ -121,7 +168,7 @@ def main_loop():
         signal, row_index = read_latest_signal(service)
         if signal:
             print("Valid signal found, processing...")
-            result = simulate_trade_execution(signal)
+            result = execute_trade_on_gains(signal)
             log_trade(service, result)
             mark_signal_processed(service, row_index)
             send_email("Trade Executed", json.dumps(result, indent=2))
