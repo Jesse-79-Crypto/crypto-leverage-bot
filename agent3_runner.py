@@ -73,7 +73,7 @@ def execute_trade_on_gains(signal):
         ).build_transaction({
             'from': account.address,
             'nonce': nonce,
-            'gas': 900000,
+            'gas': 400000,
             'gasPrice': gas_price,
             'value': 0
         })
