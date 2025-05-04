@@ -27,13 +27,13 @@ entry_price = float(signal.get("Entry Price"))
 leverage = int(os.getenv("LEVERAGE", 5))
 max_risk_pct = float(os.getenv("MAX_RISK_PCT", 15))
 
-# 🧠 Get actual ETH balance from wallet and calculate position size
-wallet_balance = w3.eth.get_balance(account.address)
-eth_balance = w3.from_wei(wallet_balance, 'ether')
-usd_balance = eth_balance * entry_price
-usd_amount = usd_balance * (max_risk_pct / 100)
+    # 💡 Get actual ETH balance from wallet and calculate position size
+    wallet_balance = w3.eth.get_balance(account.address)
+    eth_balance = w3.from_wei(wallet_balance, 'ether')
+    usd_balance = eth_balance * entry_price
+    usd_amount = usd_balance * (max_risk_pct / 100)
 
-position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
+    position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
 
     # Tuple (struct) argument
     trade_tuple = (
