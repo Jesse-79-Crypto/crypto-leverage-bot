@@ -60,15 +60,16 @@ def execute_trade_on_gains(signal):
     gas_price = w3.eth.gas_price
 
     txn = contract.functions.openTrade(
-        trade_tuple,
-        order_type,
-        referral_address
-    ).build_transaction({
-        'from': account.address,
-        'nonce': nonce,
-        'gas': 900000,
-        'gasPrice': gas_price
-    })
+    trade_tuple,
+    order_type,
+    referral_address
+).build_transaction({
+    'from': account.address,
+    'nonce': nonce,
+    'gas': 900000,
+    'gasPrice': gas_price,
+    'value': 0
+})
 
     # Sign and send
     signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
