@@ -22,10 +22,10 @@ def execute_trade_on_gains(signal):
     contract = w3.eth.contract(address=contract_address, abi=gains_abi)
 
     # Format trade details
-is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
-entry_price = float(signal.get("Entry Price"))
-leverage = int(os.getenv("LEVERAGE", 5))
-max_risk_pct = float(os.getenv("MAX_RISK_PCT", 15))
+    is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
+    entry_price = float(signal.get("Entry Price"))
+    leverage = int(os.getenv("LEVERAGE", 5))
+    max_risk_pct = float(os.getenv("MAX_RISK_PCT", 15))
 
     # 💡 Get actual ETH balance from wallet and calculate position size
     wallet_balance = w3.eth.get_balance(account.address)
@@ -70,7 +70,7 @@ max_risk_pct = float(os.getenv("MAX_RISK_PCT", 15))
         'gasPrice': gas_price
     })
 
-         # Sign and send
+    # Sign and send
     signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
     tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
