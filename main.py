@@ -12,12 +12,12 @@ def home():
 @app.route("/execute", methods=["POST"])
 def handle_trade_signal():
     try:
-        signal = request.get_json()
+        signal = request.get_json(force=True)
         if not signal:
             return jsonify({"error": "No signal payload received"}), 400
 
         result = execute_trade_on_gains(signal)
-        return jsonify({"message": "Trade executed", "tx_hash": result["tx_hash"]})
+        return jsonify(result)  # Return full result dictionary
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
