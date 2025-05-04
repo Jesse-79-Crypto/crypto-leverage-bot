@@ -72,11 +72,11 @@ def execute_trade_on_gains(signal):
             referral_address
         ).build_transaction({
             'from': account.address,
-            'nonce': nonce,
-            'gas': 400000,
-            'gasPrice': gas_price,
-            'value': 0
-        })
+    'nonce': nonce,
+    'gas': 300000,  # ⬅️ update this line only
+    'gasPrice': gas_price,
+    'value': 0
+})
 
         # Sign and send
         signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
