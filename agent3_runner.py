@@ -42,21 +42,21 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
         print(f"📊 Calculated position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
-        # Tuple (struct) argument — must be passed as a single tuple inside another tuple
+        # Properly cast each field to match ABI expectations
         trade_struct = (
-            account.address,
-            0,
-            leverage,
-            position_size,
-            is_long,
-            True,
-            1,
-            3,
-            0,
-            0,
-            int(time.time()) + 120,
-            0,
-            0
+            Web3.to_checksum_address(account.address),  # address
+            int(0),                                     # uint32
+            int(leverage) & 0xFFFF,                     # uint16
+            int(position_size) & 0xFFFFFF,              # uint24
+            bool(is_long),                              # bool
+            True,                                       # bool
+            int(1) & 0xFF,                               # uint8 (slippage)
+            int(3) & 0xFF,                               # uint8 (tpCount)
+            int(0) & ((1 << 120) - 1),                  # uint120 (tpPrices placeholder)
+            int(0) & ((1 << 64) - 1),                   # uint64 (slPrices placeholder)
+            int(time.time()) + 120,                    # uint64 (deadline)
+            int(0),                                     # uint64 (referralCode)
+            int(0)                                      # uint192 (extraParams placeholder)
         )
 
         order_type = 0  # market order
@@ -67,7 +67,7 @@ def execute_trade_on_gains(signal):
         gas_price = w3.eth.gas_price
 
         txn = contract.functions.openTrade(
-            trade_struct,  # ✅ pass struct directly
+            trade_struct,
             order_type,
             referral_address
         ).build_transaction({
