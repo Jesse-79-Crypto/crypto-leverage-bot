@@ -13,6 +13,9 @@ def home():
 def handle_trade_signal():
     try:
         signal = request.get_json(force=True)
+
+        print("📩 Signal received:", signal)
+        
         if not signal:
             return jsonify({"error": "No signal payload received"}), 400
 
