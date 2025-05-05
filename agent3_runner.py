@@ -35,7 +35,7 @@ def execute_trade_on_gains(signal):
 
         # 💡 Get actual ETH balance from wallet and calculate position size
         wallet_balance = w3.eth.get_balance(account.address)
-        eth_balance = w3.from_wei(wallet_balance, 'ether')
+        eth_balance = float(w3.from_wei(wallet_balance, 'ether'))
         usd_balance = eth_balance * entry_price
         usd_amount = usd_balance * (max_risk_pct / 100)
 
