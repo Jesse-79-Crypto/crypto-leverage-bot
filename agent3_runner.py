@@ -42,21 +42,21 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
         print(f"📊 Calculated position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
-        # Tuple (struct) argument
-        trade_tuple = (
-            account.address,     # user address
-            0,                   # pairIndex — for now, default to 0
+        # Tuple (struct) argument - must match ABI
+        trade_struct = (
+            account.address,
+            0,
             leverage,
             position_size,
             is_long,
-            True,                # takeProfit flag
-            1,                   # slippage
-            3,                   # tpCount
-            0,                   # tpPrices
-            0,                   # slPrices
-            int(time.time()) + 120,  # deadline
-            0,                   # referralCode
-            0                    # extraParams
+            True,
+            1,
+            3,
+            0,
+            0,
+            int(time.time()) + 120,
+            0,
+            0
         )
 
         order_type = 0  # market order
@@ -67,16 +67,16 @@ def execute_trade_on_gains(signal):
         gas_price = w3.eth.gas_price
 
         txn = contract.functions.openTrade(
-            trade_tuple,
+            trade_struct,
             order_type,
             referral_address
         ).build_transaction({
             'from': account.address,
-    'nonce': nonce,
-    'gas': 300000,  # ⬅️ update this line only
-    'gasPrice': gas_price,
-    'value': 0
-})
+            'nonce': nonce,
+            'gas': 300000,
+            'gasPrice': gas_price,
+            'value': 0
+        })
 
         # Sign and send
         signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
