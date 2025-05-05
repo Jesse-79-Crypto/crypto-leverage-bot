@@ -42,7 +42,7 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
         print(f"📊 Calculated position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
-        # Tuple (struct) argument - must match ABI
+        # Tuple (struct) argument — must be passed as a single tuple inside another tuple
         trade_struct = (
             account.address,
             0,
@@ -67,7 +67,7 @@ def execute_trade_on_gains(signal):
         gas_price = w3.eth.gas_price
 
         txn = contract.functions.openTrade(
-            trade_struct,
+            (trade_struct,),  # 👈 wrap struct in a tuple
             order_type,
             referral_address
         ).build_transaction({
