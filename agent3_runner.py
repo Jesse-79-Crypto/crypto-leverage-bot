@@ -67,7 +67,7 @@ def execute_trade_on_gains(signal):
         gas_price = w3.eth.gas_price
 
         txn = contract.functions.openTrade(
-            (trade_struct,),  # 👈 wrap struct in a tuple
+            trade_struct,  # ✅ pass struct directly
             order_type,
             referral_address
         ).build_transaction({
