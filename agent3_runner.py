@@ -16,7 +16,7 @@ PAIR_INDEX_MAP = {
 def execute_trade_on_gains(signal):
     print("🚦 Trade execution started")
     try:
-        # Connect to BASE network via Alchemy
+        # Connect to BASE network
         w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
         if not w3.is_connected():
             raise ConnectionError("Failed to connect to BASE network.")
@@ -37,7 +37,7 @@ def execute_trade_on_gains(signal):
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
         print("📄 Contract connected")
 
-        # Format trade details
+        # Extract trade details
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         entry_price = float(signal.get("Entry Price"))
         symbol = signal.get("Coin", "").strip().upper()
@@ -48,32 +48,40 @@ def execute_trade_on_gains(signal):
 
         leverage = int(os.getenv("LEVERAGE", 5))
         max_risk_pct = float(os.getenv("MAX_RISK_PCT", 15))
+        eth_usd_price = float(os.getenv("ETH_USD_PRICE", 3000))  # fallback
 
-        # 💡 Get actual ETH balance and conservative USD estimate
+        # Calculate available balance
         wallet_balance = w3.eth.get_balance(account.address)
         eth_balance = float(w3.from_wei(wallet_balance, 'ether'))
-        eth_usd_price = float(os.getenv("ETH_USD_PRICE", 3000))  # fallback
         usd_balance = eth_balance * eth_usd_price
         usd_amount = usd_balance * (max_risk_pct / 100)
 
-        position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
-        print(f"📊 Calculated position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
+        # 🛑 Skip if trade size is too small
+        if usd_amount < 5:
+            print(f"⚠️ Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
+            return {
+                "status": "SKIPPED",
+                "reason": f"Trade size ${usd_amount:.2f} below $5 minimum"
+            }
 
-        # Tuple (struct) argument - types match contract expectations
+        position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
+        print(f"📊 Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
+
+        # Build trade struct
         trade_struct = (
             Web3.to_checksum_address(account.address),  # address
             int(pair_index),                            # uint32
             int(leverage) & 0xFFFF,                     # uint16
             int(position_size) & 0xFFFFFF,              # uint24
             bool(is_long),                              # bool
-            True,                                       # bool (takeProfit)
-            int(1) & 0xFF,                              # uint8 (slippage)
-            int(3) & 0xFF,                              # uint8 (tpCount)
-            int(0) & ((1 << 120) - 1),                  # uint120 (tpPrices)
-            int(0) & ((1 << 64) - 1),                   # uint64 (slPrices)
-            int(time.time()) + 120,                     # uint64 (deadline)
-            int(0),                                     # uint64 (referralCode)
-            int(0)                                      # uint192 (extraParams)
+            True,                                       # takeProfit
+            1,                                          # slippage (uint8)
+            3,                                          # tpCount (uint8)
+            0,                                          # tpPrices (uint120)
+            0,                                          # slPrices (uint64)
+            int(time.time()) + 120,                     # deadline (uint64)
+            0,                                          # referralCode (uint64)
+            0                                           # extraParams (uint192)
         )
 
         order_type = 0
