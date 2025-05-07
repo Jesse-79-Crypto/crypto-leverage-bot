@@ -53,6 +53,13 @@ def execute_trade_on_gains(signal):
                 "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}],
                 "outputs": [{"name": "remaining", "type": "uint256"}],
                 "stateMutability": "view"
+            },
+            {
+                "name": "balanceOf",
+                "type": "function",
+                "inputs": [{"name": "_owner", "type": "address"}],
+                "outputs": [{"name": "balance", "type": "uint256"}],
+                "stateMutability": "view"
             }
         ]
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
@@ -72,7 +79,11 @@ def execute_trade_on_gains(signal):
             signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
             tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             print(f"✅ Approval TX sent: {tx_hash.hex()}")
-            time.sleep(10)  # Give it a moment to confirm
+            time.sleep(10)
+
+        # ✅ Get USDC balance instead of ETH
+        usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
+        usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
 
         # Extract trade details
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
@@ -84,14 +95,6 @@ def execute_trade_on_gains(signal):
             raise ValueError(f"❌ Unsupported or missing symbol in signal: '{symbol}'")
 
         leverage = int(os.getenv("LEVERAGE", 5))
-        max_risk_pct = float(os.getenv("MAX_RISK_PCT", 15))
-        eth_usd_price = float(os.getenv("ETH_USD_PRICE", 3000))  # fallback
-
-        # Calculate available balance
-        wallet_balance = w3.eth.get_balance(account.address)
-        eth_balance = float(w3.from_wei(wallet_balance, 'ether'))
-        usd_balance = eth_balance * eth_usd_price
-        usd_amount = usd_balance * (max_risk_pct / 100)
 
         # 🛑 Skip if trade size is too small
         if usd_amount < 5:
@@ -101,7 +104,7 @@ def execute_trade_on_gains(signal):
                 "reason": f"Trade size ${usd_amount:.2f} below $5 minimum"
             }
 
-        position_size = int(usd_amount * 1e6)  # BASE tokens have 6 decimals
+        position_size = int(usd_amount * 1e6)
         print(f"📊 Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
         # Build trade struct
