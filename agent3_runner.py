@@ -25,12 +25,12 @@ def execute_trade_on_gains(signal):
         # Load wallet
         private_key = os.getenv("WALLET_PRIVATE_KEY")
         account = w3.eth.account.from_key(private_key)
-        print(f"👛 Wallet loaded: {account.address}")
+        print(f"💼 Wallet loaded: {account.address}")
 
         # Load ABI
         with open("abi/gains_base_abi.json", "r") as abi_file:
             gains_abi = json.load(abi_file)
-        print("📦 ABI loaded")
+        print("📆 ABI loaded")
 
         # Load contract
         contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
@@ -96,7 +96,7 @@ def execute_trade_on_gains(signal):
 
         leverage = int(os.getenv("LEVERAGE", 5))
 
-        # 🛑 Skip if trade size is too small
+        # 🚩 Skip if trade size is too small
         if usd_amount < 5:
             print(f"⚠️ Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
             return {
@@ -109,19 +109,19 @@ def execute_trade_on_gains(signal):
 
         # Build trade struct
         trade_struct = (
-            Web3.to_checksum_address(account.address),  # address
-            int(pair_index),                            # uint32
-            int(leverage) & 0xFFFF,                     # uint16
-            int(position_size) & 0xFFFFFF,              # uint24
-            bool(is_long),                              # bool
-            True,                                       # takeProfit
-            1,                                          # slippage (uint8)
-            3,                                          # tpCount (uint8)
-            0,                                          # tpPrices (uint120)
-            0,                                          # slPrices (uint64)
-            int(time.time()) + 120,                     # deadline (uint64)
-            0,                                          # referralCode (uint64)
-            0                                           # extraParams (uint192)
+            Web3.to_checksum_address(account.address),
+            int(pair_index),
+            int(leverage) & 0xFFFF,
+            int(position_size) & 0xFFFFFF,
+            bool(is_long),
+            True,
+            1,
+            3,
+            0,
+            0,
+            int(time.time()) + 120,
+            0,
+            0
         )
 
         order_type = 0
