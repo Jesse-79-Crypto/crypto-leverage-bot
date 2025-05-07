@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 import os
 import json
-import traceback  # ✅ Added for full error tracing
-from agent3_runner import execute_trade_on_gains  # This must be in agent3_runner.py
+import traceback
+from agent3_runner import execute_trade_on_gains
 
 app = Flask(__name__)
 
@@ -17,12 +17,18 @@ def handle_trade_signal():
         print("📩 Signal received:", signal)
 
         if not signal:
-            return jsonify({"error": "No signal payload received"}), 400
+            return jsonify({"status": "error", "message": "No signal payload received"}), 400
 
+        # Execute trade and capture result
         result = execute_trade_on_gains(signal)
-        print("✅ Trade executed successfully:", result)
 
-        return jsonify(result)  # Return full trade result
+        # Ensure result is serializable and structured
+        if isinstance(result, dict):
+            print("✅ Trade executed successfully:", result)
+            return jsonify(result), 200
+        else:
+            return jsonify({"status": "error", "message": "Unexpected response format from trade executor."}), 500
+
     except Exception as e:
         print("❌ Exception occurred during trade execution:")
         traceback.print_exc()
@@ -33,4 +39,5 @@ def handle_trade_signal():
         }), 500
 
 if __name__ == "__main__":
+    # Run locally (ignored by Railway)
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
