@@ -37,6 +37,43 @@ def execute_trade_on_gains(signal):
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
         print("📄 Contract connected")
 
+        # ✅ Approve USDC if necessary
+        usdc_address = Web3.to_checksum_address("0xa0b862f60edef4452f25b4160f177db44deb6cf1")  # USDC on Base
+        usdc_abi = [
+            {
+                "name": "approve",
+                "type": "function",
+                "inputs": [{"name": "_spender", "type": "address"}, {"name": "_value", "type": "uint256"}],
+                "outputs": [{"name": "", "type": "bool"}],
+                "stateMutability": "nonpayable"
+            },
+            {
+                "name": "allowance",
+                "type": "function",
+                "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}],
+                "outputs": [{"name": "remaining", "type": "uint256"}],
+                "stateMutability": "view"
+            }
+        ]
+        usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
+        current_allowance = usdc.functions.allowance(account.address, contract_address).call()
+        desired_allowance = int(500 * 1e6)
+
+        if current_allowance < desired_allowance:
+            print("🧾 Approving USDC for Gains contract...")
+            nonce = w3.eth.get_transaction_count(account.address)
+            gas_price = w3.eth.gas_price
+            tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': gas_price,
+            })
+            signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            print(f"✅ Approval TX sent: {tx_hash.hex()}")
+            time.sleep(10)  # Give it a moment to confirm
+
         # Extract trade details
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         entry_price = float(signal.get("Entry Price"))
