@@ -38,7 +38,7 @@ def execute_trade_on_gains(signal):
         print("📄 Contract connected")
 
         # ✅ Approve USDC if necessary
-        usdc_address = Web3.to_checksum_address("0xa0b862f60edef4452f25b4160f177db44deb6cf1")  # USDC on Base
+        usdc_address = Web3.to_checksum_address("0xd9AAEC86B65d86f6A7B5B1b0c42FFA531710b6CA")  # ✅ USDC on Base
         usdc_abi = [
             {
                 "name": "approve",
