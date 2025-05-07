@@ -40,28 +40,34 @@ def execute_trade_on_gains(signal):
         # ✅ Approve USDC if necessary
         usdc_address = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")  # ✅ USDC on Base
         usdc_abi = [
-            {
-                "name": "approve",
-                "type": "function",
-                "inputs": [{"name": "_spender", "type": "address"}, {"name": "_value", "type": "uint256"}],
-                "outputs": [{"name": "", "type": "bool"}],
-                "stateMutability": "nonpayable"
-            },
-            {
-                "name": "allowance",
-                "type": "function",
-                "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}],
-                "outputs": [{"name": "remaining", "type": "uint256"}],
-                "stateMutability": "view"
-            },
-            {
-                "name": "balanceOf",
-                "type": "function",
-                "inputs": [{"name": "_owner", "type": "address"}],
-                "outputs": [{"name": "balance", "type": "uint256"}],
-                "stateMutability": "view"
-            }
-        ]
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function",
+    },
+    {
+        "constant": True,
+        "inputs": [
+            {"name": "_owner", "type": "address"},
+            {"name": "_spender", "type": "address"}
+        ],
+        "name": "allowance",
+        "outputs": [{"name": "remaining", "type": "uint256"}],
+        "type": "function",
+    },
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_spender", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "name": "approve",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function",
+    }
+]
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
         current_allowance = usdc.functions.allowance(account.address, contract_address).call()
         desired_allowance = int(500 * 1e6)
