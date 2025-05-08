@@ -15,31 +15,31 @@ PAIR_INDEX_MAP = {
 }
 
 def execute_trade_on_gains(signal):
-    print("\ud83d\udce9 Incoming signal data:", json.dumps(signal, indent=2))
-    print("\ud83d\udea6 Trade execution started")
+    print("Incoming signal data:", json.dumps(signal, indent=2))
+    print("Trade execution started")
     try:
         # Connect to BASE network
         w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
         if not w3.is_connected():
             raise ConnectionError("Failed to connect to BASE network.")
-        print("\ud83d\udd0c Connected to BASE")
+        print("Connected to BASE")
 
         # Load wallet
         private_key = os.getenv("WALLET_PRIVATE_KEY")
         account = w3.eth.account.from_key(private_key)
-        print(f"\ud83d\udcbc Wallet loaded: {account.address}")
+        print(f"Wallet loaded: {account.address}")
 
         # Load ABI
         with open("abi/gains_base_abi.json", "r") as abi_file:
             gains_abi = json.load(abi_file)
-        print("\ud83d\uddd6\ufe0f ABI loaded")
+        print("ABI loaded")
 
         # Load contract
         contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
-        print("\ud83d\udcc4 Contract connected")
+        print("Contract connected")
 
-        # ✅ Approve USDC if necessary
+        # Approve USDC if necessary
         usdc_address = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
         usdc_abi = [
             {
@@ -77,7 +77,7 @@ def execute_trade_on_gains(signal):
 
         if current_allowance < desired_allowance:
             try:
-                print("\ud83d\udcdf Approving USDC for Gains contract...")
+                print("Approving USDC for Gains contract...")
                 nonce = w3.eth.get_transaction_count(account.address)
                 gas_price = w3.eth.gas_price
                 tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
@@ -88,16 +88,16 @@ def execute_trade_on_gains(signal):
                 })
                 signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
                 tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                print(f"\u2705 Approval TX sent: {tx_hash.hex()}")
+                print(f"Approval TX sent: {tx_hash.hex()}")
 
-                # ✅ Wait for confirmation
+                # Wait for confirmation
                 receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
                 if receipt.status != 1:
-                    raise Exception("\u274c USDC approval transaction failed")
-                print("\u2705 USDC approval confirmed on-chain")
+                    raise Exception("USDC approval transaction failed")
+                print("USDC approval confirmed on-chain")
 
             except Exception as e:
-                print("\u274c Approval error:", str(e))
+                print("Approval error:", str(e))
                 print(traceback.format_exc())
                 return {
                     "status": "error",
@@ -105,7 +105,7 @@ def execute_trade_on_gains(signal):
                     "trace": traceback.format_exc()
                 }
 
-        # ✅ Get USDC balance
+        # Get USDC balance
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
         usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
 
@@ -116,20 +116,20 @@ def execute_trade_on_gains(signal):
         pair_index = PAIR_INDEX_MAP.get(symbol, 0)
 
         if pair_index == 0:
-            raise ValueError(f"\u274c Unsupported or missing symbol in signal: '{symbol}'")
+            raise ValueError(f"Unsupported or missing symbol in signal: '{symbol}'")
 
         leverage = int(os.getenv("LEVERAGE", 5))
 
         # Skip if trade size is too small
         if usd_amount < 5:
-            print(f"\u26a0\ufe0f Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
+            print(f"Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
             return {
                 "status": "SKIPPED",
                 "reason": f"Trade size ${usd_amount:.2f} below $5 minimum"
             }
 
         position_size = int(usd_amount * 1e6)
-        print(f"\ud83d\udcca Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
+        print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
         # Build trade struct
         trade_struct = (
@@ -171,7 +171,7 @@ def execute_trade_on_gains(signal):
         signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
         tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
-        print(f"\ud83d\ude80 Trade sent! TX hash: {tx_hash.hex()}")
+        print(f"Trade sent! TX hash: {tx_hash.hex()}")
 
         return {
             "status": "TRADE SENT",
@@ -187,9 +187,9 @@ def execute_trade_on_gains(signal):
         }
 
     except Exception as e:
-        print("\u274c ERROR: An exception occurred during trade execution")
-        print("\ud83e\udde0 Error details:", str(e))
-        print("\ud83d\udcc4 Traceback:\n", traceback.format_exc())
+        print("ERROR: An exception occurred during trade execution")
+        print("Error details:", str(e))
+        print("Traceback:\n", traceback.format_exc())
         return {
             "status": "error",
             "message": str(e),
