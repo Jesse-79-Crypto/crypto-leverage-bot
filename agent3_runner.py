@@ -4,7 +4,7 @@ import time
 import os
 import traceback
 
-# ✅ Map trading symbols to Gains Network pair indices
+# Map trading symbols to Gains Network pair indices
 PAIR_INDEX_MAP = {
     "BTC": 1,
     "ETH": 2,
@@ -39,7 +39,7 @@ def execute_trade_on_gains(signal):
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
         print("Contract connected")
 
-        # Approve USDC if necessary
+        # USDC approval
         usdc_address = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
         usdc_abi = [
             {
@@ -72,38 +72,41 @@ def execute_trade_on_gains(signal):
         ]
 
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
-        current_allowance = usdc.functions.allowance(account.address, contract_address).call()
+
+        print("Checking current USDC allowance...")
+        allowance = usdc.functions.allowance(account.address, contract_address).call()
+        print(f"Current allowance for Gains contract: {allowance / 1e6:.2f} USDC")
+
+        print("Forcing USDC approval to Gains contract...")
+        nonce = w3.eth.get_transaction_count(account.address)
+        gas_price = w3.eth.gas_price
         desired_allowance = int(500 * 1e6)
 
-        if current_allowance < desired_allowance:
-            try:
-                print("Approving USDC for Gains contract...")
-                nonce = w3.eth.get_transaction_count(account.address)
-                gas_price = w3.eth.gas_price
-                tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
-                    'from': account.address,
-                    'nonce': nonce,
-                    'gas': 100000,
-                    'gasPrice': gas_price,
-                })
-                signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
-                tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                print(f"Approval TX sent: {tx_hash.hex()}")
+        try:
+            tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': gas_price,
+            })
+            signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            print(f"Approval TX sent: {tx_hash.hex()}")
 
-                # Wait for confirmation
-                receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-                if receipt.status != 1:
-                    raise Exception("USDC approval transaction failed")
-                print("USDC approval confirmed on-chain")
+            # Wait for confirmation
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt.status != 1:
+                raise Exception("USDC approval transaction failed")
+            print("USDC approval confirmed on-chain")
 
-            except Exception as e:
-                print("Approval error:", str(e))
-                print(traceback.format_exc())
-                return {
-                    "status": "error",
-                    "message": f"USDC approval failed: {str(e)}",
-                    "trace": traceback.format_exc()
-                }
+        except Exception as e:
+            print("Approval error:", str(e))
+            print(traceback.format_exc())
+            return {
+                "status": "error",
+                "message": f"USDC approval failed: {str(e)}",
+                "trace": traceback.format_exc()
+            }
 
         # Get USDC balance
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
@@ -120,7 +123,6 @@ def execute_trade_on_gains(signal):
 
         leverage = int(os.getenv("LEVERAGE", 5))
 
-        # Skip if trade size is too small
         if usd_amount < 5:
             print(f"Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
             return {
@@ -131,7 +133,6 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)
         print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
-        # Build trade struct
         trade_struct = (
             Web3.to_checksum_address(account.address),
             int(pair_index),
@@ -151,7 +152,6 @@ def execute_trade_on_gains(signal):
         order_type = 0
         referral_address = account.address
 
-        # Build transaction
         nonce = w3.eth.get_transaction_count(account.address)
         gas_price = w3.eth.gas_price
 
@@ -167,7 +167,6 @@ def execute_trade_on_gains(signal):
             'value': 0
         })
 
-        # Sign and send
         signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
         tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
