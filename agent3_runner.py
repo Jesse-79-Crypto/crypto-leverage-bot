@@ -75,9 +75,9 @@ def execute_trade_on_gains(signal):
 
     if current_allowance < desired_allowance:
         print("🧾 Approving USDC for Gains contract...")
-        nonce = w3.eth.get_transaction_count(account.address)
-        gas_price = w3.eth.gas_price
         try:
+            nonce = w3.eth.get_transaction_count(account.address)
+            gas_price = w3.eth.gas_price
             tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
                 'from': account.address,
                 'nonce': nonce,
