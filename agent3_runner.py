@@ -99,6 +99,8 @@ def execute_trade_on_gains(signal):
                 raise Exception("USDC approval transaction failed")
             print("USDC approval confirmed on-chain")
 
+            time.sleep(3)  # Small buffer to avoid nonce sync issues
+
         except Exception as e:
             print("Approval error:", str(e))
             print(traceback.format_exc())
@@ -152,7 +154,7 @@ def execute_trade_on_gains(signal):
         order_type = 0
         referral_address = account.address
 
-        nonce = w3.eth.get_transaction_count(account.address)
+        nonce = w3.eth.get_transaction_count(account.address, 'pending')
         gas_price = w3.eth.gas_price
 
         txn = contract.functions.openTrade(
