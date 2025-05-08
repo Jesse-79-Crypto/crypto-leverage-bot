@@ -80,7 +80,7 @@ def execute_trade_on_gains(signal):
         print("Forcing USDC approval to Gains contract...")
         nonce = w3.eth.get_transaction_count(account.address, 'pending')
         base_gas_price = w3.eth.gas_price
-        gas_price = max(int(base_gas_price * 1.1), base_gas_price + 1000000000)  # 1 Gwei bump
+        gas_price = max(int(base_gas_price * 1.1), base_gas_price + 1000000000)
         desired_allowance = int(500 * 1e6)
 
         try:
@@ -102,7 +102,7 @@ def execute_trade_on_gains(signal):
                 raise Exception("USDC approval transaction failed")
             print("USDC approval confirmed on-chain")
 
-            time.sleep(3)  # Optional delay to help prevent nonce sync issues
+            time.sleep(3)
 
         except Exception as e:
             print("Approval error:", str(e))
