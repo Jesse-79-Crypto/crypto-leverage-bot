@@ -174,15 +174,15 @@ def execute_trade_on_gains(signal):
         }
 
     except Exception as e:
-    import traceback
-    print("❌ ERROR: An exception occurred during trade execution")
-    print("🧠 Error details:", str(e))
-    print("📄 Traceback:\n", traceback.format_exc())
+        import traceback
+        print("❌ ERROR: An exception occurred during trade execution")
+        print("🧠 Error details:", str(e))
+        print("📄 Traceback:\n", traceback.format_exc())
 
-    return {
-        "status": "error",
-        "message": str(e),
-        "trace": traceback.format_exc()
+        return {
+            "status": "error",
+            "message": str(e),
+            "trace": traceback.format_exc()
     }
 
 
