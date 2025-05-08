@@ -82,10 +82,14 @@ def execute_trade_on_gains(signal):
                 'gas': 100000,
                 'gasPrice': gas_price,
             })
-            signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
             tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             print(f"✅ Approval TX sent: {tx_hash.hex()}")
-            time.sleep(10)
+
+        # ✅ Wait for confirmation instead of sleeping blindly
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        if receipt.status != 1:
+            raise Exception("❌ USDC approval transaction failed")
+        print("✅ USDC approval confirmed on-chain")
 
         # ✅ Get USDC balance instead of ETH
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
