@@ -14,6 +14,7 @@ PAIR_INDEX_MAP = {
 }
 
 def execute_trade_on_gains(signal):
+    print("📩 Incoming signal data:", json.dumps(signal, indent=2))
     print("🚦 Trade execution started")
     try:
         # Connect to BASE network
@@ -173,5 +174,15 @@ def execute_trade_on_gains(signal):
         }
 
     except Exception as e:
-        print(f"❌ ERROR: {e}")
-        raise
+    import traceback
+    print("❌ ERROR: An exception occurred during trade execution")
+    print("🧠 Error details:", str(e))
+    print("📄 Traceback:\n", traceback.format_exc())
+
+    return {
+        "status": "error",
+        "message": str(e),
+        "trace": traceback.format_exc()
+    }
+
+
