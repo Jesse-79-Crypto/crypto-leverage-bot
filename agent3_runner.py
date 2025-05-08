@@ -73,8 +73,8 @@ def execute_trade_on_gains(signal):
     current_allowance = usdc.functions.allowance(account.address, contract_address).call()
     desired_allowance = int(500 * 1e6)
 
-    try:
     if current_allowance < desired_allowance:
+    try:
         print("🧾 Approving USDC for Gains contract...")
         nonce = w3.eth.get_transaction_count(account.address)
         gas_price = w3.eth.gas_price
@@ -94,15 +94,15 @@ def execute_trade_on_gains(signal):
             raise Exception("❌ USDC approval transaction failed")
         print("✅ USDC approval confirmed on-chain")
 
-except Exception as e:
-    import traceback
-    print("❌ Approval error:", str(e))
-    print(traceback.format_exc())
-    return {
-        "status": "error",
-        "message": f"USDC approval failed: {str(e)}",
-        "trace": traceback.format_exc()
-    }
+    except Exception as e:
+        import traceback
+        print("❌ Approval error:", str(e))
+        print(traceback.format_exc())
+        return {
+            "status": "error",
+            "message": f"USDC approval failed: {str(e)}",
+            "trace": traceback.format_exc()
+        }
         # ✅ Wait for confirmation instead of sleeping blindly
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
         if receipt.status != 1:
