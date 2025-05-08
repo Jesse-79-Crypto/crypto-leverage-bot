@@ -94,12 +94,14 @@ def execute_trade_on_gains(signal):
             print(f"Approval TX sent: {tx_hash.hex()}")
 
             # Wait for confirmation
+            if not tx_hash:
+                raise Exception("Approval transaction failed: tx_hash not returned")
             receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
             if receipt.status != 1:
                 raise Exception("USDC approval transaction failed")
             print("USDC approval confirmed on-chain")
 
-            time.sleep(3)  # Small buffer to avoid nonce sync issues
+            time.sleep(3)  # Optional delay to help prevent nonce sync issues
 
         except Exception as e:
             print("Approval error:", str(e))
@@ -171,6 +173,8 @@ def execute_trade_on_gains(signal):
 
         signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
         tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        if not tx_hash:
+            raise Exception("Trade transaction failed: tx_hash not returned")
 
         print(f"Trade sent! TX hash: {tx_hash.hex()}")
 
