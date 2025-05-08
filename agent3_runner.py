@@ -74,35 +74,35 @@ def execute_trade_on_gains(signal):
     desired_allowance = int(500 * 1e6)
 
     if current_allowance < desired_allowance:
-    try:
-        print("🧾 Approving USDC for Gains contract...")
-        nonce = w3.eth.get_transaction_count(account.address)
-        gas_price = w3.eth.gas_price
-        tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
-            'from': account.address,
-            'nonce': nonce,
-            'gas': 100000,
-            'gasPrice': gas_price,
-        })
-        signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        print(f"✅ Approval TX sent: {tx_hash.hex()}")
+        try:
+            print("🧾 Approving USDC for Gains contract...")
+            nonce = w3.eth.get_transaction_count(account.address)
+            gas_price = w3.eth.gas_price
+            tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': 100000,
+                'gasPrice': gas_price,
+            })
+            signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            print(f"✅ Approval TX sent: {tx_hash.hex()}")
 
-        # ✅ Wait for confirmation
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        if receipt.status != 1:
-            raise Exception("❌ USDC approval transaction failed")
-        print("✅ USDC approval confirmed on-chain")
+            # ✅ Wait for confirmation
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt.status != 1:
+                raise Exception("❌ USDC approval transaction failed")
+            print("✅ USDC approval confirmed on-chain")
 
-    except Exception as e:
-        import traceback
-        print("❌ Approval error:", str(e))
-        print(traceback.format_exc())
-        return {
-            "status": "error",
-            "message": f"USDC approval failed: {str(e)}",
-            "trace": traceback.format_exc()
-        }
+        except Exception as e:
+            import traceback
+            print("❌ Approval error:", str(e))
+            print(traceback.format_exc())
+            return {
+                "status": "error",
+                "message": f"USDC approval failed: {str(e)}",
+                "trace": traceback.format_exc()
+            }
         # ✅ Wait for confirmation instead of sleeping blindly
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
         if receipt.status != 1:
