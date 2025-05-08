@@ -78,8 +78,9 @@ def execute_trade_on_gains(signal):
         print(f"Current allowance for Gains contract: {allowance / 1e6:.2f} USDC")
 
         print("Forcing USDC approval to Gains contract...")
-        nonce = w3.eth.get_transaction_count(account.address)
-        gas_price = w3.eth.gas_price
+        nonce = w3.eth.get_transaction_count(account.address, 'pending')
+        base_gas_price = w3.eth.gas_price
+        gas_price = max(int(base_gas_price * 1.1), base_gas_price + 1000000000)  # 1 Gwei bump
         desired_allowance = int(500 * 1e6)
 
         try:
