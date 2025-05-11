@@ -24,6 +24,51 @@ MIN_NOTIONAL_PER_PAIR = {
     "ARB": 50
 }
 
+def verify_gains_trade_struct(trade_struct):
+    """
+    Verifies the trade struct parameters, checking common issues
+    """
+    issues = []
+    status = "PASS"
+    
+    # Verify address
+    if not Web3.is_address(trade_struct[0]):
+        issues.append("Invalid trader address")
+        status = "FAIL"
+    
+    # Verify pair index (should be 1-15 for most Gains deployments)
+    if not isinstance(trade_struct[1], int) or trade_struct[1] < 1 or trade_struct[1] > 15:
+        issues.append(f"Suspicious pair index: {trade_struct[1]}")
+        status = "WARNING"
+    
+    # Verify leverage (Gains usually allows 2-150x)
+    if not isinstance(trade_struct[2], int) or trade_struct[2] < 2 or trade_struct[2] > 150:
+        issues.append(f"Leverage value suspicious: {trade_struct[2]}")
+        status = "WARNING"
+    
+    # Verify position size (Gains usually expects this in USDC with 6 decimals)
+    # Minimum size is usually around 5 USDC (5,000,000)
+    if not isinstance(trade_struct[3], int) or trade_struct[3] < 5_000_000:
+        issues.append(f"Position size suspicious: {trade_struct[3]}")
+        status = "WARNING"
+    
+    # Verify direction is boolean
+    if not isinstance(trade_struct[4], bool):
+        issues.append(f"Direction not boolean: {trade_struct[4]}")
+        status = "FAIL"
+    
+    # Verify deadline
+    current_time = int(time.time())
+    if not isinstance(trade_struct[10], int) or trade_struct[10] < current_time:
+        issues.append(f"Deadline already passed: {trade_struct[10]}")
+        status = "FAIL"
+    
+    return {
+        "status": status,
+        "issues": issues,
+        "struct": trade_struct
+    }
+
 def execute_trade_on_gains(signal):
     print("Incoming signal data:", json.dumps(signal, indent=2))
     print("Trade execution started")
@@ -49,6 +94,10 @@ def execute_trade_on_gains(signal):
         contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
         print("Contract connected")
+
+        # Check if the required function exists in the ABI
+        if not any(func.get('name') == 'openTrade' for func in gains_abi if 'name' in func):
+            raise Exception("openTrade function not found in ABI - check your ABI file")
 
         usdc_address = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
         usdc_abi = [
@@ -151,44 +200,65 @@ def execute_trade_on_gains(signal):
             return {"status": "SKIPPED", "reason": f"Trade size ${usd_amount:.2f} below $5 minimum"}
 
         position_size = int(usd_amount * 1e6)
-        print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
+        print(f"Position size: ${usd_amount:.2f} USD ({position_size} tokens)")
 
-        # Make sure all parameters are within correct data type bounds
-        # Using int() with bit masks to ensure correct sizing
+        # IMPORTANT: The struct must match the contract's expected format exactly
         trade_struct = (
             Web3.to_checksum_address(account.address),  # trader
-            pair_index,                                 # pairIndex
-            leverage,                                   # leverage
-            position_size,                              # positionSizeStable
-            is_long,                                    # direction (long=true)
+            pair_index,                                 # pairIndex (must be a valid index from PAIR_INDEX_MAP)
+            leverage,                                   # leverage (must be within contract's allowed range)
+            position_size,                              # positionSizeStable (in USDC token units, 6 decimals)
+            is_long,                                    # direction (true for long, false for short)
             True,                                       # referral enabled
-            1,                                          # openMode
-            3,                                          # closeMode
-            0,                                          # TP1
-            0,                                          # SL1
-            int(time.time()) + 300,                     # deadline (5 mins)
-            0,                                          # Extra
-            0                                           # Extra2
+            1,                                          # openMode (1 for market)
+            3,                                          # closeMode 
+            0,                                          # TP price (0 for none)
+            0,                                          # SL price (0 for none)
+            int(time.time()) + 300,                     # deadline (5 mins from now)
+            0,                                          # Reserved1
+            0                                           # Reserved2
         )
         
-        # Log the exact parameters being sent
-        print(f"Trade struct parameters: {trade_struct}")
+        # CRITICAL: Log and verify the trade parameters for debugging
+        print(f"Pair Index: {pair_index}, Type: {type(pair_index)}")
+        print(f"Leverage: {leverage}, Type: {type(leverage)}")
+        print(f"Position Size: {position_size}, Type: {type(position_size)}")
+        print(f"Is Long: {is_long}, Type: {type(is_long)}")
+        print(f"Deadline: {int(time.time()) + 300}, Type: {type(int(time.time()) + 300)}")
+        
+        # Verify trade struct before sending
+        verification = verify_gains_trade_struct(trade_struct)
+        print(f"Trade struct verification: {verification['status']}")
+        if verification['issues']:
+            print("Issues found:")
+            for issue in verification['issues']:
+                print(f"- {issue}")
+            if verification['status'] == "FAIL":
+                return {"status": "error", "message": f"Failed trade struct validation: {verification['issues']}"}
         
         # Calculate slippage based on volatility of the asset
         slippage = 50 if symbol in ["BTC", "ETH"] else 100  # 0.5% for majors, 1% for others
         print(f"Using slippage: {slippage/10}%")
 
         try:
-            # First, build the transaction
+            # Verify contract method signature before proceeding
+            print("Verifying contract interface...")
+            
+            # Build the transaction
             txn = contract.functions.openTrade(
                 trade_struct,
-                slippage,  # slippage (tenths of a percent)
-                account.address  # callback target
+                slippage,              # slippage (tenths of a percent)
+                account.address        # callback target
             ).build_transaction({
                 'from': account.address,
                 'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
                 'value': 0
             })
+            
+            # Log the full transaction data for debugging
+            tx_data = txn.get('data', '0x')
+            print(f"Transaction data length: {len(tx_data)}")
+            print(f"Transaction data prefix: {tx_data[:66]}...")
             
             # Add gas price with buffer for Base network
             base_gas_price = w3.eth.gas_price
@@ -205,13 +275,13 @@ def execute_trade_on_gains(signal):
                 txn['gas'] = 500000
                 print(f"Using fallback gas limit: {txn['gas']}")
             
+            # Final transaction details for logging
+            print(f"Transaction details: nonce={txn['nonce']}, gas={txn['gas']}, gasPrice={txn['gasPrice']}")
+            
             # Sign and send transaction
             signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
             tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
             print(f"Trade sent! TX hash: {tx_hash.hex()}")
-            
-            # Additional debug info
-            print(f"Transaction details: nonce={txn['nonce']}, gas={txn['gas']}, gasPrice={txn['gasPrice']}")
             
             return {
                 "status": "TRADE SENT",
