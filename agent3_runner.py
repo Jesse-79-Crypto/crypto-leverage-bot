@@ -14,63 +14,43 @@ PAIR_INDEX_MAP = {
     "ARB": 6
 }
 
+# Approximate minimum notional values required by Gains Network per pair
+MIN_NOTIONAL_PER_PAIR = {
+    "BTC": 100,
+    "ETH": 75,
+    "LINK": 50,
+    "SOL": 50,
+    "AVAX": 50,
+    "ARB": 50
+}
+
 def execute_trade_on_gains(signal):
     print("Incoming signal data:", json.dumps(signal, indent=2))
     print("Trade execution started")
     try:
-        # Connect to BASE network
         w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
         if not w3.is_connected():
             raise ConnectionError("Failed to connect to BASE network.")
         print("Connected to BASE")
 
-        # Load wallet
         private_key = os.getenv("WALLET_PRIVATE_KEY")
         account = w3.eth.account.from_key(private_key)
         print(f"Wallet loaded: {account.address}")
 
-        # Load ABI
         with open("abi/gains_base_abi.json", "r") as abi_file:
             gains_abi = json.load(abi_file)
         print("ABI loaded")
 
-        # Load contract
         contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
         print("Contract connected")
 
-        # USDC approval
         usdc_address = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
         usdc_abi = [
-            {
-                "constant": True,
-                "inputs": [{"name": "_owner", "type": "address"}],
-                "name": "balanceOf",
-                "outputs": [{"name": "balance", "type": "uint256"}],
-                "type": "function"
-            },
-            {
-                "constant": True,
-                "inputs": [
-                    {"name": "_owner", "type": "address"},
-                    {"name": "_spender", "type": "address"}
-                ],
-                "name": "allowance",
-                "outputs": [{"name": "remaining", "type": "uint256"}],
-                "type": "function"
-            },
-            {
-                "constant": False,
-                "inputs": [
-                    {"name": "_spender", "type": "address"},
-                    {"name": "_value", "type": "uint256"}
-                ],
-                "name": "approve",
-                "outputs": [{"name": "", "type": "bool"}],
-                "type": "function"
-            }
+            {"constant": True, "inputs": [{"name": "_owner", "type": "address"}], "name": "balanceOf", "outputs": [{"name": "balance", "type": "uint256"}], "type": "function"},
+            {"constant": True, "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}], "name": "allowance", "outputs": [{"name": "remaining", "type": "uint256"}], "type": "function"},
+            {"constant": False, "inputs": [{"name": "_spender", "type": "address"}, {"name": "_value", "type": "uint256"}], "name": "approve", "outputs": [{"name": "", "type": "bool"}], "type": "function"}
         ]
-
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
 
         print("Checking current USDC allowance...")
@@ -110,11 +90,9 @@ def execute_trade_on_gains(signal):
                 "trace": traceback.format_exc()
             }
 
-        # Get USDC balance
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
         usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
 
-        # Extract trade details
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         entry_price = float(signal.get("Entry Price"))
         symbol = signal.get("Coin", "").strip().upper()
@@ -124,6 +102,16 @@ def execute_trade_on_gains(signal):
             raise ValueError(f"Unsupported or missing symbol in signal: '{symbol}'")
 
         leverage = int(os.getenv("LEVERAGE", 5))
+
+        # New check: Minimum notional enforcement
+        notional_value = usd_amount * leverage
+        min_required = MIN_NOTIONAL_PER_PAIR.get(symbol, 50)
+        if notional_value < min_required:
+            print(f"Skipping trade: Notional value ${notional_value:.2f} is below Gains minimum of ${min_required} for {symbol}")
+            return {
+                "status": "SKIPPED",
+                "reason": f"Notional value ${notional_value:.2f} too low for {symbol}"
+            }
 
         if usd_amount < 5:
             print(f"Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
@@ -135,22 +123,20 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)
         print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
-        # Expanded trade struct with 14 fields
         trade_struct = (
-            Web3.to_checksum_address(account.address),  # 0: Trader address
-            int(pair_index),                            # 1: Pair index
-            int(leverage) & 0xFFFF,                     # 2: Leverage
-            int(position_size) & 0xFFFFFF,              # 3: Position size
-            bool(is_long),                              # 4: Is Long
-            True,                                       # 5: Market execution
-            1,                                          # 6: TakeProfit index
-            3,                                          # 7: StopLoss index
-            0,                                          # 8: Limit price (0 = market)
-            0,                                          # 9: TP price (0 = auto)
-            int(time.time()) + 120,                     # 10: Deadline
-            0,                                          # 11: Referral code
-            0,                                          # 12: Reserved / callbackGasLimit
-            0                                           # 13: Broker ID / extra param
+            Web3.to_checksum_address(account.address),
+            int(pair_index),
+            int(leverage) & 0xFFFF,
+            int(position_size) & 0xFFFFFF,
+            bool(is_long),
+            True,
+            1,
+            3,
+            0,
+            0,
+            int(time.time()) + 120,
+            0,
+            0
         )
 
         order_type = 0
