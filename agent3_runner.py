@@ -24,51 +24,6 @@ MIN_NOTIONAL_PER_PAIR = {
     "ARB": 50
 }
 
-def verify_gains_trade_struct(trade_struct):
-    """
-    Verifies the trade struct parameters, checking common issues
-    """
-    issues = []
-    status = "PASS"
-    
-    # Verify address
-    if not Web3.is_address(trade_struct[0]):
-        issues.append("Invalid trader address")
-        status = "FAIL"
-    
-    # Verify pair index (should be 1-15 for most Gains deployments)
-    if not isinstance(trade_struct[1], int) or trade_struct[1] < 1 or trade_struct[1] > 15:
-        issues.append(f"Suspicious pair index: {trade_struct[1]}")
-        status = "WARNING"
-    
-    # Verify leverage (Gains usually allows 2-150x)
-    if not isinstance(trade_struct[2], int) or trade_struct[2] < 2 or trade_struct[2] > 150:
-        issues.append(f"Leverage value suspicious: {trade_struct[2]}")
-        status = "WARNING"
-    
-    # Verify position size (Gains usually expects this in USDC with 6 decimals)
-    # Minimum size is usually around 5 USDC (5,000,000)
-    if not isinstance(trade_struct[3], int) or trade_struct[3] < 5_000_000:
-        issues.append(f"Position size suspicious: {trade_struct[3]}")
-        status = "WARNING"
-    
-    # Verify direction is boolean
-    if not isinstance(trade_struct[4], bool):
-        issues.append(f"Direction not boolean: {trade_struct[4]}")
-        status = "FAIL"
-    
-    # Verify deadline
-    current_time = int(time.time())
-    if not isinstance(trade_struct[10], int) or trade_struct[10] < current_time:
-        issues.append(f"Deadline already passed: {trade_struct[10]}")
-        status = "FAIL"
-    
-    return {
-        "status": status,
-        "issues": issues,
-        "struct": trade_struct
-    }
-
 def execute_trade_on_gains(signal):
     print("Incoming signal data:", json.dumps(signal, indent=2))
     print("Trade execution started")
@@ -202,63 +157,44 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)
         print(f"Position size: ${usd_amount:.2f} USD ({position_size} tokens)")
 
-        # IMPORTANT: The struct must match the contract's expected format exactly
-        trade_struct = (
-            Web3.to_checksum_address(account.address),  # trader
-            pair_index,                                 # pairIndex (must be a valid index from PAIR_INDEX_MAP)
-            leverage,                                   # leverage (must be within contract's allowed range)
-            position_size,                              # positionSizeStable (in USDC token units, 6 decimals)
-            is_long,                                    # direction (true for long, false for short)
-            True,                                       # referral enabled
-            1,                                          # openMode (1 for market)
-            3,                                          # closeMode 
-            0,                                          # TP price (0 for none)
-            0,                                          # SL price (0 for none)
-            int(time.time()) + 300,                     # deadline (5 mins from now)
-            0,                                          # Reserved1
-            0                                           # Reserved2
-        )
+        # CRITICAL: From the error message, we now know the contract expects a struct
+        # as defined in Solidity, not a tuple of values. Creating it properly:
         
-        # CRITICAL: Log and verify the trade parameters for debugging
-        print(f"Pair Index: {pair_index}, Type: {type(pair_index)}")
-        print(f"Leverage: {leverage}, Type: {type(leverage)}")
-        print(f"Position Size: {position_size}, Type: {type(position_size)}")
-        print(f"Is Long: {is_long}, Type: {type(is_long)}")
-        print(f"Deadline: {int(time.time()) + 300}, Type: {type(int(time.time()) + 300)}")
+        # Define the trade parameters as a dictionary (struct)
+        trade_params = {
+            'trader': Web3.to_checksum_address(account.address),
+            'pairIndex': pair_index,
+            'leverage': leverage,
+            'positionSizeStable': position_size,
+            'isLong': is_long,
+            'referralEnabled': True, 
+            'openMode': 1,   # Market order
+            'closeMode': 3,
+            'takeProfitPrice': 0,  # No TP set
+            'stopLossPrice': 0,    # No SL set
+            'deadline': int(time.time()) + 300,  # 5 minutes
+            'reserved1': 0,
+            'reserved2': 0
+        }
         
-        # Verify trade struct before sending
-        verification = verify_gains_trade_struct(trade_struct)
-        print(f"Trade struct verification: {verification['status']}")
-        if verification['issues']:
-            print("Issues found:")
-            for issue in verification['issues']:
-                print(f"- {issue}")
-            if verification['status'] == "FAIL":
-                return {"status": "error", "message": f"Failed trade struct validation: {verification['issues']}"}
+        # Log the parameters for debugging
+        print(f"Trade parameters: {json.dumps(trade_params, indent=2, default=str)}")
         
         # Calculate slippage based on volatility of the asset
         slippage = 50 if symbol in ["BTC", "ETH"] else 100  # 0.5% for majors, 1% for others
         print(f"Using slippage: {slippage/10}%")
 
         try:
-            # Verify contract method signature before proceeding
-            print("Verifying contract interface...")
-            
-            # Build the transaction
+            # Build the transaction using the struct
             txn = contract.functions.openTrade(
-                trade_struct,
-                slippage,              # slippage (tenths of a percent)
-                account.address        # callback target
+                trade_params,  # Pass as a dict/struct, not a tuple
+                slippage,     # slippage (tenths of a percent)
+                account.address  # callback target
             ).build_transaction({
                 'from': account.address,
                 'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
                 'value': 0
             })
-            
-            # Log the full transaction data for debugging
-            tx_data = txn.get('data', '0x')
-            print(f"Transaction data length: {len(tx_data)}")
-            print(f"Transaction data prefix: {tx_data[:66]}...")
             
             # Add gas price with buffer for Base network
             base_gas_price = w3.eth.gas_price
@@ -299,6 +235,7 @@ def execute_trade_on_gains(signal):
         except Exception as tx_error:
             # More specific error handling for transaction failures
             error_msg = str(tx_error)
+            print(f"Detailed error: {error_msg}")
             
             # Check for common error patterns
             if "gas required exceeds allowance" in error_msg:
@@ -309,6 +246,8 @@ def execute_trade_on_gains(signal):
                 suggested_fix = "Nonce issue - try resetting transaction count"
             elif "execution reverted" in error_msg:
                 suggested_fix = "Contract execution failed - check parameters and trade conditions"
+            elif "ABI Not Found" in error_msg or "MismatchedABI" in error_msg:
+                suggested_fix = "Trade parameters format mismatch - check contract ABI definition"
             else:
                 suggested_fix = "Review transaction parameters and contract requirements"
                 
