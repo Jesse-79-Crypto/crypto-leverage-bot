@@ -94,9 +94,6 @@ def execute_trade_on_gains(signal):
             tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             print(f"Approval TX sent: {tx_hash.hex()}")
 
-            # Wait for confirmation
-            if not tx_hash:
-                raise Exception("Approval transaction failed: tx_hash not returned")
             receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
             if receipt.status != 1:
                 raise Exception("USDC approval transaction failed")
@@ -138,20 +135,22 @@ def execute_trade_on_gains(signal):
         position_size = int(usd_amount * 1e6)
         print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
+        # Expanded trade struct with 14 fields
         trade_struct = (
-            Web3.to_checksum_address(account.address),
-            int(pair_index),
-            int(leverage) & 0xFFFF,
-            int(position_size) & 0xFFFFFF,
-            bool(is_long),
-            True,
-            1,
-            3,
-            0,
-            0,
-            int(time.time()) + 120,
-            0,
-            0
+            Web3.to_checksum_address(account.address),  # 0: Trader address
+            int(pair_index),                            # 1: Pair index
+            int(leverage) & 0xFFFF,                     # 2: Leverage
+            int(position_size) & 0xFFFFFF,              # 3: Position size
+            bool(is_long),                              # 4: Is Long
+            True,                                       # 5: Market execution
+            1,                                          # 6: TakeProfit index
+            3,                                          # 7: StopLoss index
+            0,                                          # 8: Limit price (0 = market)
+            0,                                          # 9: TP price (0 = auto)
+            int(time.time()) + 120,                     # 10: Deadline
+            0,                                          # 11: Referral code
+            0,                                          # 12: Reserved / callbackGasLimit
+            0                                           # 13: Broker ID / extra param
         )
 
         order_type = 0
