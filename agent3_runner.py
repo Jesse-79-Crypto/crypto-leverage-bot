@@ -5,11 +5,25 @@ import os
 import traceback
 import threading
 import requests
-import math
 from decimal import Decimal, getcontext
 
 # Set decimal precision
 getcontext().prec = 28
+
+# Set default values for environment variables if not present
+def get_env_or_default(var_name, default_value):
+    """
+    Get environment variable or return default value if not present
+    """
+    value = os.getenv(var_name)
+    if value is None:
+        print(f"Environment variable {var_name} not found, using default: {default_value}")
+        return default_value
+    return value
+
+# Default values for trading parameters
+DEFAULT_LEVERAGE = 5
+DEFAULT_MAX_RISK_PCT = 15
 
 # Map trading symbols to Gains Network pair indices
 PAIR_INDEX_MAP = {
@@ -245,16 +259,19 @@ def close_position(trade_info, close_pct, reason=""):
         print(f"Closing {close_pct}% of {trade_info['symbol']} position. Reason: {reason}")
         
         # Connect to Base network
-        w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
+        w3 = Web3(Web3.HTTPProvider(get_env_or_default("BASE_RPC_URL", "")))
         if not w3.is_connected():
             raise ConnectionError("Failed to connect to BASE network.")
         
-        private_key = os.getenv("WALLET_PRIVATE_KEY")
+        private_key = get_env_or_default("WALLET_PRIVATE_KEY", "")
         account = w3.eth.account.from_key(private_key)
         
         # Load contract ABI
-        with open("abi/gains_base_abi.json", "r") as abi_file:
-            gains_abi = json.load(abi_file)
+        try:
+            with open("abi/gains_base_abi.json", "r") as abi_file:
+                gains_abi = json.load(abi_file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            raise Exception(f"Failed to load ABI: {str(e)}")
         
         contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
@@ -450,12 +467,12 @@ def execute_trade_on_gains(signal):
     print("Trade execution started")
     try:
         # Connect to Base network
-        w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
+        w3 = Web3(Web3.HTTPProvider(get_env_or_default("BASE_RPC_URL", "")))
         if not w3.is_connected():
             raise ConnectionError("Failed to connect to BASE network.")
         print("Connected to BASE")
 
-        private_key = os.getenv("WALLET_PRIVATE_KEY")
+        private_key = get_env_or_default("WALLET_PRIVATE_KEY", "")
         account = w3.eth.account.from_key(private_key)
         print(f"Wallet loaded: {account.address}")
 
@@ -480,8 +497,8 @@ def execute_trade_on_gains(signal):
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
 
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
-        usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
-        print(f"USDC balance: {usdc_balance:.2f}, Using: {usd_amount:.2f} for this trade")
+        usd_amount = usdc_balance * float(get_env_or_default("MAX_RISK_PCT", DEFAULT_MAX_RISK_PCT)) / 100
+        print(f"USDC balance: {usdc_balance:.2f}, Using: {usd_amount:.2f} for this trade (MAX_RISK_PCT: {get_env_or_default('MAX_RISK_PCT', DEFAULT_MAX_RISK_PCT)}%)")
 
         allowance = usdc.functions.allowance(account.address, contract_address).call() / 1e6
         print(f"Current allowance for Gains contract: {allowance:.2f} USDC")
@@ -556,7 +573,9 @@ def execute_trade_on_gains(signal):
             print(f"Signal parsing error: {str(e)}")
             return {"status": "error", "message": f"Failed to parse signal data: {str(e)}"}
 
-        leverage = int(os.getenv("LEVERAGE", 5))
+        leverage = int(get_env_or_default("LEVERAGE", DEFAULT_LEVERAGE))
+        print(f"Using leverage: {leverage}x")
+        
         notional_value = usd_amount * leverage
         min_required = MIN_NOTIONAL_PER_PAIR.get(symbol, 50)
 
@@ -719,3 +738,53 @@ def execute_trade_on_gains(signal):
                 "suggested_fix": suggested_fix,
                 "trace": traceback.format_exc()
             }
+            
+    except Exception as e:
+        print("ERROR: An exception occurred during trade execution")
+        print("Error details:", str(e))
+        print("Traceback:\n", traceback.format_exc())
+        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
+
+
+def start_bot():
+    """
+    Main function to start the trading bot
+    """
+    print("="*80)
+    print("🚀 Professional Crypto Trading Bot with Risk Management Started 🚀")
+    print("="*80)
+    print(f"• Max Risk: {get_env_or_default('MAX_RISK_PCT', DEFAULT_MAX_RISK_PCT)}%")
+    print(f"• Leverage: {get_env_or_default('LEVERAGE', DEFAULT_LEVERAGE)}x")
+    print(f"• Take Profit Levels: TP1={DEFAULT_TP_LEVELS['TP1']}%, TP2={DEFAULT_TP_LEVELS['TP2']}%, TP3={DEFAULT_TP_LEVELS['TP3']}%")
+    print(f"• Take Profit Distribution: TP1={TP_CLOSE_PERCENTAGES['TP1']}%, TP2={TP_CLOSE_PERCENTAGES['TP2']}%, TP3={TP_CLOSE_PERCENTAGES['TP3']}%")
+    print(f"• Default Initial Stop Loss: 1.5-2.0% (asset dependent)")
+    print(f"• Trailing Stop: 0.5% trail distance")
+    print("="*80)
+    
+    # You would add your signal receiver logic here
+    # This could be a REST API endpoint, websocket connection, etc.
+    
+    # For example:
+    # start_signal_receiver()
+    
+    # Keep main thread alive
+    try:
+        while True:
+            time.sleep(60)
+            active_positions = len(active_trades)
+            if active_positions > 0:
+                print(f"Currently monitoring {active_positions} active positions: {list(active_trades.keys())}")
+    except KeyboardInterrupt:
+        print("Bot shutdown requested. Closing all positions...")
+        # Close all active positions on shutdown
+        for symbol, trade_info in active_trades.items():
+            try:
+                close_position(trade_info, 100, reason="Bot Shutdown")
+            except Exception as e:
+                print(f"Error closing position for {symbol}: {str(e)}")
+        print("Bot shutdown complete")
+
+
+if __name__ == "__main__":
+    # Start the bot if this file is run directly
+    start_bot()
