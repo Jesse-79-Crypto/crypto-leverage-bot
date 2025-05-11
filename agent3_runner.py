@@ -53,45 +53,41 @@ def execute_trade_on_gains(signal):
         ]
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
 
-        print("Checking current USDC allowance...")
-        allowance = usdc.functions.allowance(account.address, contract_address).call()
-        print(f"Current allowance for Gains contract: {allowance / 1e6:.2f} USDC")
-
-        print("Forcing USDC approval to Gains contract...")
-        nonce = w3.eth.get_transaction_count(account.address, 'pending')
-        base_gas_price = w3.eth.gas_price
-        gas_price = max(int(base_gas_price * 1.1), base_gas_price + 1000000000)
-        desired_allowance = int(500 * 1e6)
-
-        try:
-            tx = usdc.functions.approve(contract_address, desired_allowance).build_transaction({
-                'from': account.address,
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': gas_price,
-            })
-            signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
-            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            print(f"Approval TX sent: {tx_hash.hex()}")
-
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-            if receipt.status != 1:
-                raise Exception("USDC approval transaction failed")
-            print("USDC approval confirmed on-chain")
-
-            time.sleep(3)
-
-        except Exception as e:
-            print("Approval error:", str(e))
-            print(traceback.format_exc())
-            return {
-                "status": "error",
-                "message": f"USDC approval failed: {str(e)}",
-                "trace": traceback.format_exc()
-            }
-
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
         usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
+        print(f"USDC balance: {usdc_balance:.2f}, Using: {usd_amount:.2f} for this trade")
+
+        allowance = usdc.functions.allowance(account.address, contract_address).call() / 1e6
+        print(f"Current allowance for Gains contract: {allowance:.2f} USDC")
+
+        if allowance < usd_amount:
+            print("USDC allowance too low, re-approving now...")
+            try:
+                nonce = w3.eth.get_transaction_count(account.address, 'pending')
+                base_gas_price = w3.eth.gas_price
+                gas_price = max(int(base_gas_price * 1.1), base_gas_price + 1_000_000_000)
+                approval_amount = int(1_000 * 1e6)
+
+                tx = usdc.functions.approve(contract_address, approval_amount).build_transaction({
+                    'from': account.address,
+                    'nonce': nonce,
+                    'gas': 100000,
+                    'gasPrice': gas_price,
+                })
+                signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
+                tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                print(f"Approval TX sent: {tx_hash.hex()}")
+
+                receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+                if receipt.status != 1:
+                    raise Exception("USDC approval transaction failed")
+                print("USDC approval confirmed on-chain")
+                time.sleep(3)
+
+            except Exception as e:
+                print("Approval error:", str(e))
+                print(traceback.format_exc())
+                return {"status": "error", "message": f"USDC approval failed: {str(e)}", "trace": traceback.format_exc()}
 
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         entry_price = float(signal.get("Entry Price"))
@@ -102,10 +98,9 @@ def execute_trade_on_gains(signal):
             raise ValueError(f"Unsupported or missing symbol in signal: '{symbol}'")
 
         leverage = int(os.getenv("LEVERAGE", 5))
-
-        # New check: Minimum notional enforcement
         notional_value = usd_amount * leverage
         min_required = MIN_NOTIONAL_PER_PAIR.get(symbol, 50)
+
         if notional_value < min_required:
             print(f"Skipping trade: Notional value ${notional_value:.2f} is below Gains minimum of ${min_required} for {symbol}")
             return {
@@ -115,10 +110,7 @@ def execute_trade_on_gains(signal):
 
         if usd_amount < 5:
             print(f"Skipping trade: position size ${usd_amount:.2f} is below $5 minimum.")
-            return {
-                "status": "SKIPPED",
-                "reason": f"Trade size ${usd_amount:.2f} below $5 minimum"
-            }
+            return {"status": "SKIPPED", "reason": f"Trade size ${usd_amount:.2f} below $5 minimum"}
 
         position_size = int(usd_amount * 1e6)
         print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
@@ -129,39 +121,25 @@ def execute_trade_on_gains(signal):
             int(leverage) & 0xFFFF,
             int(position_size) & 0xFFFFFF,
             bool(is_long),
-            True,
-            1,
-            3,
-            0,
-            0,
+            True, 1, 3, 0, 0,
             int(time.time()) + 120,
-            0,
-            0
+            0, 0
         )
-
-        order_type = 0
-        referral_address = account.address
-
-        nonce = w3.eth.get_transaction_count(account.address, 'pending')
-        gas_price = w3.eth.gas_price
 
         txn = contract.functions.openTrade(
             trade_struct,
-            order_type,
-            referral_address
+            30,  # slippage (tenths of a percent)
+            account.address
         ).build_transaction({
             'from': account.address,
-            'nonce': nonce,
+            'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
             'gas': 300000,
-            'gasPrice': gas_price,
+            'gasPrice': w3.eth.gas_price,
             'value': 0
         })
 
         signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
         tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        if not tx_hash:
-            raise Exception("Trade transaction failed: tx_hash not returned")
-
         print(f"Trade sent! TX hash: {tx_hash.hex()}")
 
         return {
@@ -181,8 +159,4 @@ def execute_trade_on_gains(signal):
         print("ERROR: An exception occurred during trade execution")
         print("Error details:", str(e))
         print("Traceback:\n", traceback.format_exc())
-        return {
-            "status": "error",
-            "message": str(e),
-            "trace": traceback.format_exc()
-        }
+        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
