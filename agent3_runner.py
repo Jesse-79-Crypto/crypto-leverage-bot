@@ -601,8 +601,8 @@ def execute_trade_on_gains(signal):
             # FINAL FIELD NAMES BASED ON ERROR MESSAGES
             # We now have 'user' instead of 'trader' and 'index' as properly identified
             trade_struct = {
-                'user': Web3.to_checksum_address(account.address),  # Changed from 'trader' to 'user'
-                'index': pair_index,
+                'user': Web3.to_checksum_address(account.address),
+                'pairIndex': pair_index,  # Changed from 'index' to 'pairIndex'
                 'leverage': leverage, 
                 'margin': position_size,
                 'isLong': is_long,
