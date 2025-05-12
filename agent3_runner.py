@@ -602,7 +602,8 @@ def execute_trade_on_gains(signal):
             # We now have 'user' instead of 'trader' and 'index' as properly identified
             trade_struct = {
                 'user': Web3.to_checksum_address(account.address),
-                'pairIndex': pair_index,  # Changed from 'index' to 'pairIndex'
+                'index': pair_index,            # First attempt
+                'pairIndex': pair_index,        # Second attempt
                 'leverage': leverage, 
                 'margin': position_size,
                 'isLong': is_long,
@@ -613,32 +614,70 @@ def execute_trade_on_gains(signal):
                 'priceLimit': 0,
                 'deadline': int(time.time()) + 300,
                 'extra': 0
-            }
-            
+        }            
             # Get nonce and gas price
             nonce = w3.eth.get_transaction_count(account.address, 'pending')
             gas_price = int(w3.eth.gas_price * 1.3)  # 30% higher for Base
             
             # Try using our updated struct format
-            print(f"Attempting trade with struct: {json.dumps(trade_struct, default=str)}")
-            txn = contract.functions.openTrade(
-                trade_struct,         # Updated struct with correct field names
-                slippage,             # Slippage tolerance
-                account.address       # Callback address
-            ).build_transaction({
-                'from': account.address,
-                'nonce': nonce,
-                'gasPrice': gas_price,
-                'value': 0
-            })
-            
-            # Add a generous gas limit
-            txn['gas'] = 500000
-            
-            # Sign and send
-            signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
-            tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            print(f"Trade sent! TX hash: {tx_hash.hex()}")
+            try:
+    # First try with the combined struct
+    print(f"Attempting trade with combined struct: {json.dumps(trade_struct, default=str)}")
+    txn = contract.functions.openTrade(
+        trade_struct,         # Dict with both field names
+        slippage,             # Slippage tolerance
+        account.address       # Callback address
+    ).build_transaction({
+        'from': account.address,
+        'nonce': nonce,
+        'gasPrice': gas_price,
+        'value': 0
+    })
+    
+    # Add a generous gas limit
+    txn['gas'] = 500000
+    
+    # Sign and send
+    signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
+    tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+    
+except Exception as struct_error:
+    print(f"Dict approach failed: {str(struct_error)}")
+    
+    # Fallback to tuple approach
+    trade_tuple = (
+        Web3.to_checksum_address(account.address),
+        pair_index,
+        leverage,
+        position_size,
+        is_long,
+        True,  # referral
+        1,     # mode
+        0,     # tp
+        0,     # sl
+        0,     # priceLimit
+        int(time.time()) + 300,
+        0      # extra
+    )
+    
+    print(f"Attempting trade with tuple approach")
+    txn = contract.functions.openTrade(
+        trade_tuple,
+        slippage,
+        account.address
+    ).build_transaction({
+        'from': account.address,
+        'nonce': nonce,
+        'gasPrice': gas_price,
+        'value': 0
+    })
+    
+    # Add a generous gas limit
+    txn['gas'] = 500000
+    
+    # Sign and send
+    signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
+    tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)            print(f"Trade sent! TX hash: {tx_hash.hex()}")
             
             # Create trade info for monitoring
             trade_info = {
