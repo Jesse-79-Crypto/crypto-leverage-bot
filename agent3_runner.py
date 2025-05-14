@@ -599,14 +599,15 @@ def execute_trade_on_gains(signal):
 
         try:
             # FINAL FIELD NAMES BASED ON ERROR MESSAGES
-            # We now have 'user' instead of 'trader' and 'index' as properly identified
+            # Update with all field names we've discovered
             trade_struct = {
                 'user': Web3.to_checksum_address(account.address),
                 'index': pair_index,            # First attempt
                 'pairIndex': pair_index,        # Second attempt
                 'leverage': leverage, 
                 'margin': position_size,
-                'isLong': is_long,
+                'long': is_long,                # Changed from 'isLong' to 'long' based on latest error
+                'isLong': is_long,              # Keep this as fallback
                 'referral': True,
                 'mode': 1,
                 'tp': 0,
@@ -644,20 +645,22 @@ def execute_trade_on_gains(signal):
             except Exception as struct_error:
                 print(f"Dict approach failed: {str(struct_error)}")
                 
-                # Fallback to tuple approach
+                # Fallback to tuple approach with 13 elements
+                # Updated to include all 13 expected elements
                 trade_tuple = (
                     Web3.to_checksum_address(account.address),
                     pair_index,
                     leverage,
                     position_size,
                     is_long,
-                    True,  # referral
-                    1,     # mode
-                    0,     # tp
-                    0,     # sl
-                    0,     # priceLimit
-                    int(time.time()) + 300,
-                    0      # extra
+                    True,   # referral
+                    1,      # mode
+                    0,      # tp
+                    0,      # sl
+                    0,      # priceLimit
+                    int(time.time()) + 300,  # deadline
+                    0,      # extra (1)
+                    0       # extra (2) - Add this missing 13th element
                 )
                 
                 print(f"Attempting trade with tuple approach")
