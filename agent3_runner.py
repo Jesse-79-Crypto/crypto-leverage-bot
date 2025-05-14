@@ -598,16 +598,17 @@ def execute_trade_on_gains(signal):
         print(f"Using slippage: {slippage/10}%")
 
         try:
-            # FINAL FIELD NAMES BASED ON ERROR MESSAGES
-            # Update with all field names we've discovered
+            # UPDATED FIELD NAMES BASED ON ERROR MESSAGES
+            # Added 'isOpen' field based on latest error
             trade_struct = {
                 'user': Web3.to_checksum_address(account.address),
                 'index': pair_index,            # First attempt
                 'pairIndex': pair_index,        # Second attempt
                 'leverage': leverage, 
                 'margin': position_size,
-                'long': is_long,                # Changed from 'isLong' to 'long' based on latest error
-                'isLong': is_long,              # Keep this as fallback
+                'long': is_long,                # Changed from 'isLong' to 'long' 
+                'isLong': is_long,              # Keep as fallback
+                'isOpen': True,                 # NEW field from latest error
                 'referral': True,
                 'mode': 1,
                 'tp': 0,
@@ -623,9 +624,9 @@ def execute_trade_on_gains(signal):
             
             try:
                 # First try with the combined struct
-                print(f"Attempting trade with combined struct: {json.dumps(trade_struct, default=str)}")
+                print(f"Attempting trade with combined struct (includes isOpen field)")
                 txn = contract.functions.openTrade(
-                    trade_struct,         # Dict with both field names
+                    trade_struct,         # Dict with all field names
                     slippage,             # Slippage tolerance
                     account.address       # Callback address
                 ).build_transaction({
@@ -645,14 +646,49 @@ def execute_trade_on_gains(signal):
             except Exception as struct_error:
                 print(f"Dict approach failed: {str(struct_error)}")
                 
-                # Fallback to tuple approach with 13 elements
-                # Updated to include all 13 expected elements
+                # If we get a specific field name error, try to add that field
+                if "KeyError:" in str(struct_error):
+                    try:
+                        missing_field = str(struct_error).split("KeyError: '")[1].split("'")[0]
+                        print(f"Missing field detected: '{missing_field}'")
+                        
+                        # Add the missing field dynamically
+                        trade_struct[missing_field] = True  # Default to True for boolean fields
+                        print(f"Added missing field '{missing_field}' to the struct")
+                        
+                        # Try again with the updated struct
+                        print("Trying again with updated struct")
+                        txn = contract.functions.openTrade(
+                            trade_struct,
+                            slippage,
+                            account.address
+                        ).build_transaction({
+                            'from': account.address,
+                            'nonce': nonce,
+                            'gasPrice': gas_price,
+                            'value': 0
+                        })
+                        
+                        # Add a generous gas limit
+                        txn['gas'] = 500000
+                        
+                        # Sign and send
+                        signed_txn = w3.eth.account.sign_transaction(txn, private_key=private_key)
+                        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+                    except Exception as e:
+                        print(f"Field addition attempt failed: {str(e)}")
+                        # Continue to tuple approach
+                        raise
+                
+                # Last resort: fallback to tuple approach
+                # Updated to include 14 elements (added isOpen)
                 trade_tuple = (
                     Web3.to_checksum_address(account.address),
                     pair_index,
                     leverage,
                     position_size,
                     is_long,
+                    True,   # isOpen - NEW
                     True,   # referral
                     1,      # mode
                     0,      # tp
@@ -660,10 +696,10 @@ def execute_trade_on_gains(signal):
                     0,      # priceLimit
                     int(time.time()) + 300,  # deadline
                     0,      # extra (1)
-                    0       # extra (2) - Add this missing 13th element
+                    0       # extra (2)
                 )
                 
-                print(f"Attempting trade with tuple approach")
+                print(f"Attempting trade with tuple approach (14 elements)")
                 txn = contract.functions.openTrade(
                     trade_tuple,
                     slippage,
@@ -725,14 +761,12 @@ def execute_trade_on_gains(signal):
             error_msg = str(tx_error)
             print(f"Detailed error: {error_msg}")
             
-            # If we get a specific field name error, try to add that field
+            # If we get a specific field name error, extract and log it
             if "KeyError:" in error_msg:
                 try:
                     missing_field = error_msg.split("KeyError: '")[1].split("'")[0]
                     print(f"Missing field detected: '{missing_field}'")
-                    
-                    # Log this for future fixes
-                    print(f"Please add '{missing_field}' to the trade_struct dictionary!")
+                    print(f"Please add '{missing_field}' to the trade_struct dictionary for future runs")
                 except:
                     pass
             
