@@ -599,7 +599,7 @@ def execute_trade_on_gains(signal):
 
         try:
             # UPDATED FIELD NAMES BASED ON ERROR MESSAGES
-            # Added 'isOpen' field based on latest error
+            # Added 'collateralIndex' field based on latest error
             trade_struct = {
                 'user': Web3.to_checksum_address(account.address),
                 'index': pair_index,            # First attempt
@@ -608,7 +608,8 @@ def execute_trade_on_gains(signal):
                 'margin': position_size,
                 'long': is_long,                # Changed from 'isLong' to 'long' 
                 'isLong': is_long,              # Keep as fallback
-                'isOpen': True,                 # NEW field from latest error
+                'isOpen': True,                 # From previous error
+                'collateralIndex': 0,           # NEW field from latest error - typically 0 for USDC
                 'referral': True,
                 'mode': 1,
                 'tp': 0,
@@ -624,7 +625,7 @@ def execute_trade_on_gains(signal):
             
             try:
                 # First try with the combined struct
-                print(f"Attempting trade with combined struct (includes isOpen field)")
+                print(f"Attempting trade with combined struct (includes collateralIndex field)")
                 txn = contract.functions.openTrade(
                     trade_struct,         # Dict with all field names
                     slippage,             # Slippage tolerance
@@ -681,14 +682,15 @@ def execute_trade_on_gains(signal):
                         raise
                 
                 # Last resort: fallback to tuple approach
-                # Updated to include 14 elements (added isOpen)
+                # Updated to include 15 elements (added collateralIndex)
                 trade_tuple = (
                     Web3.to_checksum_address(account.address),
                     pair_index,
                     leverage,
                     position_size,
                     is_long,
-                    True,   # isOpen - NEW
+                    True,   # isOpen 
+                    0,      # collateralIndex - NEW FIELD
                     True,   # referral
                     1,      # mode
                     0,      # tp
@@ -699,7 +701,7 @@ def execute_trade_on_gains(signal):
                     0       # extra (2)
                 )
                 
-                print(f"Attempting trade with tuple approach (14 elements)")
+                print(f"Attempting trade with tuple approach (15 elements, includes collateralIndex)")
                 txn = contract.functions.openTrade(
                     trade_tuple,
                     slippage,
