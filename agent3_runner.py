@@ -37,54 +37,32 @@ def execute_trade_on_gains(signal):
         account = w3.eth.account.from_key(private_key)
         print(f"Wallet loaded: {account.address}")
 
-        with open("abi/gains_base_abi.json", "r") as abi_file:
-            gains_abi = json.load(abi_file)
+        with open("abi/gains_base_abi.json", "r") as f:
+            gains_abi = json.load(f)
         print("ABI loaded")
 
         contract_address = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
         contract = w3.eth.contract(address=contract_address, abi=gains_abi)
         print("Contract connected")
 
-        # Inline USDC ABI
-        usdc_abi = [
-            {
-                "constant": True,
-                "inputs": [{"name": "_owner", "type": "address"}],
-                "name": "balanceOf",
-                "outputs": [{"name": "balance", "type": "uint256"}],
-                "type": "function",
-            },
-            {
-                "constant": True,
-                "inputs": [
-                    {"name": "_owner", "type": "address"},
-                    {"name": "_spender", "type": "address"}
-                ],
-                "name": "allowance",
-                "outputs": [{"name": "remaining", "type": "uint256"}],
-                "type": "function",
-            },
-            {
-                "constant": False,
-                "inputs": [
-                    {"name": "_spender", "type": "address"},
-                    {"name": "_value", "type": "uint256"}
-                ],
-                "name": "approve",
-                "outputs": [{"name": "", "type": "bool"}],
-                "type": "function",
-            },
-        ]
+        # Load USDC ABI and contract
+        try:
+            with open("abi/usdc_abi.json", "r") as f:
+                usdc_abi = json.load(f)
+        except FileNotFoundError:
+            usdc_abi = [
+                {"constant": True, "inputs": [{"name": "_owner", "type": "address"}], "name": "balanceOf", "outputs": [{"name": "balance", "type": "uint256"}], "type": "function"},
+                {"constant": True, "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}], "name": "allowance", "outputs": [{"name": "remaining", "type": "uint256"}], "type": "function"},
+                {"constant": False, "inputs": [{"name": "_spender", "type": "address"}, {"name": "_value", "type": "uint256"}], "name": "approve", "outputs": [{"name": "", "type": "bool"}], "type": "function"}
+            ]
 
         usdc_address = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
         usdc = w3.eth.contract(address=usdc_address, abi=usdc_abi)
 
-        # Get balance and calculate trade amount
         usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
         usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
         print(f"USDC balance: {usdc_balance:.2f}, Using: {usd_amount:.2f} for this trade")
 
-        # Check and approve if needed
         allowance = usdc.functions.allowance(account.address, contract_address).call() / 1e6
         print(f"Current allowance for Gains contract: {allowance:.2f} USDC")
 
@@ -92,14 +70,15 @@ def execute_trade_on_gains(signal):
             print("USDC allowance too low, re-approving now...")
             try:
                 nonce = w3.eth.get_transaction_count(account.address, 'pending')
-                gas_price = int(w3.eth.gas_price * 1.2)
+                base_gas_price = w3.eth.gas_price
+                gas_price = max(int(base_gas_price * 1.1), base_gas_price + 1_000_000_000)
                 approval_amount = int(1_000 * 1e6)
 
                 tx = usdc.functions.approve(contract_address, approval_amount).build_transaction({
                     'from': account.address,
                     'nonce': nonce,
                     'gas': 100000,
-                    'gasPrice': gas_price
+                    'gasPrice': gas_price,
                 })
                 signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
                 tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
@@ -116,7 +95,7 @@ def execute_trade_on_gains(signal):
                 print(traceback.format_exc())
                 return {"status": "error", "message": f"USDC approval failed: {str(e)}", "trace": traceback.format_exc()}
 
-        # Extract trade details
+        # Trade logic
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         entry_price = float(signal.get("Entry Price"))
         symbol = signal.get("Coin", "").strip().upper()
@@ -127,7 +106,6 @@ def execute_trade_on_gains(signal):
 
         leverage = int(os.getenv("LEVERAGE", 5))
 
-        # Notional value check
         notional_value = usd_amount * leverage
         min_required = MIN_NOTIONAL_PER_PAIR.get(symbol, 50)
         if notional_value < min_required:
@@ -147,14 +125,19 @@ def execute_trade_on_gains(signal):
             int(leverage) & 0xFFFF,
             int(position_size) & 0xFFFFFF,
             bool(is_long),
-            True, 1, 3, 0, 0,
+            True,
+            1,
+            3,
+            0,
+            0,
             int(time.time()) + 120,
-            0, 0
+            0,
+            0
         )
 
         txn = contract.functions.openTrade(
             trade_struct,
-            30,  # slippage (3%)
+            30,  # max slippage in tenths of a percent (3%)
             account.address
         ).build_transaction({
             'from': account.address,
