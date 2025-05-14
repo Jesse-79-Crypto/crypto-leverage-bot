@@ -1,391 +1,226 @@
 import json
 import time
-import logging
 import os
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
-from decimal import Decimal
-import datetime
-import sys
 
-# Import from your existing variables file
+# Try the new import path first, fallback to the old one if needed
+try:
+    from web3.middleware.geth import geth_poa_middleware
+except ImportError:
+    try:
+        # For web3.py v5.x
+        from web3.middleware import geth_poa_middleware
+    except ImportError:
+        # Define a simple version if not available
+        def geth_poa_middleware(make_request, web3):
+            def middleware(method, params):
+                return make_request(method, params)
+            return middleware
+
+# Import your variables (assuming this works)
 from my_variables import PRIVATE_KEY, WALLET_ADDRESS
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("trading_bot.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger("GainsTrader")
-
 # Configuration
-class Config:
-    # Network settings
-    BASE_RPC_URL = "https://mainnet.base.org"
-    CHAIN_ID = 8453  # Base Mainnet
-    
-    # Contract addresses
-    TRADING_CONTRACT_ADDRESS = "0xd8D177EFc926A18EE455da6F5f6A6CfCeE5F8f58"  # Verify this on Base!
-    DAI_CONTRACT_ADDRESS = "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"  # Verify this on Base!
-    
-    # Gas settings
-    GAS_LIMIT = 500000
-    GAS_PRICE_BUFFER = 1.2  # 20% buffer
-    
-    # Trading parameters
-    DEFAULT_SLIPPAGE = 0.5  # 0.5%
-    DEFAULT_LEVERAGE = 50
-    
-    # Timeouts
-    TRANSACTION_TIMEOUT = 300  # seconds
-    RETRY_DELAY = 5  # seconds
-    MAX_RETRIES = 3
+BASE_RPC_URL = "https://mainnet.base.org"
+TRADING_CONTRACT_ADDRESS = "0xd8D177EFc926A18EE455da6F5f6A6CfCeE5F8f58"  # Verify this on Base
+CHAIN_ID = 8453  # Base Mainnet
 
-class TradingPair:
-    # Common trading pairs (index values may differ on Base)
-    BTC_USD = 0
-    ETH_USD = 1
-    BNB_USD = 2
-    SOL_USD = 3
-    XRP_USD = 4
-    ADA_USD = 5
-    # Add more pairs as needed
-
-class TradeType:
-    MARKET = 2
-    LIMIT = 3
-    # Add more types as needed
-
-class TradeDirection:
-    LONG = True
-    SHORT = False
-
-class GainsTrader:
-    def __init__(self):
-        self.config = Config()
-        self.connect_to_network()
-        self.load_contracts()
+def execute_trade_on_gains(signal):
+    """
+    Execute a trade on Gains.io (Base network)
     
-    def connect_to_network(self):
-        """Connect to the Base network"""
-        try:
-            self.web3 = Web3(Web3.HTTPProvider(self.config.BASE_RPC_URL))
-            self.web3.middleware_onion.inject(geth_poa_middleware, layer=0)
-            
-            if not self.web3.is_connected():
-                raise Exception("Failed to connect to Base network")
-                
-            logger.info(f"Connected to Base network - Block: {self.web3.eth.block_number}")
-        except Exception as e:
-            logger.error(f"Network connection error: {str(e)}")
-            raise
+    Args:
+        signal (dict): Trading signal with parameters
+    """
+    # Extract parameters from signal
+    pair_index = signal.get('pair_index', 5)
+    is_long = signal.get('is_long', True)
+    position_size_dai = signal.get('position_size', 1)
     
-    def load_contracts(self):
-        """Load contract ABIs and create contract objects"""
-        try:
-            # Load Trading contract ABI
-            with open('trading_abi.json', 'r') as f:
-                trading_abi = json.load(f)
-            
-            # Load DAI token ABI (ERC20 standard)
-            with open('erc20_abi.json', 'r') as f:
-                dai_abi = json.load(f)
-            
-            # Create contract objects
-            self.trading_contract = self.web3.eth.contract(
-                address=self.config.TRADING_CONTRACT_ADDRESS, 
-                abi=trading_abi
-            )
-            
-            self.dai_contract = self.web3.eth.contract(
-                address=self.config.DAI_CONTRACT_ADDRESS,
-                abi=dai_abi
-            )
-            
-            logger.info("Contract ABIs loaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to load contracts: {str(e)}")
-            raise
+    # Default to 5x leverage as per original requirements
+    leverage = signal.get('leverage', 5)
     
-    def get_current_gas_price(self):
-        """Get current gas price with buffer"""
-        gas_price = self.web3.eth.gas_price
-        return int(gas_price * self.config.GAS_PRICE_BUFFER)
+    # Take profit settings - original code had 3%, 6%, and 10%
+    # Note: Gains.io contract only allows one TP per trade, so we'll use the highest (10%)
+    entry_price = signal.get('entry_price', 0)
+    if entry_price > 0:
+        # Calculate TP based on entry price
+        take_profit_percent = 10  # Use 10% as the default TP level
+        if is_long:
+            take_profit = int(entry_price * (1 + take_profit_percent/100))
+        else:
+            take_profit = int(entry_price * (1 - take_profit_percent/100))
+    else:
+        # If no entry price provided, use default
+        take_profit = signal.get('take_profit', 0)
     
-    def get_dai_balance(self):
-        """Get DAI balance for the wallet"""
-        try:
-            balance_wei = self.dai_contract.functions.balanceOf(WALLET_ADDRESS).call()
-            balance_dai = self.web3.from_wei(balance_wei, 'ether')
-            logger.info(f"Current DAI balance: {balance_dai}")
-            return balance_dai
-        except Exception as e:
-            logger.error(f"Failed to get DAI balance: {str(e)}")
-            return 0
+    # Stop loss settings
+    stop_loss = signal.get('stop_loss', 0)
     
-    def approve_dai_spending(self, amount_dai):
-        """Approve the trading contract to spend DAI"""
-        try:
-            # Convert DAI to wei
-            amount_wei = self.web3.to_wei(amount_dai, 'ether')
-            
-            # Get current allowance
-            current_allowance = self.dai_contract.functions.allowance(
-                WALLET_ADDRESS, 
-                self.config.TRADING_CONTRACT_ADDRESS
-            ).call()
-            
-            if current_allowance >= amount_wei:
-                logger.info(f"Spending of {amount_dai} DAI already approved")
-                return True
-            
-            # Prepare approval transaction
-            nonce = self.web3.eth.get_transaction_count(WALLET_ADDRESS)
-            txn = self.dai_contract.functions.approve(
-                self.config.TRADING_CONTRACT_ADDRESS,
-                amount_wei
-            ).build_transaction({
-                'chainId': self.config.CHAIN_ID,
-                'gas': 100000,  # Lower gas for approval
-                'gasPrice': self.get_current_gas_price(),
-                'nonce': nonce,
-            })
-            
-            # Sign and send transaction
-            signed_txn = self.web3.eth.account.sign_transaction(txn, PRIVATE_KEY)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-            
-            # Wait for confirmation
-            logger.info(f"DAI approval sent: {self.web3.to_hex(tx_hash)}")
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, self.config.TRANSACTION_TIMEOUT)
-            
-            if receipt.status == 1:
-                logger.info(f"DAI approval confirmed!")
-                return True
-            else:
-                logger.error("DAI approval failed!")
-                return False
-                
-        except Exception as e:
-            logger.error(f"DAI approval error: {str(e)}")
-            return False
+    # Trailing stop value - typically a percentage of the position
+    trailing_stop = signal.get('trailing_stop', 5)  # Default 5% trailing stop
     
-    def get_open_trades(self, pair_index=None):
-        """Get current open trades for the wallet"""
-        try:
-            # This function requires knowing the specific contract calls
-            # Modify based on the actual contract function to get open trades
-            if pair_index is not None:
-                count = self.trading_contract.functions.openTradesCount(WALLET_ADDRESS, pair_index).call()
-                logger.info(f"Open trades for pair {pair_index}: {count}")
-            else:
-                # Loop through common pairs to get total count
-                total = 0
-                for i in range(10):  # Assuming 10 pairs max
-                    try:
-                        count = self.trading_contract.functions.openTradesCount(WALLET_ADDRESS, i).call()
-                        total += count
-                    except:
-                        pass
-                logger.info(f"Total open trades: {total}")
-                return total
-        except Exception as e:
-            logger.error(f"Failed to get open trades: {str(e)}")
-            return 0
-    
-    def open_trade(self, pair_index, is_long, position_size_dai, leverage=None, 
-                   take_profit=0, stop_loss=0, slippage=None):
-        """
-        Open a new trade on Gains.io
+    # Referrer address
+    referrer = signal.get('referrer', WALLET_ADDRESS)
         
-        Args:
-            pair_index (int): Index of the trading pair
-            is_long (bool): True for long, False for short
-            position_size_dai (float): Size of position in DAI
-            leverage (int, optional): Leverage multiplier. Defaults to Config.DEFAULT_LEVERAGE.
-            take_profit (int, optional): Take profit price. Defaults to 0 (none).
-            stop_loss (int, optional): Stop loss price. Defaults to 0 (none).
-            slippage (float, optional): Max slippage percentage. Defaults to Config.DEFAULT_SLIPPAGE.
-        
-        Returns:
-            dict: Transaction result
-        """
-        if leverage is None:
-            leverage = self.config.DEFAULT_LEVERAGE
-            
-        if slippage is None:
-            slippage = self.config.DEFAULT_SLIPPAGE
-            
-        # First approve DAI spending if needed
-        if not self.approve_dai_spending(position_size_dai):
-            return {'status': 'error', 'message': 'Failed to approve DAI spending'}
-            
-        for attempt in range(self.config.MAX_RETRIES):
-            try:
-                # Define trade parameters properly as a tuple
-                # This follows the struct format required by the contract:
-                # (address,uint32,uint16,uint24,bool,bool,uint8,uint8,uint120,uint64,uint64,uint64,uint192)
-                trade_params = (
-                    WALLET_ADDRESS,       # address - trader address
-                    TradeType.MARKET,     # uint32 - trade type (2 for market order)
-                    pair_index,           # uint16 - pair index (e.g., ETH/USD)
-                    int(slippage * 100),  # uint24 - slippage threshold in basis points
-                    is_long,              # bool - position direction (True=long, False=short)
-                    False,                # bool - reduce only flag
-                    0,                    # uint8 - parameter 1
-                    0,                    # uint8 - parameter 2
-                    int(position_size_dai * 10**18),  # uint120 - position size in DAI (with 18 decimals)
-                    take_profit,          # uint64 - take profit price
-                    stop_loss,            # uint64 - stop loss price
-                    0,                    # uint64 - trailing stop value
-                    int(time.time() + 3600),  # uint192 - deadline (1 hour from now)
-                )
-
-                # Get current gas price and nonce
-                gas_price = self.get_current_gas_price()
-                nonce = self.web3.eth.get_transaction_count(WALLET_ADDRESS)
-                
-                # Build transaction
-                txn = self.trading_contract.functions.openTrade(
-                    trade_params,  # Structured tuple of trade parameters
-                    leverage,      # Leverage amount
-                    WALLET_ADDRESS # Referrer address (self-referral)
-                ).build_transaction({
-                    'chainId': self.config.CHAIN_ID,
-                    'gas': self.config.GAS_LIMIT,
-                    'gasPrice': gas_price,
-                    'nonce': nonce,
-                })
-                
-                # Sign transaction
-                signed_txn = self.web3.eth.account.sign_transaction(txn, PRIVATE_KEY)
-                
-                # Send transaction
-                tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                tx_hash_hex = self.web3.to_hex(tx_hash)
-                logger.info(f"Trade transaction sent: {tx_hash_hex}")
-                
-                # Wait for transaction receipt
-                logger.info("Waiting for transaction confirmation...")
-                tx_receipt = self.web3.eth.wait_for_transaction_receipt(
-                    tx_hash, 
-                    timeout=self.config.TRANSACTION_TIMEOUT
-                )
-                
-                if tx_receipt.status == 1:
-                    logger.info(f"✅ Trade executed successfully!")
-                    return {
-                        'status': 'success', 
-                        'tx_hash': tx_hash_hex,
-                        'receipt': tx_receipt
-                    }
-                else:
-                    logger.error(f"❌ Transaction failed on-chain")
-                    return {
-                        'status': 'error', 
-                        'message': 'Transaction reverted on-chain',
-                        'tx_hash': tx_hash_hex
-                    }
-                    
-            except Exception as e:
-                logger.error(f"❌ Attempt {attempt+1} failed: {str(e)}")
-                if attempt < self.config.MAX_RETRIES - 1:
-                    logger.info(f"Retrying in {self.config.RETRY_DELAY} seconds...")
-                    time.sleep(self.config.RETRY_DELAY)
-                else:
-                    return {
-                        'status': 'error', 
-                        'message': f"Failed after {self.config.MAX_RETRIES} attempts: {str(e)}"
-                    }
-    
-    def close_trade(self, pair_index, trade_index):
-        """Close an existing trade"""
-        try:
-            # Build transaction to close the trade
-            # You'll need to check the actual method in the contract for closing trades
-            nonce = self.web3.eth.get_transaction_count(WALLET_ADDRESS)
-            
-            # This is a placeholder - check actual contract for correct function name
-            txn = self.trading_contract.functions.closeTrade(
-                pair_index,
-                trade_index
-            ).build_transaction({
-                'chainId': self.config.CHAIN_ID,
-                'gas': self.config.GAS_LIMIT,
-                'gasPrice': self.get_current_gas_price(),
-                'nonce': nonce,
-            })
-            
-            # Sign transaction
-            signed_txn = self.web3.eth.account.sign_transaction(txn, PRIVATE_KEY)
-            
-            # Send transaction
-            tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-            tx_hash_hex = self.web3.to_hex(tx_hash)
-            logger.info(f"Close trade transaction sent: {tx_hash_hex}")
-            
-            # Wait for confirmation
-            receipt = self.web3.eth.wait_for_transaction_receipt(
-                tx_hash, 
-                timeout=self.config.TRANSACTION_TIMEOUT
-            )
-            
-            if receipt.status == 1:
-                logger.info(f"✅ Trade closed successfully!")
-                return {'status': 'success', 'tx_hash': tx_hash_hex}
-            else:
-                logger.error(f"❌ Close transaction failed on-chain")
-                return {'status': 'error', 'message': 'Transaction reverted on-chain'}
-                
-        except Exception as e:
-            logger.error(f"Failed to close trade: {str(e)}")
-            return {'status': 'error', 'message': str(e)}
-
-# Main function to execute trades
-def execute_strategy():
-    """Main function to execute trading strategy"""
     try:
-        # Initialize the trader
-        trader = GainsTrader()
+        # Connect to Base network
+        web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
         
-        # Check DAI balance
-        dai_balance = trader.get_dai_balance()
-        if dai_balance < 10:  # Minimum 10 DAI required
-            logger.error(f"Insufficient DAI balance: {dai_balance}")
-            return
+        # Add middleware for PoA chains (like Base)
+        try:
+            web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        except:
+            # If middleware injection fails, continue anyway
+            print("Warning: Could not inject PoA middleware, but continuing...")
+        
+        # Check connection
+        if not web3.is_connected():
+            return {
+                'status': 'error', 
+                'message': 'Failed to connect to Base network',
+                'suggested_fix': 'Check network connection or RPC endpoint'
+            }
             
-        # Check existing open trades
-        open_trades = trader.get_open_trades()
-        logger.info(f"Current open trades: {open_trades}")
+        print(f"Connected to Base network - Block: {web3.eth.block_number}")
+        print(f"Trading with: {leverage}x leverage, TP at {take_profit}, SL at {stop_loss}, Trailing stop at {trailing_stop}%")
+            
+        # Load contract ABI
+        try:
+            with open('trading_abi.json', 'r') as f:
+                contract_abi = json.load(f)
+        except FileNotFoundError:
+            # Inline minimal ABI if file not found
+            contract_abi = [
+                {
+                    "inputs": [
+                        {
+                            "components": [
+                                {"internalType": "address", "name": "trader", "type": "address"},
+                                {"internalType": "uint32", "name": "pairIndex", "type": "uint32"},
+                                {"internalType": "uint16", "name": "leverage", "type": "uint16"},
+                                {"internalType": "uint24", "name": "openPrice", "type": "uint24"},
+                                {"internalType": "bool", "name": "buy", "type": "bool"},
+                                {"internalType": "bool", "name": "reduceOnly", "type": "bool"},
+                                {"internalType": "uint8", "name": "param1", "type": "uint8"},
+                                {"internalType": "uint8", "name": "param2", "type": "uint8"},
+                                {"internalType": "uint120", "name": "positionSizeDai", "type": "uint120"},
+                                {"internalType": "uint64", "name": "tp", "type": "uint64"},
+                                {"internalType": "uint64", "name": "sl", "type": "uint64"},
+                                {"internalType": "uint64", "name": "trailingStop", "type": "uint64"},
+                                {"internalType": "uint192", "name": "deadline", "type": "uint192"}
+                            ],
+                            "internalType": "struct StorageInterfaceV5.Trade",
+                            "name": "trade",
+                            "type": "tuple"
+                        },
+                        {"internalType": "uint16", "name": "leverage", "type": "uint16"},
+                        {"internalType": "address", "name": "referrer", "type": "address"}
+                    ],
+                    "name": "openTrade",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                }
+            ]
+            
+        # Load contract
+        trading_contract = web3.eth.contract(address=TRADING_CONTRACT_ADDRESS, abi=contract_abi)
         
-        # Example: Open a long trade on ETH/USD with 10 DAI at 50x leverage
-        # Customize this based on your strategy
-        result = trader.open_trade(
-            pair_index=TradingPair.ETH_USD,
-            is_long=TradeDirection.LONG,
-            position_size_dai=10,
-            leverage=50,
-            take_profit=0,  # No take profit
-            stop_loss=0     # No stop loss
+        # Create the trade parameter struct as a tuple
+        trade_struct = (
+            WALLET_ADDRESS,       # address - trader address
+            pair_index,           # uint32 - pair index
+            leverage,             # uint16 - leverage multiplier
+            30033138,             # uint24 - price/slippage parameter
+            is_long,              # bool - position direction (True=long, False=short)
+            False,                # bool - reduce only flag
+            0,                    # uint8 - parameter 1
+            0,                    # uint8 - parameter 2
+            int(position_size_dai * 10**18),  # uint120 - position size in DAI (with 18 decimals)
+            take_profit,          # uint64 - take profit price (10% level)
+            stop_loss,            # uint64 - stop loss price
+            trailing_stop,        # uint64 - trailing stop value
+            int(time.time() + 3600),  # uint192 - deadline (1 hour from now)
         )
-        
-        logger.info(f"Trade result: {result}")
-        
-        # You could implement more complex strategies here:
-        # - Technical indicators
-        # - Market data analysis
-        # - Portfolio management
-        # - Stop-loss management
-        # - etc.
-        
-    except Exception as e:
-        logger.error(f"Strategy execution failed: {str(e)}")
 
-# Run the bot
+        # Get current gas price with buffer
+        gas_price = web3.eth.gas_price
+        gas_price = int(gas_price * 1.2)  # 20% buffer
+        
+        # Get nonce for the transaction
+        nonce = web3.eth.get_transaction_count(WALLET_ADDRESS)
+        
+        # Build transaction
+        txn = trading_contract.functions.openTrade(
+            trade_struct,  # Structured tuple of trade parameters 
+            leverage,      # Leverage amount
+            referrer       # Referrer address
+        ).build_transaction({
+            'chainId': CHAIN_ID,
+            'gas': 500000,  # Gas limit
+            'gasPrice': gas_price,
+            'nonce': nonce,
+        })
+        
+        # Sign transaction
+        signed_txn = web3.eth.account.sign_transaction(txn, PRIVATE_KEY)
+        
+        # Send transaction
+        tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        tx_hash_hex = web3.to_hex(tx_hash)
+        print(f"Transaction sent: {tx_hash_hex}")
+        
+        # Wait for transaction receipt
+        print("Waiting for transaction confirmation...")
+        tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+        
+        if tx_receipt.status == 1:
+            print(f"✅ Trade executed successfully!")
+            return {
+                'status': 'success', 
+                'tx_hash': tx_hash_hex,
+                'receipt': str(tx_receipt)  # Convert to string to make it JSON serializable
+            }
+        else:
+            print(f"❌ Transaction failed on-chain")
+            return {
+                'status': 'error', 
+                'message': 'Transaction reverted on-chain',
+                'tx_hash': tx_hash_hex
+            }
+            
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Error executing trade: {error_msg}")
+        
+        # Try to give a helpful suggestion
+        suggestion = 'Check trade parameters and contract ABI'
+        if 'gas' in error_msg.lower():
+            suggestion = 'Try increasing gas limit or reducing gas price'
+        elif 'nonce' in error_msg.lower():
+            suggestion = 'Nonce issue - wait for pending transactions to confirm'
+        elif 'abi' in error_msg.lower():
+            suggestion = 'Trade parameters format mismatch - check contract ABI definition'
+            
+        return {
+            'status': 'error', 
+            'message': error_msg,
+            'suggested_fix': suggestion
+        }
+
+# If this script is run directly (not imported)
 if __name__ == "__main__":
-    logger.info("Starting Gains.io trading bot...")
-    execute_strategy()
+    # Test with a sample signal
+    test_signal = {
+        "pair_index": 5,
+        "is_long": True,
+        "position_size": 1,
+        "leverage": 5,  # 5x leverage
+        "entry_price": 3000,  # Example entry price for BTC
+        "stop_loss": 0,
+        "trailing_stop": 5  # 5% trailing stop
+    }
+    print("Testing trade execution...")
+    result = execute_trade_on_gains(test_signal)
+    print(f"Result: {result}")
