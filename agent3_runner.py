@@ -97,7 +97,7 @@ def execute_trade_on_gains(signal):
                     'gasPrice': gas_price
                 })
                 signed_approval = w3.eth.account.sign_transaction(approval_tx, private_key=private_key)
-                approval_tx_hash = w3.eth.send_raw_transaction(signed_approval.rawTransaction)
+                approval_tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 print(f"Approval TX sent: {approval_tx_hash.hex()}")
                 receipt = w3.eth.wait_for_transaction_receipt(approval_tx_hash)
                 if receipt.status != 1:
@@ -157,7 +157,7 @@ def execute_trade_on_gains(signal):
         })
 
         signed_txn = w3.eth.account.sign_transaction(txn, private_key)
-        tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         print(f"Trade sent! TX hash: {tx_hash.hex()}")
 
         return {
