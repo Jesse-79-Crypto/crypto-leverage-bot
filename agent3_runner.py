@@ -23,6 +23,10 @@ MIN_NOTIONAL_PER_PAIR = {
     "ARB": 50
 }
 
+# Get the private key and wallet address
+PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY")
+WALLET_ADDRESS = Web3.to_checksum_address(os.getenv("WALLET_ADDRESS", "0x0"))  # Default to 0x0 if missing
+
 USDC_ADDRESS = Web3.to_checksum_address(os.getenv("USDC_ADDRESS"))
 GAINS_CONTRACT_ADDRESS = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
 ERC20_ABI = [
@@ -55,15 +59,21 @@ ERC20_ABI = [
     }
 ]
 
+# Use the same ABI for USDC contract
+USDC_ABI = ERC20_ABI
+
 # === Approve USDC Spending If Needed ===
 import os
 from web3 import Web3  # If not already imported
 # Initialize Web3 connection if not already done
-web3 = Web3(Web3.HTTPProvider(os.environ.get("RPC_URL")))
+w3 = Web3(Web3.HTTPProvider(os.environ.get("BASE_RPC_URL")))  # Use consistent variable name
 # Get USDC address from environment variables
 USDC_ADDRESS = os.environ.get("USDC_ADDRESS")
 # Create the contract object
-usdc_contract = web3.eth.contract(address=USDC_ADDRESS, abi=USDC_ABI)allowance = usdc_contract.functions.allowance(WALLET_ADDRESS, GAINS_CONTRACT_ADDRESS).call()
+usdc_contract = web3.eth.contract(address=USDC_ADDRESS, abi=USDC_ABI)
+# Add missing newline here
+position_size_in_usdc = 100 * 1e6  # Default position size if not defined
+allowance = usdc_contract.functions.allowance(WALLET_ADDRESS, GAINS_CONTRACT_ADDRESS).call()
 amount_to_trade = int(position_size_in_usdc)  # or use fixed amount if dynamic logic isn't ready
 
 if allowance < amount_to_trade:
@@ -129,7 +139,8 @@ def execute_trade_on_gains(signal):
                     'gasPrice': gas_price
                 })
                 signed_approval = w3.eth.account.sign_transaction(approval_tx, private_key=private_key)
-                approval_tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+                # Fix variable name mismatch here 
+                approval_tx_hash = w3.eth.send_raw_transaction(signed_approval.rawTransaction)
                 print(f"Approval TX sent: {approval_tx_hash.hex()}")
                 receipt = w3.eth.wait_for_transaction_receipt(approval_tx_hash)
                 if receipt.status != 1:
