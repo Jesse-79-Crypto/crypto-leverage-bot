@@ -87,6 +87,9 @@ def execute_trade_on_gains(signal):
             raise ConnectionError("Failed to connect to BASE network.")
         print("Connected to BASE")
 
+        USDC_ADDRESS = Web3.to_checksum_address(os.getenv("USDC_ADDRESS"))
+        usdc_contract = w3.eth.contract(address=USDC_ADDRESS, abi=ERC20_ABI)
+
         private_key = os.getenv("WALLET_PRIVATE_KEY")
         account = w3.eth.account.from_key(private_key)
         print(f"Wallet loaded: {account.address}")
