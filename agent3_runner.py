@@ -23,9 +23,16 @@ MIN_NOTIONAL_PER_PAIR = {
     "ARB": 50
 }
 
-# Get the private key and wallet address
+# Get the private key
 PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY")
-WALLET_ADDRESS = Web3.to_checksum_address(os.getenv("WALLET_ADDRESS", "0x0"))  # Default to 0x0 if missing
+# Get wallet address with proper handling
+wallet_address_env = os.getenv("WALLET_ADDRESS")
+if not wallet_address_env:
+    print("WARNING: WALLET_ADDRESS environment variable is not set!")
+    # Use a valid zero address instead of "0x0"
+    WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"
+else:
+    WALLET_ADDRESS = Web3.to_checksum_address(wallet_address_env)
 
 USDC_ADDRESS = Web3.to_checksum_address(os.getenv("USDC_ADDRESS"))
 GAINS_CONTRACT_ADDRESS = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
@@ -63,16 +70,15 @@ ERC20_ABI = [
 USDC_ABI = ERC20_ABI
 
 # === Approve USDC Spending If Needed ===
-import os
-from web3 import Web3  # If not already imported
 # Initialize Web3 connection if not already done
 w3 = Web3(Web3.HTTPProvider(os.environ.get("BASE_RPC_URL")))  # Use consistent variable name
-# Get USDC address from environment variables
-USDC_ADDRESS = os.environ.get("USDC_ADDRESS")
+
 # Create the contract object
-usdc_contract = web3.eth.contract(address=USDC_ADDRESS, abi=USDC_ABI)
-# Add missing newline here
+usdc_contract = w3.eth.contract(address=USDC_ADDRESS, abi=USDC_ABI)
+
+# Add a default position size
 position_size_in_usdc = 100 * 1e6  # Default position size if not defined
+
 allowance = usdc_contract.functions.allowance(WALLET_ADDRESS, GAINS_CONTRACT_ADDRESS).call()
 amount_to_trade = int(position_size_in_usdc)  # or use fixed amount if dynamic logic isn't ready
 
