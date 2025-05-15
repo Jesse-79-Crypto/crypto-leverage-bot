@@ -210,6 +210,19 @@ def execute_trade_on_gains(signal):
         tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         print(f"Trade sent! TX hash: {tx_hash.hex()}")
 
+        log_trade_to_sheet({
+            "timestamp": datetime.utcnow().isoformat(),
+            "coin": symbol,
+            "direction": "LONG" if is_long else "SHORT",
+            "entry_price": entry_price,
+            "stop_loss": signal.get("Stop-Loss"),
+            "tp1": signal.get("TP1"),
+            "tp2": signal.get("TP2"),
+            "tp3": signal.get("TP3"),
+            "tx_hash": tx_hash.hex(),
+            "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
+        })
+        
         return {
             "status": "TRADE SENT",
             "tx_hash": tx_hash.hex(),
