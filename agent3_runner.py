@@ -23,18 +23,23 @@ MIN_NOTIONAL_PER_PAIR = {
     "ARB": 50
 }
 
-# Get the private key
+# Get the private key and derive account from it
 PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY")
-# Get wallet address with proper handling
-wallet_address_env = os.getenv("WALLET_ADDRESS")
-if not wallet_address_env:
-    print("WARNING: WALLET_ADDRESS environment variable is not set!")
-    # Use a valid zero address instead of "0x0"
-    WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"
-else:
-    WALLET_ADDRESS = Web3.to_checksum_address(wallet_address_env)
+# Initialize Web3 connection early
+w3 = Web3(Web3.HTTPProvider(os.environ.get("BASE_RPC_URL")))
+# Derive wallet address from private key
+account = w3.eth.account.from_key(PRIVATE_KEY)
+WALLET_ADDRESS = account.address
+print(f"Using wallet address: {WALLET_ADDRESS}")
 
-USDC_ADDRESS = Web3.to_checksum_address(os.getenv("USDC_ADDRESS"))
+# Get USDC address
+usdc_address_env = os.getenv("USDC_ADDRESS")
+if not usdc_address_env:
+    print("WARNING: USDC_ADDRESS environment variable is not set!")
+    USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Base USDC address
+else:
+    USDC_ADDRESS = Web3.to_checksum_address(usdc_address_env)
+
 GAINS_CONTRACT_ADDRESS = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
 ERC20_ABI = [
     {
@@ -69,10 +74,6 @@ ERC20_ABI = [
 # Use the same ABI for USDC contract
 USDC_ABI = ERC20_ABI
 
-# === Approve USDC Spending If Needed ===
-# Initialize Web3 connection if not already done
-w3 = Web3(Web3.HTTPProvider(os.environ.get("BASE_RPC_URL")))  # Use consistent variable name
-
 # Create the contract object
 usdc_contract = w3.eth.contract(address=USDC_ADDRESS, abi=USDC_ABI)
 
@@ -88,7 +89,7 @@ if allowance < amount_to_trade:
         GAINS_CONTRACT_ADDRESS,
         int(2**256 - 1)  # Max approval
     ).build_transaction({
-        'from': WALLET_ADDRESS,
+        'from': WALLET_ADDRESS,  # Using the address derived from the private key
         'nonce': w3.eth.get_transaction_count(WALLET_ADDRESS),
         'gas': 100000,
         'gasPrice': w3.eth.gas_price,
