@@ -56,7 +56,14 @@ ERC20_ABI = [
 ]
 
 # === Approve USDC Spending If Needed ===
-allowance = usdc_contract.functions.allowance(WALLET_ADDRESS, GAINS_CONTRACT_ADDRESS).call()
+import os
+from web3 import Web3  # If not already imported
+# Initialize Web3 connection if not already done
+web3 = Web3(Web3.HTTPProvider(os.environ.get("RPC_URL")))
+# Get USDC address from environment variables
+USDC_ADDRESS = os.environ.get("USDC_ADDRESS")
+# Create the contract object
+usdc_contract = web3.eth.contract(address=USDC_ADDRESS, abi=USDC_ABI)allowance = usdc_contract.functions.allowance(WALLET_ADDRESS, GAINS_CONTRACT_ADDRESS).call()
 amount_to_trade = int(position_size_in_usdc)  # or use fixed amount if dynamic logic isn't ready
 
 if allowance < amount_to_trade:
