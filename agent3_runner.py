@@ -55,6 +55,28 @@ ERC20_ABI = [
     }
 ]
 
+# === Approve USDC Spending If Needed ===
+allowance = usdc_contract.functions.allowance(WALLET_ADDRESS, GAINS_CONTRACT_ADDRESS).call()
+amount_to_trade = int(position_size_in_usdc)  # or use fixed amount if dynamic logic isn't ready
+
+if allowance < amount_to_trade:
+    print(f"🔐 Approving {amount_to_trade} USDC to Gains contract...")
+    approve_tx = usdc_contract.functions.approve(
+        GAINS_CONTRACT_ADDRESS,
+        int(2**256 - 1)  # Max approval
+    ).build_transaction({
+        'from': WALLET_ADDRESS,
+        'nonce': w3.eth.get_transaction_count(WALLET_ADDRESS),
+        'gas': 100000,
+        'gasPrice': w3.eth.gas_price,
+        'chainId': 8453
+    })
+
+    signed_approve = w3.eth.account.sign_transaction(approve_tx, private_key=PRIVATE_KEY)
+    tx_hash = w3.eth.send_raw_transaction(signed_approve.rawTransaction)
+    print("✅ USDC Approved. Tx:", tx_hash.hex())
+    w3.eth.wait_for_transaction_receipt(tx_hash)  # Optional: Wait for confirmation before continuing
+
 def execute_trade_on_gains(signal):
     print("Incoming signal data:", json.dumps(signal, indent=2))
     print("Trade execution started")
