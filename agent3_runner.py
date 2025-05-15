@@ -23,7 +23,7 @@ MIN_NOTIONAL_PER_PAIR = {
     "ARB": 50
 }
 
-USDC_ADDRESS = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+USDC_ADDRESS = Web3.to_checksum_address(os.getenv("USDC_ADDRESS"))
 GAINS_CONTRACT_ADDRESS = Web3.to_checksum_address("0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac")
 ERC20_ABI = [
     {
