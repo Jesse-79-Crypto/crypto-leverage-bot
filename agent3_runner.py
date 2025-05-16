@@ -205,7 +205,7 @@ def execute_trade_on_gains(signal):
                 })
                 signed_approval = w3.eth.account.sign_transaction(approval_tx, private_key=private_key)
                 # Fix variable name mismatch here 
-                approval_tx_hash = w3.eth.send_raw_transaction(signed_approval.rawTransaction)
+                approval_tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 print(f"Approval TX sent: {approval_tx_hash.hex()}")
                 receipt = w3.eth.wait_for_transaction_receipt(approval_tx_hash)
                 if receipt.status != 1:
