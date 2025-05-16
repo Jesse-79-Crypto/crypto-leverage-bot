@@ -20,7 +20,6 @@ PAIR_INDEX_MAP = {
     "COMP": 10,
     "DOT": 11,
     "EOS": 12
-    # MATIC (4) and SUSHI (6) are disabled ❌
 }
 
 MIN_NOTIONAL_PER_PAIR = {
