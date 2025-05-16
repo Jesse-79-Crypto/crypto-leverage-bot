@@ -7,12 +7,20 @@ from datetime import datetime
 
 # === Setup Constants === #
 PAIR_INDEX_MAP = {
-    "BTC": 1,
-    "ETH": 2,
-    "LINK": 3,
-    "SOL": 4,
-    "AVAX": 5,
-    "ARB": 6
+    ...
+}
+    "BTC": 0,
+    "ETH": 1,
+    "LINK": 2,
+    "DOGE": 3,
+    "ADA": 5,
+    "AAVE": 7,
+    "ALGO": 8,
+    "BAT": 9,
+    "COMP": 10,
+    "DOT": 11,
+    "EOS": 12
+    # MATIC (4) and SUSHI (6) are disabled ❌
 }
 
 MIN_NOTIONAL_PER_PAIR = {
