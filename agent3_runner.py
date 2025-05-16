@@ -215,11 +215,14 @@ class ContractManager:
         # Convert to USDC units (6 decimals)
         amount_units = int(amount_usdc * 1e6)
         
+        # Ensure contract address is checksummed
+        gains_address = Web3.to_checksum_address(Config.GAINS_CONTRACT_ADDRESS)
+        
         try:
             # Check current allowance
             current_allowance = self.usdc_contract.functions.allowance(
                 self.wallet_address, 
-                Config.GAINS_CONTRACT_ADDRESS
+                gains_address
             ).call()
             
             if current_allowance >= amount_units:
@@ -231,7 +234,7 @@ class ContractManager:
             
             # Using max uint256 for unlimited approval
             approve_tx = self.usdc_contract.functions.approve(
-                Web3.to_checksum_address(Config.GAINS_CONTRACT_ADDRESS),
+                gains_address,
                 2**256 - 1  # Max approval
             ).build_transaction({
                 'from': self.wallet_address,
