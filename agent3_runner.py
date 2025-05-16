@@ -265,10 +265,21 @@ def execute_trade_on_gains(signal):
         })
 
         signed_txn = w3.eth.account.sign_transaction(txn, private_key)
-        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        print(f"Trade sent! TX hash: {tx_hash.hex()}")
+        print("🔄 Signing transaction...")
+        
+        # Send it
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        print(f"📤 Trade sent! TX hash: {tx_hash.hex()}")
 
-        # ✅ Log trade to sheet right after sending
+        # Wait for confirmation to ensure it's real
+        print("⏳ Waiting for transaction receipt...")
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+        if receipt.status != 1:
+            raise Exception("❌ Transaction failed or reverted on-chain.")
+        print("✅ Trade confirmed on-chain.")
+
+        # Log it to sheet
         log_trade_to_sheet({
             "timestamp": datetime.utcnow().isoformat(),
             "coin": symbol,
@@ -281,6 +292,19 @@ def execute_trade_on_gains(signal):
             "tx_hash": tx_hash.hex(),
             "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
         })
+
+        return {
+            "status": "TRADE SENT",
+            "tx_hash": tx_hash.hex(),
+            "entry_price": entry_price,
+            "stop_loss": signal.get("Stop-Loss"),
+            "tp1": signal.get("TP1"),
+            "tp2": signal.get("TP2"),
+            "tp3": signal.get("TP3"),
+            "position_size_usd": usd_amount,
+            "position_size_token": round(usd_amount / entry_price, 4),
+            "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
+        }
 
         # ✅ Return without waiting for receipt (avoid Railway timeout)
         print("Trade submitted. Skipping receipt wait to avoid timeout.")
