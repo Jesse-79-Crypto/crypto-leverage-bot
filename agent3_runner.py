@@ -315,47 +315,47 @@ class TradingStrategy:
     
     def calculate_position_size(self, symbol: str, entry_price: float) -> Tuple[float, int]:
         """
-        Calculate optimal position size and leverage based on risk management
+        Calculate optimal position size with fixed leverage
         Returns: (collateral_amount, leverage)
         """
         # Get available balance
         available_balance = self.contract_manager.get_usdc_balance()
         logger.info(f"Available USDC balance: {available_balance}")
         
-        # Calculate amount based on risk percentage
-        max_risk_amount = available_balance * (Config.MAX_RISK_PERCENTAGE / 100)
+        # Fix leverage at 5x as per user preference
+        leverage = Config.DEFAULT_LEVERAGE  # This should be set to 5
         
         # Get minimum position size for the asset
         min_position_size = Config.MIN_POSITION_SIZE.get(symbol, Config.MIN_POSITION_SIZE["DEFAULT"])
         
-        # Start with default leverage
-        leverage = Config.DEFAULT_LEVERAGE
+        # Calculate minimum collateral needed at 5x leverage
+        min_collateral_needed = min_position_size / leverage
+        logger.info(f"Minimum collateral needed for {symbol} at {leverage}x leverage: {min_collateral_needed:.2f} USDC")
         
-        # Calculate collateral needed with default leverage
-        collateral_needed = min_position_size / leverage
+        # First check if we can meet minimum requirements
+        if available_balance < min_collateral_needed:
+            logger.error(f"Insufficient balance ({available_balance:.2f} USDC) to meet minimum position size ({min_position_size:.2f} USDC) at {leverage}x leverage")
+            logger.error(f"Need at least {min_collateral_needed:.2f} USDC collateral")
+            return 0, leverage  # Will trigger error in calling function
         
-        # If max risk amount is less than needed collateral, adjust leverage up to 8x max
-        if max_risk_amount < collateral_needed and leverage < 8:
-            # Calculate minimum required leverage to meet position size
-            min_leverage = min(8, int(min_position_size / max_risk_amount) + 1)
-            leverage = min_leverage
-            collateral_needed = min_position_size / leverage
-            
-            logger.info(f"Adjusted leverage to {leverage}x to meet minimum position size")
+        # Calculate amount based on risk percentage
+        max_risk_amount = available_balance * (Config.MAX_RISK_PERCENTAGE / 100)
         
-        # Ensure we don't risk more than configured percentage
-        collateral_amount = min(max_risk_amount, collateral_needed)
-        
-        # Ensure position size (collateral × leverage) meets minimum requirements
-        position_size = collateral_amount * leverage
-        if position_size < min_position_size:
-            logger.warning(f"Position size {position_size} too small for {symbol}. Minimum: {min_position_size}")
-            return 0, leverage  # Signal that position size is too small
+        # If max risk amount is less than minimum needed, use minimum needed instead
+        if max_risk_amount < min_collateral_needed:
+            logger.info(f"Risk limit ({max_risk_amount:.2f} USDC) is below minimum requirement, using minimum required collateral: {min_collateral_needed:.2f} USDC")
+            collateral_amount = min_collateral_needed
+        else:
+            collateral_amount = max_risk_amount
+            logger.info(f"Using risk-based collateral: {collateral_amount:.2f} USDC")
         
         # Round collateral to 2 decimals (USDC precision)
         collateral_amount = round(collateral_amount, 2)
         
-        logger.info(f"Calculated position size: {collateral_amount} USDC with {leverage}x leverage = {position_size} notional")
+        # Final position size check (should always pass with this logic)
+        position_size = collateral_amount * leverage
+        logger.info(f"Final position size: {collateral_amount:.2f} USDC with {leverage}x leverage = {position_size:.2f} notional")
+        
         return collateral_amount, leverage
 
 # ======== TRADE EXECUTION ======== #
