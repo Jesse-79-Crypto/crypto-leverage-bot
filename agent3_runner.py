@@ -268,7 +268,7 @@ def execute_trade_on_gains(signal):
         print("🔄 Signing transaction...")
         
         # Send it
-        tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         print(f"📤 Trade sent! TX hash: {tx_hash.hex()}")
 
         # Wait for confirmation to ensure it's real
