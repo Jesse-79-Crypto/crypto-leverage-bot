@@ -498,23 +498,16 @@ class TradeExecutor:
             # Log trade immediately after sending
             logger.info(f"Trade submitted: {tx_hash.hex()}")
             
-            # Return trade details
+            # Return trade details immediately without waiting for confirmation
             position_size_token = round(collateral_amount * leverage / entry_price, 4)
-            
-            # Optionally wait for transaction receipt (removed timeout to avoid hanging)
-            try:
-                receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
-                if receipt.status == 1:
-                    logger.info(f"✅ Trade confirmed on-chain: {tx_hash.hex()}")
-                else:
-                    logger.warning(f"⚠️ Trade may have failed on-chain: {tx_hash.hex()}")
-            except Exception as e:
-                logger.info(f"Trade sent but couldn't wait for confirmation: {str(e)}")
-                # Continue anyway - we don't want to fail the whole process if just the waiting fails
             
             # Get TP2/TP3 values from signal if available, otherwise use defaults
             tp2 = signal.get("TP2", tp1 * 1.05) if signal else tp1 * 1.05
             tp3 = signal.get("TP3", tp1 * 1.10) if signal else tp1 * 1.10
+            
+            # Create BaseScan URL for transaction
+            base_scan_url = f"https://basescan.org/tx/{tx_hash.hex()}"
+            logger.info(f"Transaction can be viewed at: {base_scan_url}")
             
             return {
                 "status": "TRADE SENT",
@@ -527,7 +520,7 @@ class TradeExecutor:
                 "position_size_usd": collateral_amount,
                 "position_size_token": position_size_token,
                 "leverage": leverage,
-                "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
+                "log_link": base_scan_url
             }
             
         except Exception as e:
