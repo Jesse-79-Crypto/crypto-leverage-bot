@@ -237,19 +237,19 @@ def execute_trade_on_gains(signal):
         print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
 
         trade_struct = (
-            account.address,
-            pair_index,
-            leverage & 0xFFFF,
-            position_size & 0xFFFFFF,
-            is_long,
-            True,
-            1,
-            3,
-            0,
-            0,
-            int(time.time()) + 120,
-            0,
-            0
+            account.address,             # user
+            0,                           # index (always 0 for new trades)
+            pair_index,                 # pairIndex (e.g., 0 for BTC)
+            leverage,                  # leverage (5x = 5)
+            is_long,                    # long (True or False)
+            True,                       # isOpen (always True)
+            1,                          # collateralIndex (1 = USDC)
+            0,                          # tradeType (0 = Market order)
+            int(position_size),         # collateralAmount (30 USDC = 30000000)
+            0,                           # openPrice (0 for market orders)
+            int(float(signal["TP1"]) * 1e8),  # tp (converted to 8 decimals)
+            int(float(signal["Stop-Loss"]) * 1e8),  # sl
+            0                            # __placeholder
         )
 
         txn = contract.functions.openTrade(
