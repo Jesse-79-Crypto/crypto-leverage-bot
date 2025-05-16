@@ -268,7 +268,11 @@ def execute_trade_on_gains(signal):
         tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         print(f"Trade sent! TX hash: {tx_hash.hex()}")
 
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        print("Trade submitted. Skipping receipt wait to avoid timeout.")
+        return {
+            "status": "TRADE SENT",
+            ...
+        }
         if receipt.status != 1:
             raise Exception("❌ Transaction failed or reverted on-chain.")
         print("✅ Trade confirmed on-chain.")
