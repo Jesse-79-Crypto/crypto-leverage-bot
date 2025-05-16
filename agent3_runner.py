@@ -259,14 +259,35 @@ class ContractManager:
             return False
     
     def send_transaction(self, transaction):
-        """Send transaction with retry logic"""
+        """Send transaction with retry logic and higher gas price"""
         w3 = self.web3_conn.ensure_connected()
+        
+        # Start with higher gas price
+        gas_price = self.get_optimal_gas_price()
+        transaction['gasPrice'] = gas_price
         
         for attempt in range(Config.MAX_TX_RETRIES):
             try:
+                # Increase gas price slightly on retries
+                if attempt > 0:
+                    gas_price = int(gas_price * 1.2)  # Increase by 20% each retry
+                    transaction['gasPrice'] = gas_price
+                    # Update nonce in case previous transaction was pending
+                    transaction['nonce'] = w3.eth.get_transaction_count(self.wallet_address, 'pending')
+                    logger.info(f"Retry #{attempt+1} with increased gas price: {gas_price/1e9:.2f} gwei")
+                
                 signed_txn = w3.eth.account.sign_transaction(transaction, private_key=self.private_key)
                 tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                logger.info(f"Transaction sent: {tx_hash.hex()}")
+                logger.info(f"Transaction sent: {tx_hash.hex()} with gas price {gas_price/1e9:.2f} gwei")
+                
+                # Do a quick check to see if the transaction is recognized by the node
+                try:
+                    tx = w3.eth.get_transaction(tx_hash)
+                    if tx is not None:
+                        logger.info(f"Transaction confirmed in node mempool: {tx_hash.hex()}")
+                except Exception as e:
+                    logger.warning(f"Transaction sent but not immediately visible in mempool: {str(e)}")
+                
                 return tx_hash
             except Exception as e:
                 if attempt == Config.MAX_TX_RETRIES - 1:
@@ -308,8 +329,40 @@ class ContractManager:
     def get_optimal_gas_price(self):
         """Calculate optimal gas price based on network conditions"""
         w3 = self.web3_conn.ensure_connected()
-        base_gas_price = w3.eth.gas_price
-        return int(base_gas_price * Config.GAS_PRICE_MULTIPLIER)
+        try:
+            # Get current network gas price
+            base_gas_price = w3.eth.gas_price
+            
+            # Ensure minimum base gas price (convert gwei to wei)
+            min_gas_price = int(Config.MIN_GAS_PRICE_GWEI * 1e9)
+            base_gas_price = max(base_gas_price, min_gas_price)
+            
+            # Get max priority fee (Base uses EIP-1559)
+            try:
+                # This will work if the node supports eth_maxPriorityFeePerGas
+                max_priority_fee = w3.eth.max_priority_fee_per_gas
+            except Exception:
+                # Fallback: use a reasonable default
+                max_priority_fee = int(Config.MIN_PRIORITY_FEE_GWEI * 1e9)
+            
+            # Ensure minimum priority fee
+            min_priority_fee = int(Config.MIN_PRIORITY_FEE_GWEI * 1e9)
+            max_priority_fee = max(max_priority_fee, min_priority_fee)
+            
+            # Calculate optimal gas price: base + (max_priority_fee * multiplier)
+            optimal_gas_price = base_gas_price + (max_priority_fee * 3)  # Prioritize even more
+            
+            # Apply additional multiplier for safety
+            final_gas_price = int(optimal_gas_price * Config.GAS_PRICE_MULTIPLIER)
+            
+            logger.info(f"Gas price: {final_gas_price/1e9:.4f} gwei (base: {base_gas_price/1e9:.4f}, priority: {max_priority_fee/1e9:.4f})")
+            return final_gas_price
+            
+        except Exception as e:
+            # Fallback to a higher static gas price if anything fails
+            fallback_price = 5_000_000_000  # 5 gwei
+            logger.warning(f"Error getting optimal gas price: {str(e)}. Using fallback: {fallback_price/1e9} gwei")
+            return fallback_price
 
 # ======== TRADING LOGIC ======== #
 class TradingStrategy:
@@ -478,7 +531,20 @@ class TradeExecutor:
             logger.info(f"Preparing trade: {symbol} {'LONG' if is_long else 'SHORT'} {leverage}x")
             logger.info(f"Position size: {collateral_amount} USDC (notional: {collateral_amount * leverage} USD)")
             
-            # Build transaction
+            # Use EIP-1559 transaction format for Base chain
+            base_fee = w3.eth.get_block('latest')['baseFeePerGas']
+            priority_fee = w3.eth.max_priority_fee_per_gas
+            
+            # Ensure minimum values
+            min_priority_fee = int(Config.MIN_PRIORITY_FEE_GWEI * 1e9)
+            priority_fee = max(priority_fee, min_priority_fee)
+            
+            # Calculate max fee (base fee + priority fee with buffer)
+            max_fee_per_gas = int(base_fee * 1.5) + priority_fee
+            
+            # Build transaction using EIP-1559 format
+            logger.info(f"Using EIP-1559 tx: maxFeePerGas={max_fee_per_gas/1e9:.4f} gwei, maxPriorityFeePerGas={priority_fee/1e9:.4f} gwei")
+            
             tx = self.contract_manager.gains_contract.functions.openTrade(
                 trade_struct,
                 Config.MAX_SLIPPAGE,        # Max slippage in basis points 
@@ -487,8 +553,10 @@ class TradeExecutor:
                 'from': self.contract_manager.wallet_address,
                 'nonce': w3.eth.get_transaction_count(self.contract_manager.wallet_address, 'pending'),
                 'gas': Config.GAS_LIMIT_TRADE,
-                'gasPrice': self.contract_manager.get_optimal_gas_price(),
+                'maxFeePerGas': max_fee_per_gas,
+                'maxPriorityFeePerGas': priority_fee,
                 'chainId': Config.CHAIN_ID,
+                'type': 2,  # EIP-1559 transaction
                 'value': 0
             })
             
@@ -497,6 +565,14 @@ class TradeExecutor:
             
             # Log trade immediately after sending
             logger.info(f"Trade submitted: {tx_hash.hex()}")
+            
+            # Try to get transaction inclusion status - check if tx is actually in mempool
+            try:
+                w3.eth.get_transaction(tx_hash)
+                logger.info(f"✅ Transaction verified in mempool: {tx_hash.hex()}")
+            except Exception as e:
+                logger.warning(f"⚠️ Transaction sent but not immediately visible: {str(e)}")
+                logger.warning("The blockchain may be congested - check BaseScan manually")
             
             # Return trade details immediately without waiting for confirmation
             position_size_token = round(collateral_amount * leverage / entry_price, 4)
