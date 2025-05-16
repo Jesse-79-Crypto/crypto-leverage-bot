@@ -105,7 +105,7 @@ if allowance < amount_to_trade:
     signed_approve = w3.eth.account.sign_transaction(approve_tx, private_key=PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_approve.rawTransaction)
     print("✅ USDC Approved. Tx:", tx_hash.hex())
-    w3.eth.wait_for_transaction_receipt(tx_hash)  # Optional: Wait for confirmation before continuing
+    w3.eth.wait_for_transaction_receipt(tx_hash)
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -136,8 +136,8 @@ def log_trade_to_sheet(data):
 
         row = [
             datetime.utcnow().isoformat(),
-            data.get("Coin"),
-            data.get("Trade Direction"),
+            data.get("coin"),
+            data.get("direction"),
             data.get("entry_price"),
             data.get("stop_loss"),
             data.get("tp1"),
@@ -159,176 +159,3 @@ def log_trade_to_sheet(data):
         print("📊 Trade logged to sheet successfully.")
     except Exception as e:
         print("⚠️ Failed to log trade:", str(e))
-def execute_trade_on_gains(signal):
-    print("Incoming signal data:", json.dumps(signal, indent=2))
-    print("Trade execution started")
-
-    try:
-        w3 = Web3(Web3.HTTPProvider(os.getenv("BASE_RPC_URL")))
-        if not w3.is_connected():
-            raise ConnectionError("Failed to connect to BASE network.")
-        print("Connected to BASE")
-
-        USDC_ADDRESS = Web3.to_checksum_address(os.getenv("USDC_ADDRESS"))
-        usdc_contract = w3.eth.contract(address=USDC_ADDRESS, abi=ERC20_ABI)
-
-        private_key = os.getenv("WALLET_PRIVATE_KEY")
-        account = w3.eth.account.from_key(private_key)
-        print(f"Wallet loaded: {account.address}")
-
-        with open("abi/gains_base_abi.json", "r") as abi_file:
-            gains_abi = json.load(abi_file)
-        print("ABI loaded")
-
-        contract = w3.eth.contract(address=GAINS_CONTRACT_ADDRESS, abi=gains_abi)
-        usdc = w3.eth.contract(address=USDC_ADDRESS, abi=ERC20_ABI)
-
-        usdc_balance = usdc.functions.balanceOf(account.address).call() / 1e6
-        usd_amount = usdc_balance * float(os.getenv("MAX_RISK_PCT", 15)) / 100
-        print(f"USDC balance: {usdc_balance:.2f}, Using: {usd_amount:.2f} for this trade")
-
-        current_allowance = usdc.functions.allowance(account.address, GAINS_CONTRACT_ADDRESS).call()
-        print(f"Current allowance for Gains contract: {current_allowance / 1e6:.2f} USDC")
-
-        if current_allowance < usd_amount * 1e6:
-            try:
-                print("USDC allowance too low, re-approving now...")
-                approval_amount = 2**256 - 1
-                nonce = w3.eth.get_transaction_count(account.address, 'pending')
-                gas_price = max(int(w3.eth.gas_price * 1.1), w3.eth.gas_price + 1_000_000_000)
-
-                approval_tx = usdc.functions.approve(GAINS_CONTRACT_ADDRESS, approval_amount).build_transaction({
-                    'from': account.address,
-                    'nonce': nonce,
-                    'gas': 100000,
-                    'gasPrice': gas_price
-                })
-                signed_approval = w3.eth.account.sign_transaction(approval_tx, private_key=private_key)
-                # Fix variable name mismatch here 
-                approval_tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                print(f"Approval TX sent: {approval_tx_hash.hex()}")
-                receipt = w3.eth.wait_for_transaction_receipt(approval_tx_hash)
-                if receipt.status != 1:
-                    raise Exception("USDC approval transaction failed")
-                print("USDC approval confirmed")
-                time.sleep(3)
-            except Exception as e:
-                print("Approval error:", str(e))
-                print(traceback.format_exc())
-                return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
-
-        is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
-        entry_price = float(signal.get("Entry Price"))
-        symbol = signal.get("Coin", "").strip().upper()
-        pair_index = PAIR_INDEX_MAP.get(symbol)
-
-        if pair_index is None:
-            raise ValueError(f"Unsupported or missing symbol: {symbol}")
-
-        leverage = int(os.getenv("LEVERAGE", 5))
-        notional_value = usd_amount * leverage
-        min_required = MIN_NOTIONAL_PER_PAIR.get(symbol, 50)
-
-        if notional_value < min_required:
-            print(f"Skipping trade: Notional value ${notional_value:.2f} too low for {symbol} (min: ${min_required})")
-            return {"status": "SKIPPED", "reason": f"Notional ${notional_value:.2f} < required ${min_required}"}
-
-        position_size = int(usd_amount * 1e6)
-        print(f"Position size: ${usd_amount:.2f} USD (~{position_size} tokens)")
-
-        trade_struct = (
-            account.address,             # user
-            0,                           # index (always 0 for new trades)
-            pair_index,                  # pairIndex (0 = BTC, 1 = ETH, etc.)
-            leverage,                    # leverage (5x)
-            is_long,                     # long
-            True,                        # isOpen
-            0,                           # ✅ correct: collateralIndex (USDC = 0 on Base)
-            0,                           # tradeType (0 = Market)
-            int(position_size),          # collateralAmount
-            0,                           # openPrice = 0 for market order
-            int(float(signal["TP1"]) * 1e8),       # tp
-            int(float(signal["Stop-Loss"]) * 1e8), # sl
-            0                            # __placeholder
-        )
-
-        # Bump trade gas price to avoid "replacement transaction underpriced" errors
-        trade_gas_price = max(int(w3.eth.gas_price * 1.1), w3.eth.gas_price + 1_000_000_000)
-
-        txn = contract.functions.openTrade(
-            trade_struct,
-            30,
-            account.address
-        ).build_transaction({
-            'from': account.address,
-            'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
-            'gas': 300000,
-            'gasPrice': trade_gas_price,
-            'value': 0
-        })
-
-        signed_txn = w3.eth.account.sign_transaction(txn, private_key)
-        print("🔄 Signing transaction...")
-        
-        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        print(f"📤 Trade sent! TX hash: {tx_hash.hex()}")
-
-        # ✅ Skip waiting for on-chain receipt to avoid Railway timeout
-        log_trade_to_sheet({
-            "timestamp": datetime.utcnow().isoformat(),
-            "coin": symbol,
-            "direction": "LONG" if is_long else "SHORT",
-            "entry_price": entry_price,
-            "stop_loss": signal.get("Stop-Loss"),
-            "tp1": signal.get("TP1"),
-            "tp2": signal.get("TP2"),
-            "tp3": signal.get("TP3"),
-            "tx_hash": tx_hash.hex(),
-            "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
-        })
-        print("📊 Trade logged to sheet successfully.")
-
-        # ✅ Wait for on-chain confirmation
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        if receipt.status != 1:
-            raise Exception("❌ Transaction failed or reverted on-chain.")
-        print("✅ Trade confirmed on-chain.")
-
-        # ✏️ Log only successful trades
-        log_trade_to_sheet({
-            "timestamp": datetime.utcnow().isoformat(),
-            "coin": symbol,
-            "direction": "LONG" if is_long else "SHORT",
-            "entry_price": entry_price,
-            "stop_loss": signal.get("Stop-Loss"),
-            "tp1": signal.get("TP1"),
-            "tp2": signal.get("TP2"),
-            "tp3": signal.get("TP3"),
-            "tx_hash": tx_hash.hex(),
-            "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
-        })
-        print("📈 Trade logged to sheet successfully.")
-
-        # ✅ Return trade confirmation
-        return {
-            "status": "TRADE SENT",
-            "tx_hash": tx_hash.hex(),
-            "entry_price": entry_price,
-            "stop_loss": signal.get("Stop-Loss"),
-            "tp1": signal.get("TP1"),
-            "tp2": signal.get("TP2"),
-            "tp3": signal.get("TP3"),
-            "position_size_usd": usd_amount,
-            "position_size_token": round(usd_amount / entry_price, 4),
-            "log_link": f"https://basescan.org/tx/{tx_hash.hex()}"
-        }
-
-    except Exception as e:
-        print("ERROR: An exception occurred during trade execution")
-        print("Error details:", str(e))
-        print("Traceback:\n", traceback.format_exc())
-        return {
-            "status": "error",
-            "message": str(e),
-            "trace": traceback.format_exc()
-        }
