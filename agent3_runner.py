@@ -7,8 +7,6 @@ from datetime import datetime
 
 # === Setup Constants === #
 PAIR_INDEX_MAP = {
-    ...
-}
     "BTC": 0,
     "ETH": 1,
     "LINK": 2,
