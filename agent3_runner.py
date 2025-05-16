@@ -239,16 +239,16 @@ def execute_trade_on_gains(signal):
         trade_struct = (
             account.address,             # user
             0,                           # index (always 0 for new trades)
-            pair_index,                 # pairIndex (e.g., 0 for BTC)
-            leverage,                  # leverage (5x = 5)
-            is_long,                    # long (True or False)
-            True,                       # isOpen (always True)
-            1,                          # collateralIndex (1 = USDC)
-            0,                          # tradeType (0 = Market order)
-            int(position_size),         # collateralAmount (30 USDC = 30000000)
-            0,                           # openPrice (0 for market orders)
-            int(float(signal["TP1"]) * 1e8),  # tp (converted to 8 decimals)
-            int(float(signal["Stop-Loss"]) * 1e8),  # sl
+            pair_index,                  # pairIndex (0 = BTC, 1 = ETH, etc.)
+            leverage,                    # leverage (5x)
+            is_long,                     # long
+            True,                        # isOpen
+            0,                           # ✅ correct: collateralIndex (USDC = 0 on Base)
+            0,                           # tradeType (0 = Market)
+            int(position_size),          # collateralAmount
+            0,                           # openPrice = 0 for market order
+            int(float(signal["TP1"]) * 1e8),       # tp
+            int(float(signal["Stop-Loss"]) * 1e8), # sl
             0                            # __placeholder
         )
 
