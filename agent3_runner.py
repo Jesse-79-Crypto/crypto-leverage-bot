@@ -252,15 +252,18 @@ def execute_trade_on_gains(signal):
             0                            # __placeholder
         )
 
+        # Bump trade gas price to avoid "replacement transaction underpriced" errors
+        trade_gas_price = max(int(w3.eth.gas_price * 1.1), w3.eth.gas_price + 1_000_000_000)
+
         txn = contract.functions.openTrade(
             trade_struct,
-            30,  # 3% slippage in tenths of a percent
+            30,
             account.address
         ).build_transaction({
             'from': account.address,
             'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
             'gas': 300000,
-            'gasPrice': w3.eth.gas_price,
+            'gasPrice': trade_gas_price,
             'value': 0
         })
 
