@@ -220,9 +220,9 @@ def execute_trade_on_gains(signal):
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         entry_price = float(signal.get("Entry Price"))
         symbol = signal.get("Coin", "").strip().upper()
-        pair_index = PAIR_INDEX_MAP.get(symbol, 0)
+        pair_index = PAIR_INDEX_MAP.get(symbol)
 
-        if pair_index == 0:
+        if pair_index is None:
             raise ValueError(f"Unsupported or missing symbol: {symbol}")
 
         leverage = int(os.getenv("LEVERAGE", 5))
