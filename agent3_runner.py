@@ -446,7 +446,7 @@ class TradeExecutor:
         return True
     
     def _send_trade_to_chain(self, symbol, pair_index, is_long, leverage, 
-                            collateral_amount, entry_price, stop_loss, tp1) -> Dict[str, Any]:
+                           collateral_amount, entry_price, stop_loss, tp1, signal=None) -> Dict[str, Any]:
         """Send the trade to the blockchain"""
         w3 = self.contract_manager.web3_conn.ensure_connected()
         
@@ -512,14 +512,18 @@ class TradeExecutor:
                 logger.info(f"Trade sent but couldn't wait for confirmation: {str(e)}")
                 # Continue anyway - we don't want to fail the whole process if just the waiting fails
             
+            # Get TP2/TP3 values from signal if available, otherwise use defaults
+            tp2 = signal.get("TP2", tp1 * 1.05) if signal else tp1 * 1.05
+            tp3 = signal.get("TP3", tp1 * 1.10) if signal else tp1 * 1.10
+            
             return {
                 "status": "TRADE SENT",
                 "tx_hash": tx_hash.hex(),
                 "entry_price": entry_price,
                 "stop_loss": stop_loss,
                 "tp1": tp1,
-                "tp2": signal.get("TP2", tp1 * 1.05) if tp1 else 0,  # Use provided TP2 or calculate
-                "tp3": signal.get("TP3", tp1 * 1.10) if tp1 else 0,  # Use provided TP3 or calculate
+                "tp2": tp2,
+                "tp3": tp3,
                 "position_size_usd": collateral_amount,
                 "position_size_token": position_size_token,
                 "leverage": leverage,
