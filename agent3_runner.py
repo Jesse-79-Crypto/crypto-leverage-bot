@@ -337,25 +337,10 @@ class ContractManager:
             min_gas_price = int(Config.MIN_GAS_PRICE_GWEI * 1e9)
             base_gas_price = max(base_gas_price, min_gas_price)
             
-            # Get max priority fee (Base uses EIP-1559)
-            try:
-                # This will work if the node supports eth_maxPriorityFeePerGas
-                max_priority_fee = w3.eth.max_priority_fee_per_gas
-            except Exception:
-                # Fallback: use a reasonable default
-                max_priority_fee = int(Config.MIN_PRIORITY_FEE_GWEI * 1e9)
+            # Apply multiplier for safety
+            final_gas_price = int(base_gas_price * Config.GAS_PRICE_MULTIPLIER)
             
-            # Ensure minimum priority fee
-            min_priority_fee = int(Config.MIN_PRIORITY_FEE_GWEI * 1e9)
-            max_priority_fee = max(max_priority_fee, min_priority_fee)
-            
-            # Calculate optimal gas price: base + (max_priority_fee * multiplier)
-            optimal_gas_price = base_gas_price + (max_priority_fee * 3)  # Prioritize even more
-            
-            # Apply additional multiplier for safety
-            final_gas_price = int(optimal_gas_price * Config.GAS_PRICE_MULTIPLIER)
-            
-            logger.info(f"Gas price: {final_gas_price/1e9:.4f} gwei (base: {base_gas_price/1e9:.4f}, priority: {max_priority_fee/1e9:.4f})")
+            logger.info(f"Gas price: {final_gas_price/1e9:.4f} gwei (base: {base_gas_price/1e9:.4f})")
             return final_gas_price
             
         except Exception as e:
@@ -531,19 +516,10 @@ class TradeExecutor:
             logger.info(f"Preparing trade: {symbol} {'LONG' if is_long else 'SHORT'} {leverage}x")
             logger.info(f"Position size: {collateral_amount} USDC (notional: {collateral_amount * leverage} USD)")
             
-            # Use EIP-1559 transaction format for Base chain
-            base_fee = w3.eth.get_block('latest')['baseFeePerGas']
-            priority_fee = w3.eth.max_priority_fee_per_gas
-            
-            # Ensure minimum values
-            min_priority_fee = int(Config.MIN_PRIORITY_FEE_GWEI * 1e9)
-            priority_fee = max(priority_fee, min_priority_fee)
-            
-            # Calculate max fee (base fee + priority fee with buffer)
-            max_fee_per_gas = int(base_fee * 1.5) + priority_fee
-            
-            # Build transaction using EIP-1559 format
-            logger.info(f"Using EIP-1559 tx: maxFeePerGas={max_fee_per_gas/1e9:.4f} gwei, maxPriorityFeePerGas={priority_fee/1e9:.4f} gwei")
+            # Use standard transaction format instead of EIP-1559 
+            # since the RPC provider doesn't support max_priority_fee_per_gas
+            gas_price = self.contract_manager.get_optimal_gas_price()
+            logger.info(f"Using gas price: {gas_price/1e9:.4f} gwei")
             
             tx = self.contract_manager.gains_contract.functions.openTrade(
                 trade_struct,
@@ -553,10 +529,8 @@ class TradeExecutor:
                 'from': self.contract_manager.wallet_address,
                 'nonce': w3.eth.get_transaction_count(self.contract_manager.wallet_address, 'pending'),
                 'gas': Config.GAS_LIMIT_TRADE,
-                'maxFeePerGas': max_fee_per_gas,
-                'maxPriorityFeePerGas': priority_fee,
+                'gasPrice': gas_price,
                 'chainId': Config.CHAIN_ID,
-                'type': 2,  # EIP-1559 transaction
                 'value': 0
             })
             
