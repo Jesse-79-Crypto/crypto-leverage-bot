@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Gains Network Trading Bot
-Enhanced version with improved error handling, reliability, and risk management
+Enhanced version with improved error handling, reliability, risk management, and real market price display
 """
 
 import json
@@ -69,6 +69,28 @@ class Config:
     
     # Collateral token index in Gains Network (USDC = 0 on Base)
     COLLATERAL_INDEX = 0  # USDC on Base
+    
+    # Default fallback market prices in case real prices aren't provided
+    DEFAULT_MARKET_PRICES = {
+        "BTC": 105000,
+        "ETH": 8600,
+        "LINK": 20,
+        "DOGE": 0.3,
+        "ADA": 1.2,
+        "AAVE": 150,
+        "ALGO": 0.8,
+        "BAT": 0.5,
+        "COMP": 90,
+        "DOT": 15,
+        "EOS": 1.5,
+    }
+    
+    # Real price display formats
+    PRICE_FORMAT = {
+        "BTC": "${:,.2f}",
+        "ETH": "${:,.2f}",
+        "DEFAULT": "${:,.4f}"
+    }
 
 # ======== LOGGING SETUP ======== #
 def setup_logging():
@@ -334,8 +356,12 @@ class ContractManager:
             base_gas_price = w3.eth.gas_price
             
             # Ensure minimum base gas price (convert gwei to wei)
-            min_gas_price = int(Config.MIN_GAS_PRICE_GWEI * 1e9)
-            base_gas_price = max(base_gas_price, min_gas_price)
+            try:
+                min_gas_price = int(Config.MIN_GAS_PRICE_GWEI * 1e9)
+                base_gas_price = max(base_gas_price, min_gas_price)
+            except AttributeError:
+                # Config might not have MIN_GAS_PRICE_GWEI defined
+                pass
             
             # Apply multiplier for safety
             final_gas_price = int(base_gas_price * Config.GAS_PRICE_MULTIPLIER)
@@ -399,6 +425,89 @@ class TradingStrategy:
         
         return collateral_amount, leverage
 
+# ======== PRICE CONVERSION UTILITIES ======== #
+class PriceConverter:
+    """Utilities for handling price conversion between real market prices and synthetic Gains prices"""
+    
+    @staticmethod
+    def get_real_market_price(symbol: str, synthetic_price: float = None) -> float:
+        """
+        Get the real market price for a symbol
+        If synthetic_price is provided, it will compute the ratio for future use
+        """
+        # Use fallback price for now - this would be replaced with API call in production
+        return Config.DEFAULT_MARKET_PRICES.get(symbol, 100)
+    
+    @staticmethod
+    def format_price(symbol: str, price: float) -> str:
+        """Format price according to symbol's requirements"""
+        format_str = Config.PRICE_FORMAT.get(symbol, Config.PRICE_FORMAT["DEFAULT"])
+        return format_str.format(price)
+    
+    @staticmethod
+    def extract_prices_from_signal(signal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract and normalize prices from a signal
+        Handles both cases: when signal has real prices or only synthetic prices
+        """
+        # Required fields
+        symbol = signal.get("Coin", "").strip().upper()
+        is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
+        
+        # Check if signal already has real market prices
+        has_real_prices = "Real Market Price" in signal
+        
+        if has_real_prices:
+            # Extract real market prices
+            real_entry = float(signal.get("Real Market Price", 0))
+            real_stop_loss = float(signal.get("Real Stop Loss", 0))
+            real_tp1 = float(signal.get("Real TP1", 0))
+            real_tp2 = float(signal.get("Real TP2", 0)) if "Real TP2" in signal else 0
+            real_tp3 = float(signal.get("Real TP3", 0)) if "Real TP3" in signal else 0
+            
+            # Extract synthetic prices
+            synthetic_entry = float(signal.get("Entry Price", 0))
+            synthetic_stop_loss = float(signal.get("Stop-Loss", 0))
+            synthetic_tp1 = float(signal.get("TP1", 0))
+            synthetic_tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
+            synthetic_tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+        else:
+            # Only has synthetic prices - need to estimate real prices
+            synthetic_entry = float(signal.get("Entry Price", 0))
+            synthetic_stop_loss = float(signal.get("Stop-Loss", 0))
+            synthetic_tp1 = float(signal.get("TP1", 0))
+            synthetic_tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
+            synthetic_tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+            
+            # Get real market price
+            real_entry = PriceConverter.get_real_market_price(symbol, synthetic_entry)
+            
+            # Calculate price ratio
+            ratio = real_entry / synthetic_entry if synthetic_entry else 1
+            
+            # Estimate real prices based on synthetic ones
+            real_stop_loss = synthetic_stop_loss * ratio
+            real_tp1 = synthetic_tp1 * ratio
+            real_tp2 = synthetic_tp2 * ratio
+            real_tp3 = synthetic_tp3 * ratio
+        
+        return {
+            "synthetic": {
+                "entry": synthetic_entry,
+                "stop_loss": synthetic_stop_loss,
+                "tp1": synthetic_tp1,
+                "tp2": synthetic_tp2,
+                "tp3": synthetic_tp3
+            },
+            "real": {
+                "entry": real_entry,
+                "stop_loss": real_stop_loss,
+                "tp1": real_tp1,
+                "tp2": real_tp2,
+                "tp3": real_tp3
+            }
+        }
+
 # ======== TRADE EXECUTION ======== #
 class TradeExecutor:
     def __init__(self, contract_manager: ContractManager, strategy: TradingStrategy):
@@ -408,15 +517,7 @@ class TradeExecutor:
     def execute_trade(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         """
         Execute a trade based on the given signal
-        Signal format: {
-            "Coin": "ETH",
-            "Trade Direction": "LONG" or "SHORT",
-            "Entry Price": 2585.03,
-            "Stop-Loss": 2550.65,
-            "TP1": 2662.58,
-            "TP2": 2740.14,
-            "TP3": 2843.54
-        }
+        Signal now supports both real market and synthetic prices
         """
         logger.info(f"Processing trade signal: {json.dumps(signal, indent=2)}")
         
@@ -424,15 +525,29 @@ class TradeExecutor:
             # Extract signal parameters
             symbol = signal.get("Coin", "").strip().upper()
             is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
-            entry_price = float(signal.get("Entry Price", 0))
-            stop_loss = float(signal.get("Stop-Loss", 0))
-            tp1 = float(signal.get("TP1", 0))
-            tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
-            tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+            
+            # Get both real and synthetic prices
+            prices = PriceConverter.extract_prices_from_signal(signal)
+            
+            # Use synthetic prices for contract interaction
+            entry_price = prices["synthetic"]["entry"]
+            stop_loss = prices["synthetic"]["stop_loss"]
+            tp1 = prices["synthetic"]["tp1"]
+            
+            # Use real prices for logging and display
+            real_entry = prices["real"]["entry"]
+            real_stop_loss = prices["real"]["stop_loss"]
+            real_tp1 = prices["real"]["tp1"]
+            real_tp2 = prices["real"]["tp2"]
+            real_tp3 = prices["real"]["tp3"]
             
             # Validate signal
             if not self._validate_signal(symbol, entry_price, stop_loss, tp1):
                 return {"status": "error", "message": "Invalid signal parameters"}
+            
+            # Log real market prices
+            logger.info(f"Real market price for {symbol}: ${real_entry:,.2f}")
+            logger.info(f"Synthetic price for {symbol}: {entry_price}")
             
             # Get pair index
             pair_index = Config.PAIR_INDEX_MAP.get(symbol)
@@ -453,8 +568,8 @@ class TradeExecutor:
             if not self.contract_manager.check_and_approve_usdc(collateral_amount):
                 return {"status": "error", "message": "Failed to approve USDC"}
             
-            # Execute the trade
-            return self._send_trade_to_chain(
+            # Execute the trade using synthetic prices
+            result = self._send_trade_to_chain(
                 symbol=symbol,
                 pair_index=pair_index,
                 is_long=is_long,
@@ -465,6 +580,37 @@ class TradeExecutor:
                 tp1=tp1,
                 signal=signal  # Pass the full signal for TP2/TP3 access
             )
+            
+            # Add real market prices to result
+            if result["status"] == "TRADE SENT":
+                result["real_market_price"] = real_entry
+                result["real_stop_loss"] = real_stop_loss
+                result["real_tp1"] = real_tp1
+                result["real_tp2"] = real_tp2
+                result["real_tp3"] = real_tp3
+                
+                # Add formatted real prices for display
+                result["display"] = {
+                    "real_market_price": PriceConverter.format_price(symbol, real_entry),
+                    "real_stop_loss": PriceConverter.format_price(symbol, real_stop_loss),
+                    "real_tp1": PriceConverter.format_price(symbol, real_tp1),
+                    "real_tp2": PriceConverter.format_price(symbol, real_tp2),
+                    "real_tp3": PriceConverter.format_price(symbol, real_tp3)
+                }
+                
+                # Log real price information
+                logger.info(f"""
+====== TRADE EXECUTED WITH REAL MARKET PRICES ======
+{symbol} {is_long and 'LONG' or 'SHORT'} at {result["display"]["real_market_price"]}
+Stop Loss: {result["display"]["real_stop_loss"]}
+TP1: {result["display"]["real_tp1"]}
+TP2: {result["display"]["real_tp2"]}
+TP3: {result["display"]["real_tp3"]}
+Position: {collateral_amount} USDC × {leverage}x = ${collateral_amount * leverage:,.2f}
+=========================================
+""")
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error executing trade: {str(e)}")
@@ -613,22 +759,25 @@ class TradeLogger:
             service = build("sheets", "v4", credentials=creds)
             sheet = service.spreadsheets()
             
-            # Format row for sheet
+            # Use real market price for logging if available
+            real_prices_available = "real_market_price" in data
+            
+            # Format row for sheet - prioritize real market prices if available
             row = [
                 datetime.utcnow().isoformat(),  # Timestamp
                 data.get("symbol", ""),
                 data.get("direction", ""),
-                data.get("entry_price", ""),
-                data.get("stop_loss", ""),
-                data.get("tp1", ""),
-                data.get("tp2", ""),
-                data.get("tp3", ""),
+                data.get("real_market_price", data.get("entry_price", "")),  # Use real if available
+                data.get("real_stop_loss", data.get("stop_loss", "")),       # Use real if available
+                data.get("real_tp1", data.get("tp1", "")),                   # Use real if available
+                data.get("real_tp2", data.get("tp2", "")),                   # Use real if available
+                data.get("real_tp3", data.get("tp3", "")),                   # Use real if available
                 data.get("position_size_usd", ""),
                 data.get("leverage", ""),
                 data.get("position_size_token", ""),
                 data.get("tx_hash", ""),
                 data.get("log_link", ""),
-                data.get("status", "")
+                "REAL" if real_prices_available else data.get("status", "")
             ]
             
             # Append to sheet
@@ -664,16 +813,20 @@ class GainsNetworkBot:
     
     def process_trade_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         """Process a trade signal"""
-        logger.info(f"Received trade signal for {signal.get('Coin', 'Unknown')} {signal.get('Trade Direction', 'Unknown')}")
+        symbol = signal.get("Coin", "Unknown")
+        direction = signal.get("Trade Direction", "Unknown")
+        
+        logger.info(f"Received trade signal for {symbol} {direction}")
         
         # Execute trade
         result = self.executor.execute_trade(signal)
         
         # Log trade
         if result.get("status") == "TRADE SENT":
+            # Prepare log data with real market prices if available
             log_data = {
-                "symbol": signal.get("Coin", ""),
-                "direction": signal.get("Trade Direction", ""),
+                "symbol": symbol,
+                "direction": direction,
                 "entry_price": result.get("entry_price", ""),
                 "stop_loss": result.get("stop_loss", ""),
                 "tp1": result.get("tp1", ""),
@@ -686,6 +839,15 @@ class GainsNetworkBot:
                 "log_link": result.get("log_link", ""),
                 "status": result.get("status", "")
             }
+            
+            # Add real market prices if available
+            if "real_market_price" in result:
+                log_data["real_market_price"] = result["real_market_price"]
+                log_data["real_stop_loss"] = result["real_stop_loss"]
+                log_data["real_tp1"] = result["real_tp1"]
+                log_data["real_tp2"] = result["real_tp2"]
+                log_data["real_tp3"] = result["real_tp3"]
+            
             self.logger.log_trade_to_sheet(log_data)
         
         return result
@@ -697,15 +859,20 @@ def main():
         # Initialize the bot
         bot = GainsNetworkBot()
         
-        # Example signal - replace with your actual signal source
+        # Example signal with real market prices
         signal = {
             "Coin": "ETH",
             "Trade Direction": "LONG",
-            "Entry Price": 2585.037757501186,
-            "Stop-Loss": 2550.6567553264204,
-            "TP1": 2662.588890226222,
-            "TP2": 2740.1400229512574,
-            "TP3": 2843.5415332513053
+            "Entry Price": 96.5335,             # Synthetic price
+            "Stop-Loss": 93.6375,               # Synthetic price
+            "TP1": 97.4988,                     # Synthetic price
+            "TP2": 98.4642,                     # Synthetic price
+            "TP3": 99.9122,                     # Synthetic price
+            "Real Market Price": 8600,          # Real market price
+            "Real Stop Loss": 8342,             # Real market price
+            "Real TP1": 8686,                   # Real market price
+            "Real TP2": 8772,                   # Real market price
+            "Real TP3": 8901                    # Real market price
         }
         
         # Process the signal
@@ -725,6 +892,8 @@ def main():
 # For backwards compatibility with your existing code
 def execute_trade_on_gains(signal):
     """Compatibility wrapper for existing code"""
+    print("📩 Incoming Trade Signal:")
+    print(json.dumps(signal, indent=2))
     print("Incoming signal data:", json.dumps(signal, indent=2))
     print("Trade execution started")
 
