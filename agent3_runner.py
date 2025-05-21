@@ -432,11 +432,16 @@ class PriceConverter:
     @staticmethod
     def get_real_market_price(symbol: str, synthetic_price: float = None) -> float:
         """
-        Get the real market price for a symbol
+        Get the real market price for a symbol from the signal
         If synthetic_price is provided, it will compute the ratio for future use
         """
-        # Use fallback price for now - this would be replaced with API call in production
-        return Config.DEFAULT_MARKET_PRICES.get(symbol, 100)
+        try:
+            # In a production system, you would query an API here
+            # For now, use the fallback prices from Config
+            return Config.DEFAULT_MARKET_PRICES.get(symbol, 100)
+        except Exception as e:
+            logger.error(f"Error getting real market price: {e}")
+            return Config.DEFAULT_MARKET_PRICES.get(symbol, 100)
     
     @staticmethod
     def format_price(symbol: str, price: float) -> str:
@@ -450,47 +455,90 @@ class PriceConverter:
         Extract and normalize prices from a signal
         Handles both cases: when signal has real prices or only synthetic prices
         """
-        # Required fields
-        symbol = signal.get("Coin", "").strip().upper()
+        # Extract basic information
+        symbol = signal.get("Coin", "").strip().upper().replace("/USDT", "")
         is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
         
-        # Check if signal already has real market prices
+        # Check if signal has real market prices
         has_real_prices = "Real Market Price" in signal
         
         if has_real_prices:
-            # Extract real market prices
-            real_entry = float(signal.get("Real Market Price", 0))
-            real_stop_loss = float(signal.get("Real Stop Loss", 0))
-            real_tp1 = float(signal.get("Real TP1", 0))
-            real_tp2 = float(signal.get("Real TP2", 0)) if "Real TP2" in signal else 0
-            real_tp3 = float(signal.get("Real TP3", 0)) if "Real TP3" in signal else 0
+            # Extract real market prices with better error handling
+            try:
+                real_entry = float(signal.get("Real Market Price", 0))
+                real_stop_loss = float(signal.get("Real Stop Loss", 0))
+                real_tp1 = float(signal.get("Real TP1", 0))
+                real_tp2 = float(signal.get("Real TP2", 0)) if "Real TP2" in signal else 0
+                real_tp3 = float(signal.get("Real TP3", 0)) if "Real TP3" in signal else 0
+            except (ValueError, TypeError) as e:
+                logger.error(f"Error parsing real prices: {e}")
+                # Fall back to synthetic prices with conversion
+                real_entry = PriceConverter.get_real_market_price(symbol)
+                real_stop_loss = 0
+                real_tp1 = 0
+                real_tp2 = 0
+                real_tp3 = 0
             
             # Extract synthetic prices
-            synthetic_entry = float(signal.get("Entry Price", 0))
-            synthetic_stop_loss = float(signal.get("Stop-Loss", 0))
-            synthetic_tp1 = float(signal.get("TP1", 0))
-            synthetic_tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
-            synthetic_tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+            try:
+                synthetic_entry = float(signal.get("Entry Price", 0))
+                synthetic_stop_loss = float(signal.get("Stop-Loss", 0))
+                synthetic_tp1 = float(signal.get("TP1", 0))
+                synthetic_tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
+                synthetic_tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+            except (ValueError, TypeError) as e:
+                logger.error(f"Error parsing synthetic prices: {e}")
+                synthetic_entry = 0
+                synthetic_stop_loss = 0
+                synthetic_tp1 = 0
+                synthetic_tp2 = 0
+                synthetic_tp3 = 0
+                
+            # If we have both real and synthetic prices, verify and calculate ratio
+            if real_entry > 0 and synthetic_entry > 0:
+                # Store the conversion ratio for future use
+                ratio = real_entry / synthetic_entry
+                logger.info(f"Price ratio for {symbol}: {ratio:.2f} (real/synthetic)")
+                
+                # If any real prices are missing, calculate them from synthetic using the ratio
+                if real_stop_loss == 0 and synthetic_stop_loss > 0:
+                    real_stop_loss = synthetic_stop_loss * ratio
+                if real_tp1 == 0 and synthetic_tp1 > 0:
+                    real_tp1 = synthetic_tp1 * ratio
+                if real_tp2 == 0 and synthetic_tp2 > 0:
+                    real_tp2 = synthetic_tp2 * ratio
+                if real_tp3 == 0 and synthetic_tp3 > 0:
+                    real_tp3 = synthetic_tp3 * ratio
         else:
-            # Only has synthetic prices - need to estimate real prices
-            synthetic_entry = float(signal.get("Entry Price", 0))
-            synthetic_stop_loss = float(signal.get("Stop-Loss", 0))
-            synthetic_tp1 = float(signal.get("TP1", 0))
-            synthetic_tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
-            synthetic_tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+            # Only has synthetic prices - must estimate real prices
+            try:
+                synthetic_entry = float(signal.get("Entry Price", 0))
+                synthetic_stop_loss = float(signal.get("Stop-Loss", 0))
+                synthetic_tp1 = float(signal.get("TP1", 0))
+                synthetic_tp2 = float(signal.get("TP2", 0)) if "TP2" in signal else 0
+                synthetic_tp3 = float(signal.get("TP3", 0)) if "TP3" in signal else 0
+            except (ValueError, TypeError) as e:
+                logger.error(f"Error parsing synthetic-only prices: {e}")
+                synthetic_entry = 0
+                synthetic_stop_loss = 0
+                synthetic_tp1 = 0
+                synthetic_tp2 = 0
+                synthetic_tp3 = 0
             
-            # Get real market price
+            # Get real market price from API or fallback
             real_entry = PriceConverter.get_real_market_price(symbol, synthetic_entry)
             
             # Calculate price ratio
             ratio = real_entry / synthetic_entry if synthetic_entry else 1
+            logger.info(f"Estimated price ratio for {symbol}: {ratio:.2f}")
             
             # Estimate real prices based on synthetic ones
-            real_stop_loss = synthetic_stop_loss * ratio
-            real_tp1 = synthetic_tp1 * ratio
-            real_tp2 = synthetic_tp2 * ratio
-            real_tp3 = synthetic_tp3 * ratio
+            real_stop_loss = synthetic_stop_loss * ratio if synthetic_stop_loss else 0
+            real_tp1 = synthetic_tp1 * ratio if synthetic_tp1 else 0
+            real_tp2 = synthetic_tp2 * ratio if synthetic_tp2 else 0
+            real_tp3 = synthetic_tp3 * ratio if synthetic_tp3 else 0
         
+        # Return a structured dictionary with both price sets
         return {
             "synthetic": {
                 "entry": synthetic_entry,
@@ -505,7 +553,8 @@ class PriceConverter:
                 "tp1": real_tp1,
                 "tp2": real_tp2,
                 "tp3": real_tp3
-            }
+            },
+            "ratio": ratio if 'ratio' in locals() else 1
         }
 
 # ======== TRADE EXECUTION ======== #
@@ -523,7 +572,7 @@ class TradeExecutor:
         
         try:
             # Extract signal parameters
-            symbol = signal.get("Coin", "").strip().upper()
+            symbol = signal.get("Coin", "").strip().upper().replace("/USDT", "")
             is_long = signal.get("Trade Direction", "").strip().upper() == "LONG"
             
             # Get both real and synthetic prices
@@ -813,7 +862,7 @@ class GainsNetworkBot:
     
     def process_trade_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         """Process a trade signal"""
-        symbol = signal.get("Coin", "Unknown")
+        symbol = signal.get("Coin", "Unknown").replace("/USDT", "")
         direction = signal.get("Trade Direction", "Unknown")
         
         logger.info(f"Received trade signal for {symbol} {direction}")
@@ -837,7 +886,8 @@ class GainsNetworkBot:
                 "position_size_token": result.get("position_size_token", ""),
                 "tx_hash": result.get("tx_hash", ""),
                 "log_link": result.get("log_link", ""),
-                "status": result.get("status", "")
+                "status": result
+                .get("status", "")
             }
             
             # Add real market prices if available
