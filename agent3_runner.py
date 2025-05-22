@@ -1,47 +1,40 @@
 #!/usr/bin/env python3
 """
-Gains Network Trading Bot — Runner
-Executes trades from webhook payload, enforcing per-coin minimum collateral,
-approving USDC, opening trades with 5× leverage, and logging everything.
+Flask runner for Gains Network trades.
+Enforces per-coin min collateral, approves USDC, opens trades at 5x,
+and logs metrics to your Trade Log sheet.
 """
 
-import os
-import json
-import time
-import logging
+import os, json, time, logging
 from flask import Flask, request, jsonify
 from web3 import Web3
-from web3.exceptions import TransactionNotFound
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-# ===== CONFIGURATION =====
+# ----- CONFIG -----
 RPC_URL         = os.getenv('BASE_RPC_URL')
 PRIVATE_KEY     = os.getenv('WALLET_PRIVATE_KEY')
 TRADE_LOG_SHEET = os.getenv('TRADE_LOG_SHEET_ID')
 TRADE_LOG_TAB   = os.getenv('TRADE_LOG_TAB_NAME', 'Trade Log')
-USDC_ADDRESS    = os.getenv('USDC_ADDRESS')  # e.g. "0x8335..."
-GAINS_ADDRESS   = "0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac"  # Base Gains
+USDC_ADDRESS    = os.getenv('USDC_ADDRESS')
+GAINS_ADDRESS   = "0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac"
 
-# Min notional per coin (collateral × leverage)
 MIN_NOTIONAL = {
     "BTC": 300,
     "ETH": 250,
     "DEFAULT": 150
 }
+LEVERAGE     = 5
+MAX_SLIPPAGE = 30  # bps
 
-LEVERAGE = 5
-MAX_SLIPPAGE = 30  # bps (0.3%)
-
-# ===== LOGGING =====
+# ----- LOGGING -----
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger()
 
-# ===== WEB3 SETUP =====
+# ----- WEB3 SETUP -----
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
-account = w3.eth.account.from_key(PRIVATE_KEY)
+acct = w3.eth.account.from_key(PRIVATE_KEY)
 
-# Load ABIs
 def load_abi(path):
     with open(path) as f:
         return json.load(f)
@@ -55,129 +48,91 @@ gains = w3.eth.contract(
     abi=load_abi('abi/gains_base_abi.json')
 )
 
-# ===== HELPERS =====
 def send_tx(tx):
-    signed = account.sign_transaction(tx)
+    signed = acct.sign_transaction(tx)
     return w3.eth.send_raw_transaction(signed.rawTransaction)
 
-def log_to_sheet(row_vals):
+def log_to_sheet(vals):
     creds = service_account.Credentials.from_service_account_file(
         'path/to/service_account.json',
         scopes=['https://www.googleapis.com/auth/spreadsheets']
     )
-    svc = build('sheets', 'v4', credentials=creds).spreadsheets()
+    svc = build('sheets','v4',credentials=creds).spreadsheets()
     svc.values().append(
         spreadsheetId=TRADE_LOG_SHEET,
         range=f"{TRADE_LOG_TAB}!A1",
         valueInputOption='RAW',
-        body={'values': [row_vals]}
+        body={'values':[vals]}
     ).execute()
 
-# ===== FLASK APP =====
+# ----- FLASK -----
 app = Flask(__name__)
 
 @app.route('/execute', methods=['POST'])
 def execute():
     sig = request.json
     try:
-        # Parse core fields
-        coin      = sig['coin']             # e.g. "BTC"
-        direction = sig['direction']        # "LONG" or "SHORT"
+        # Parse signal
+        coin      = sig['coin']
+        direction = sig['direction']
         entry     = float(sig['entry'])
         stop      = float(sig['stop'])
         tp1       = float(sig['tp1'])
 
-        # Determine minimum collateral for this coin
+        # Minimum collateral
         min_notional = MIN_NOTIONAL.get(coin, MIN_NOTIONAL['DEFAULT'])
         min_collat    = min_notional / LEVERAGE
 
-        # Calculate risk-based collateral (15% of balance)
-        balance = erc20.functions.balanceOf(account.address).call() / 1e6
-        risk_collat = balance * 0.15
+        # Risk-based collateral (15% of balance)
+        balance      = erc20.functions.balanceOf(acct.address).call()/1e6
+        risk_collat  = balance * 0.15
+        collateral   = max(risk_collat, min_collat)
+        units        = int(collateral * 1e6)
+        log.info(f"{coin} → collateral {collateral:.2f} USDC (min {min_collat:.2f})")
 
-        # Final collateral = max(risk_collat, min_collat)
-        collateral_amount = max(risk_collat, min_collat)
-        collateral_units  = int(collateral_amount * 1e6)
-
-        log.info(f"{coin} collateral set to {collateral_amount:.2f} USDC (min {min_collat:.2f})")
-
-        # Approve USDC if needed
-        current_allowance = erc20.functions.allowance(account.address, GAINS_ADDRESS).call()
-        if current_allowance < collateral_units:
-            log.info("Approving USDC...")
-            tx = erc20.functions.approve(
-                GAINS_ADDRESS,
-                2**256 - 1
-            ).buildTransaction({
-                'from': account.address,
-                'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
+        # Approve if needed
+        if erc20.functions.allowance(acct.address, GAINS_ADDRESS).call() < units:
+            tx = erc20.functions.approve(GAINS_ADDRESS, 2**256-1).buildTransaction({
+                'from': acct.address,
+                'nonce': w3.eth.get_transaction_count(acct.address, 'pending'),
                 'gas': 100_000,
                 'gasPrice': w3.eth.gas_price
             })
-            send_tx(tx)
-            time.sleep(3)
+            send_tx(tx); time.sleep(3)
 
-        # Build trade struct
-        pair_index = {'BTC':0, 'ETH':1}[coin]
+        # Build and send trade
+        pair_idx = {'BTC':0,'ETH':1}[coin]
         trade_struct = (
-            account.address,
-            0,                  # index
-            pair_index,
-            LEVERAGE,
-            (direction == 'LONG'),
-            True,               # isOpen
-            0,                  # collateralIndex (USDC)
-            0,                  # tradeType (market)
-            collateral_units,
-            0,                  # openPrice (market order)
-            int(tp1 * 1e8),     # TP1
-            int(stop * 1e8),    # SL
-            0
+            acct.address, 0, pair_idx, LEVERAGE,
+            direction=='LONG', True, 0, 0,
+            units, 0,
+            int(tp1*1e8), int(stop*1e8), 0
         )
-
-        tx = gains.functions.openTrade(
-            trade_struct,
-            MAX_SLIPPAGE,
-            account.address
-        ).buildTransaction({
-            'from': account.address,
-            'nonce': w3.eth.get_transaction_count(account.address, 'pending'),
+        tx = gains.functions.openTrade(trade_struct, MAX_SLIPPAGE, acct.address).buildTransaction({
+            'from': acct.address,
+            'nonce': w3.eth.get_transaction_count(acct.address,'pending'),
             'gas': 350_000,
             'gasPrice': w3.eth.gas_price
         })
+        txh = send_tx(tx)
+        log.info(f"Trade sent: {txh.hex()}")
 
-        # Send trade
-        tx_hash = send_tx(tx)
-        log.info(f"Trade sent: {tx_hash.hex()}")
-
-        # Log to Google Sheet (include metrics if desired)
+        # Log all metrics
         row = [
-            coin,
-            direction,
-            entry,
-            stop,
-            tp1,
-            sig.get('rsi30'),
-            sig.get('macd30'),
-            sig.get('ema9'),
-            sig.get('ema21'),
-            sig.get('bbU'),
-            sig.get('bbL'),
-            sig.get('macd4h'),
-            sig.get('macd1d'),
-            sig.get('longScore'),
-            sig.get('shortScore'),
-            sig.get('regime'),
-            collateral_amount,
-            tx_hash.hex()
+            coin, direction, entry, stop, tp1,
+            sig.get('rsi30'), sig.get('macd30'),
+            sig.get('ema9'), sig.get('ema21'),
+            sig.get('bbU'), sig.get('bbL'),
+            sig.get('macd4h'), sig.get('macd1d'),
+            sig.get('longScore'), sig.get('shortScore'),
+            sig.get('regime'), collateral, txh.hex()
         ]
         log_to_sheet(row)
-
-        return jsonify(status='ok', tx=tx_hash.hex())
+        return jsonify(status='ok', tx=txh.hex())
 
     except Exception as e:
-        log.error("Execution error", exc_info=True)
+        log.error("Error", exc_info=True)
         return jsonify(status='error', message=str(e)), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8080)))
+if __name__=='__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT',8080)))
