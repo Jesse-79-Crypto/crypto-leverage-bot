@@ -47,11 +47,11 @@ def load_abi(path):
         return json.load(f)
 
 erc20 = w3.eth.contract(
-    address=Web3.toChecksumAddress(USDC_ADDRESS),
+    address=Web3.to_checksum_address(USDC_ADDRESS),
     abi=load_abi('abi/erc20_abi.json')
 )
 gains = w3.eth.contract(
-    address=Web3.toChecksumAddress(GAINS_ADDRESS),
+    address=Web3.to_checksum_address(GAINS_ADDRESS),
     abi=load_abi('abi/gains_base_abi.json')
 )
 
