@@ -26,6 +26,7 @@ TRADE_LOG_SHEET = os.getenv('TRADE_LOG_SHEET_ID')
 TRADE_LOG_TAB   = os.getenv('TRADE_LOG_TAB_NAME', 'Elite Trade Log')
 USDC_ADDRESS    = os.getenv('USDC_ADDRESS')
 GAINS_ADDRESS   = "0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac"
+WEBHOOK_SECRET  = os.getenv('WEBHOOK_SECRET')  # Optional: Leave empty to disable auth
 
 # Enhanced minimum notional based on volatility
 MIN_NOTIONAL = {
@@ -179,26 +180,55 @@ except Exception as e:
     log.error(f"Failed to load contracts: {e}")
     raise
 
-# ----- GOOGLE SHEETS (Enhanced) -----
+# ----- GOOGLE SHEETS (Enhanced & Optional) -----
 def get_sheets_service():
     try:
-        creds = service_account.Credentials.from_service_account_file(
-            os.getenv('GOOGLE_CREDENTIALS_PATH', 'credentials.json'),
-            scopes=['https://www.googleapis.com/auth/spreadsheets']
-        )
-        return build('sheets', 'v4', credentials=creds)
+        # Try to get credentials from environment variable first (for deployment)
+        google_creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+        if google_creds_json:
+            try:
+                creds_dict = json.loads(google_creds_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    creds_dict,
+                    scopes=['https://www.googleapis.com/auth/spreadsheets']
+                )
+                log.info("Google Sheets: Using credentials from environment variable")
+                return build('sheets', 'v4', credentials=creds)
+            except json.JSONDecodeError:
+                log.error("Google Sheets: Invalid JSON in GOOGLE_CREDENTIALS_JSON")
+        
+        # Fallback to credentials file
+        creds_path = os.getenv('GOOGLE_CREDENTIALS_PATH', 'credentials.json')
+        if os.path.exists(creds_path):
+            creds = service_account.Credentials.from_service_account_file(
+                creds_path,
+                scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+            log.info("Google Sheets: Using credentials from file")
+            return build('sheets', 'v4', credentials=creds)
+        else:
+            log.warning("Google Sheets: No credentials found - logging will be disabled")
+            return None
+            
     except Exception as e:
-        log.error(f"Failed to setup Google Sheets: {e}")
+        log.error(f"Google Sheets setup failed: {e}")
         return None
 
 sheets_service = get_sheets_service()
 
-# ----- AUTHENTICATION -----
+# ----- AUTHENTICATION (Optional) -----
 def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Make authentication optional if no webhook secret is set
+        webhook_secret = os.getenv('WEBHOOK_SECRET')
+        if not webhook_secret or webhook_secret == 'your-secret-key':
+            # No authentication required
+            return f(*args, **kwargs)
+        
+        # Check authentication if secret is configured
         auth_header = request.headers.get('Authorization')
-        if not auth_header or auth_header != f"Bearer {WEBHOOK_SECRET}":
+        if not auth_header or auth_header != f"Bearer {webhook_secret}":
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated_function
@@ -388,7 +418,12 @@ def send_transaction(tx_function, gas_limit=300000):
 def log_elite_trade(trade_data: Dict):
     """Enhanced trade logging for elite signals"""
     if not sheets_service:
-        log.warning("Sheets service not available, skipping logging")
+        log.info("Google Sheets logging disabled - trade data logged locally only")
+        log.info(f"TRADE LOG: {json.dumps(trade_data, indent=2)}")
+        return
+    
+    if not TRADE_LOG_SHEET:
+        log.warning("TRADE_LOG_SHEET_ID not configured - skipping sheets logging")
         return
     
     try:
@@ -432,10 +467,12 @@ def log_elite_trade(trade_data: Dict):
             body=body
         ).execute()
         
-        log.info("Trade logged to sheet successfully")
+        log.info("Trade logged to Google Sheets successfully")
         
     except Exception as e:
-        log.error(f"Failed to log to sheets: {e}")
+        log.error(f"Failed to log to Google Sheets: {e}")
+        # Still log locally as backup
+        log.info(f"BACKUP TRADE LOG: {json.dumps(trade_data, indent=2)}")
 
 # ----- FLASK APP -----
 app = Flask(__name__)
@@ -454,11 +491,13 @@ def health():
             "version": "elite_v1.0",
             "wallet": acct.address,
             "balance_usdc": round(balance, 2),
-            "connected": w3.is_connected(),
+            "web3_connected": w3.is_connected(),
             "daily_trades": daily_trades,
             "max_daily_trades": ELITE_CONFIG['max_daily_trades'],
             "trading_enabled": not should_stop,
-            "stop_reason": stop_reason if should_stop else None
+            "stop_reason": stop_reason if should_stop else None,
+            "google_sheets": "enabled" if sheets_service else "disabled",
+            "authentication": "enabled" if os.getenv('WEBHOOK_SECRET') else "disabled"
         })
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
@@ -672,6 +711,9 @@ if __name__ == '__main__':
         log.info(f"Tier 1 Risk: {ELITE_CONFIG['tier1']['risk_per_trade']:.1%}")
         log.info(f"Tier 2 Risk: {ELITE_CONFIG['tier2']['risk_per_trade']:.1%}")
         log.info(f"Min Signal Quality: {ELITE_CONFIG['min_signal_quality']}")
+        log.info(f"Google Sheets Logging: {'✅ Enabled' if sheets_service else '❌ Disabled (will log locally)'}")
+        log.info(f"Authentication: {'🔒 Enabled' if os.getenv('WEBHOOK_SECRET') else '🔓 Disabled'}")
+        log.info(f"=== READY FOR ELITE SIGNALS ===")
     except Exception as e:
         log.error(f"Elite startup check failed: {e}")
     
