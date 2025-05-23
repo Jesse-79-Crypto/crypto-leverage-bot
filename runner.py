@@ -26,7 +26,6 @@ TRADE_LOG_SHEET = os.getenv('TRADE_LOG_SHEET_ID')
 TRADE_LOG_TAB   = os.getenv('TRADE_LOG_TAB_NAME', 'Elite Trade Log')
 USDC_ADDRESS    = os.getenv('USDC_ADDRESS')
 GAINS_ADDRESS   = "0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac"
-WEBHOOK_SECRET  = os.getenv('WEBHOOK_SECRET', 'your-secret-key')
 
 # Enhanced minimum notional based on volatility
 MIN_NOTIONAL = {
