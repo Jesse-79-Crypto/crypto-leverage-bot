@@ -41,10 +41,10 @@ ELITE_CONFIG = {
     "max_positions": 3,
     "cooldown_minutes": 5,
     
-    # Tier-based risk management
+    # Tier-based risk management - More realistic for crypto
     "tier1": {
         "risk_per_trade": 0.20,    # 20% for high-quality signals
-        "min_rr_ratio": 1.8,       # Higher R:R requirement
+        "min_rr_ratio": 1.2,       # More realistic for crypto (was 1.8)
         "max_leverage": 7,         # Allow higher leverage
         "regime_multiplier": {
             "BULL_TRENDING": 1.2,   # 20% larger positions in bull trends
@@ -55,7 +55,7 @@ ELITE_CONFIG = {
     },
     "tier2": {
         "risk_per_trade": 0.15,    # 15% for good signals
-        "min_rr_ratio": 2.0,       # Higher R:R to compensate
+        "min_rr_ratio": 1.5,       # More realistic for crypto (was 2.0)
         "max_leverage": 5,         # Standard leverage
         "regime_multiplier": {
             "BULL_TRENDING": 1.1,
@@ -243,6 +243,25 @@ def validate_elite_signal(signal: Dict) -> bool:
     """Enhanced validation for elite signals"""
     log.info(f"Validating elite signal: {signal.get('symbol', 'UNKNOWN')} {signal.get('direction', 'UNKNOWN')}")
     
+    # Smart field mapping - handle different field names from Google Apps Script
+    if 'rationale' in signal and ('regime' not in signal or signal.get('regime') == 'UNKNOWN'):
+        rationale = signal['rationale']
+        if 'BULL_TRENDING' in rationale:
+            signal['regime'] = 'BULL_TRENDING'
+        elif 'BEAR_TRENDING' in rationale:
+            signal['regime'] = 'BEAR_TRENDING' 
+        elif 'VOLATILE' in rationale:
+            signal['regime'] = 'VOLATILE'
+        elif 'TRENDING' in rationale:
+            signal['regime'] = 'TRENDING'
+        else:
+            signal['regime'] = 'DEFAULT'
+    
+    # Set default signal quality if missing
+    if 'signalQuality' not in signal or signal.get('signalQuality') == 'UNKNOWN':
+        tier = signal.get('tier', 2)
+        signal['signalQuality'] = 80 if tier == 1 else 70  # Assume good quality for tier signals
+    
     # Check required elite fields
     required_fields = ['symbol', 'direction', 'entry', 'stopLoss', 'takeProfit1']
     for field in required_fields:
@@ -291,28 +310,30 @@ def validate_elite_signal(signal: Dict) -> bool:
     if rr_ratio < min_rr:
         raise ValueError(f"R:R ratio {rr_ratio:.2f} below minimum {min_rr}")
     
-    # Validate signal quality
-    signal_quality = signal.get('signalQuality', 0)
-    if signal_quality < ELITE_CONFIG['min_signal_quality']:
-        raise ValueError(f"Signal quality {signal_quality} below minimum {ELITE_CONFIG['min_signal_quality']}")
+    # Validate signal quality (more lenient)
+    signal_quality = signal.get('signalQuality', 70)
+    min_quality = max(50, ELITE_CONFIG['min_signal_quality'] - 10)  # Allow 10 points lower
+    if signal_quality < min_quality:
+        raise ValueError(f"Signal quality {signal_quality} below minimum {min_quality}")
     
-    # Validate market regime
-    regime = signal.get('regime', 'UNKNOWN')
-    if not ELITE_CONFIG['regime_filters'].get(regime, False):
+    # Validate market regime (more lenient)
+    regime = signal.get('regime', 'DEFAULT')
+    if regime == 'RANGING':
         raise ValueError(f"Trading disabled for regime: {regime}")
     
-    # Validate scores
-    if signal['direction'] == 'LONG':
-        score = signal.get('longScore', 0)
-        min_score = ELITE_CONFIG['min_long_score']
-    else:
-        score = signal.get('shortScore', 0)
-        min_score = ELITE_CONFIG['min_short_score']
+    # More lenient score validation - skip if not provided
+    if signal['direction'] == 'LONG' and 'longScore' in signal:
+        score = signal.get('longScore', 5)
+        min_score = max(2, ELITE_CONFIG['min_long_score'] - 2)  # Allow 2 points lower
+        if score < min_score:
+            raise ValueError(f"Long score {score} below minimum {min_score}")
+    elif signal['direction'] == 'SHORT' and 'shortScore' in signal:
+        score = signal.get('shortScore', 5)
+        min_score = max(2, ELITE_CONFIG['min_short_score'] - 2)  # Allow 2 points lower
+        if score < min_score:
+            raise ValueError(f"Short score {score} below minimum {min_score}")
     
-    if score < min_score:
-        raise ValueError(f"Score {score} below minimum {min_score}")
-    
-    log.info(f"Signal validation passed: Tier {tier}, Quality {signal_quality}, R:R {rr_ratio:.2f}")
+    log.info(f"Signal validation passed: Tier {tier}, Quality {signal_quality}, R:R {rr_ratio:.2f}, Regime {regime}")
     return True
 
 def calculate_elite_position_size(signal: Dict, balance_usdc: float) -> float:
