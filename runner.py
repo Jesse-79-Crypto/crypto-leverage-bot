@@ -419,7 +419,13 @@ def send_transaction(tx_function, gas_limit=300000):
             })
             
             signed_tx = acct.sign_transaction(tx)
-            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Fixed: Use correct attribute name for newer Web3.py versions
+            raw_tx_data = getattr(signed_tx, 'raw_transaction', getattr(signed_tx, 'rawTransaction', None))
+            if raw_tx_data is None:
+                raise Exception("Could not get raw transaction data from signed transaction")
+            
+            tx_hash = w3.eth.send_raw_transaction(raw_tx_data)
             
             log.info(f"Transaction sent: {tx_hash.hex()}")
             
