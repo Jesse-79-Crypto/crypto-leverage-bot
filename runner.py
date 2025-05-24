@@ -25,7 +25,7 @@ PRIVATE_KEY     = os.getenv('WALLET_PRIVATE_KEY')
 TRADE_LOG_SHEET = os.getenv('TRADE_LOG_SHEET_ID')
 TRADE_LOG_TAB   = os.getenv('TRADE_LOG_TAB_NAME', 'Elite Trade Log')
 USDC_ADDRESS    = os.getenv('USDC_ADDRESS')
-GAINS_ADDRESS   = "0xfb1aaba03c31ea98a3eec7591808acb1947ee7ac"
+GAINS_ADDRESS   = "0xfB1AabA03c31EA98A3eec7591808ACb1947eE7aC"  # Checksummed address
 WEBHOOK_SECRET  = os.getenv('WEBHOOK_SECRET')  # Optional: Leave empty to disable auth
 
 # Enhanced minimum notional based on volatility
@@ -166,7 +166,7 @@ def load_abi(filename):
              "outputs": [{"name": "", "type": "bool"}], "type": "function"}
         ]
 
-# Load contracts
+# Load contracts with proper checksumming
 try:
     erc20 = w3.eth.contract(
         address=Web3.to_checksum_address(USDC_ADDRESS),
@@ -176,6 +176,8 @@ try:
         address=Web3.to_checksum_address(GAINS_ADDRESS),
         abi=load_abi('gains_base_abi.json')
     )
+    log.info(f"Contracts loaded: USDC={Web3.to_checksum_address(USDC_ADDRESS)}")
+    log.info(f"Contracts loaded: Gains={Web3.to_checksum_address(GAINS_ADDRESS)}")
 except Exception as e:
     log.error(f"Failed to load contracts: {e}")
     raise
@@ -575,10 +577,11 @@ def execute_elite_trade():
         log.info(f"Balance: ${balance_usdc:.2f} USDC")
         
         # 6. Check and set allowance
-        current_allowance = erc20.functions.allowance(acct.address, GAINS_ADDRESS).call()
+        gains_address_checksum = Web3.to_checksum_address(GAINS_ADDRESS)
+        current_allowance = erc20.functions.allowance(acct.address, gains_address_checksum).call()
         if current_allowance < collateral_units:
             log.info("Setting USDC allowance...")
-            approve_tx = erc20.functions.approve(GAINS_ADDRESS, 2**256 - 1)
+            approve_tx = erc20.functions.approve(gains_address_checksum, 2**256 - 1)
             tx_hash, _ = send_transaction(approve_tx, gas_limit=100000)
             log.info(f"Approval tx: {tx_hash.hex()}")
             time.sleep(5)
