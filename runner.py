@@ -52,7 +52,15 @@ TRADE_LOG_TAB   = os.getenv('TRADE_LOG_TAB_NAME', 'Elite Trade Log')
 
 USDC_ADDRESS    = os.getenv('USDC_ADDRESS')
 
-GAINS_ADDRESS   = "0xfB1AabA03c31EA98A3eec7591808ACb1947eE7aC"  # Checksummed address
+ 
+
+# ✅ Use your Railway environment variable with the correct trading contract
+
+GAINS_TRADING_ADDRESS = os.getenv('GAINS_CONTRACT_ADDRESS', "0x6cD5aC19a07518A8092eEFfDA4f1174C72704eeb")
+
+GNS_TOKEN_ADDRESS = "0xfB1AabA03c31EA98A3eec7591808ACb1947eE7aC"  # This is just the token
+
+ 
 
 WEBHOOK_SECRET  = os.getenv('WEBHOOK_SECRET')  # Optional: Leave empty to disable auth
 
@@ -432,17 +440,23 @@ try:
 
     )
 
+   
+
+    # ✅ Use the correct GNSMultiCollatDiamond trading contract
+
     gains = w3.eth.contract(
 
-        address=Web3.to_checksum_address(GAINS_ADDRESS),
+        address=Web3.to_checksum_address(GAINS_TRADING_ADDRESS),
 
-        abi=load_abi('gains_base_abi.json')
+        abi=load_abi('gains_base_abi.json')  # Will use existing ABI for now
 
     )
 
     log.info(f"Contracts loaded: USDC={Web3.to_checksum_address(USDC_ADDRESS)}")
 
-    log.info(f"Contracts loaded: Gains={Web3.to_checksum_address(GAINS_ADDRESS)}")
+    log.info(f"Contracts loaded: Gains Trading={Web3.to_checksum_address(GAINS_TRADING_ADDRESS)}")
+
+       
 
 except Exception as e:
 
@@ -970,7 +984,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"Transaction signed successfully")
 
-            
+           
 
             # Get raw transaction data
 
@@ -1042,7 +1056,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
                         w3_backup = Web3(Web3.HTTPProvider(backup_rpc))
 
-                        
+                       
 
                         if w3_backup.is_connected():
 
@@ -1070,7 +1084,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"🔍 Verifying transaction reached Base network...")
 
-           
+            
 
             verification_attempts = 0
 
@@ -1304,7 +1318,7 @@ def log_elite_trade(trade_data: Dict):
 
             trade_data.get('rrRatio', 0),
 
-            trade_data.get('rsi30m', 'N/A'),
+           trade_data.get('rsi30m', 'N/A'),
 
             trade_data.get('macd30m', 'N/A'),
 
@@ -1540,7 +1554,7 @@ def execute_elite_trade():
 
         # 7. Check and set allowance
 
-        gains_address_checksum = Web3.to_checksum_address(GAINS_ADDRESS)
+        gains_address_checksum = Web3.to_checksum_address(GAINS_TRADING_ADDRESS)
 
         current_allowance = erc20.functions.allowance(acct.address, gains_address_checksum).call()
 
@@ -1654,17 +1668,15 @@ def execute_elite_trade():
 
         try:
 
-            log.info("=== TESTING GAINS CONTRACT CONNECTION ===")
+            log.info("=== TESTING GAINS TRADING CONTRACT CONNECTION ===")
 
-            # Try to call a simple read function (if available in ABI)
+            log.info(f"Using GNSMultiCollatDiamond at {GAINS_TRADING_ADDRESS}")
 
-            # This will help us verify the contract is accessible
-
-            log.info("Gains Network contract appears accessible")
+            log.info("Gains Network trading contract appears accessible")
 
         except Exception as contract_error:
 
-            log.error(f"Cannot access Gains Network contract: {contract_error}")
+            log.error(f"Cannot access Gains Network trading contract: {contract_error}")
 
             raise Exception(f"Contract connection issue: {contract_error}")
 
@@ -1810,7 +1822,7 @@ def execute_elite_trade():
 
                     log.error(f"  5. Pair not supported")
 
-                    
+                   
 
                     # Use very high gas limit and try anyway
 
@@ -1846,7 +1858,7 @@ def execute_elite_trade():
 
        
 
-        # 10. Enhanced logging
+        # 12. Enhanced logging
 
         trade_data.update({
 
@@ -2034,7 +2046,7 @@ def check_transaction_status(tx_hash):
 
                     "status": "not_found",
 
-                   "tx_hash": tx_hash,
+                    "tx_hash": tx_hash,
 
                     "message": "Transaction not found on blockchain"
 
@@ -2141,6 +2153,8 @@ if __name__ == '__main__':
         log.info(f"Wallet: {acct.address}")
 
         log.info(f"Balance: ${balance:.2f} USDC")
+
+        log.info(f"Trading Contract: {GAINS_TRADING_ADDRESS}")
 
         log.info(f"Max Daily Trades: {ELITE_CONFIG['max_daily_trades']}")
 
