@@ -920,9 +920,9 @@ def send_transaction(tx_function, gas_limit=300000):
 
                 base_gas_price = w3.eth.gas_price
 
-                # Use higher gas price for Base network
+                # Use MUCH higher gas price for Base network (10x base)
 
-                gas_price = max(int(base_gas_price * 2.0), w3.to_wei('0.001', 'gwei'))
+                gas_price = max(int(base_gas_price * 10.0), w3.to_wei('0.01', 'gwei'))
 
                 log.info(f"Gas price: {w3.from_wei(gas_price, 'gwei'):.6f} gwei")
 
@@ -930,7 +930,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
                 log.error(f"Gas price error: {e}")
 
-                gas_price = w3.to_wei('0.001', 'gwei')  # Base network minimum
+                gas_price = w3.to_wei('0.01', 'gwei')  # Higher Base network minimum
 
            
 
@@ -1440,7 +1440,7 @@ def execute_elite_trade():
 
        
 
-        # Estimate gas first
+        # Estimate gas first with detailed error handling
 
         try:
 
@@ -1448,7 +1448,7 @@ def execute_elite_trade():
 
                 trade_tuple,
 
-                ELITE_CONFIG['base_leverage'] * 10,
+                ELITE_CONFIG['max_slippage'] * 10,  # Use max_slippage instead of base_leverage
 
                 acct.address
 
@@ -1456,13 +1456,29 @@ def execute_elite_trade():
 
             log.info(f"Estimated gas: {estimated_gas}")
 
-            gas_limit = int(estimated_gas * 1.2)  # Add 20% buffer
+            gas_limit = int(estimated_gas * 1.5)  # Add 50% buffer for Base
 
         except Exception as e:
 
-            log.warning(f"Gas estimation failed: {e}, using default")
+            log.error(f"Gas estimation failed: {e}")
 
-            gas_limit = 500000
+            log.error(f"Trade tuple: {trade_tuple}")
+
+            log.error(f"Max slippage: {ELITE_CONFIG['max_slippage'] * 10}")
+
+           
+
+            # Check specific error conditions
+
+            if "execution reverted" in str(e):
+
+                log.error("Contract execution would revert - checking trade parameters...")
+
+                # Could be: insufficient balance, invalid pair, bad prices, etc.
+
+               
+
+            gas_limit = 750000  # Higher default for Base network
 
        
 
@@ -1470,7 +1486,7 @@ def execute_elite_trade():
 
             trade_tuple,
 
-            ELITE_CONFIG['base_leverage'] * 10,  # max_slippage in basis points
+            ELITE_CONFIG['max_slippage'] * 10,  # max_slippage in basis points (300 for 3%)
 
             acct.address
 
