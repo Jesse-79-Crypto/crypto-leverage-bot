@@ -970,7 +970,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"Transaction signed successfully")
 
-           
+            
 
             # Get raw transaction data
 
@@ -1042,7 +1042,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
                         w3_backup = Web3(Web3.HTTPProvider(backup_rpc))
 
-                       
+                        
 
                         if w3_backup.is_connected():
 
@@ -1070,7 +1070,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"🔍 Verifying transaction reached Base network...")
 
-            
+           
 
             verification_attempts = 0
 
@@ -1508,6 +1508,22 @@ def execute_elite_trade():
 
        
 
+        # Define pair index and trade parameters FIRST
+
+        pair_index = {'BTC': 0, 'ETH': 1}[coin]
+
+        is_long = signal['direction'] == 'LONG'
+
+       
+
+        # Convert prices to proper format (1e8 for Gains Network)
+
+        tp_price = int(float(signal['takeProfit1']) * 1e8)
+
+        sl_price = int(float(signal['stopLoss']) * 1e8)
+
+       
+
         log.info(f"=== POSITION DETAILS ===")
 
         log.info(f"Collateral: ${collateral:.2f} USDC")
@@ -1520,13 +1536,9 @@ def execute_elite_trade():
 
        
 
-        # 7. CRITICAL: Debug trade parameters before execution
+        # 6. CRITICAL: Debug trade parameters before execution
 
-        log.info(f"=== DEBUGGING TRADE PARAMETERS ===")
-
-       
-
-        # Check allowance first
+        # 7. Check and set allowance
 
         gains_address_checksum = Web3.to_checksum_address(GAINS_ADDRESS)
 
@@ -1560,7 +1572,7 @@ def execute_elite_trade():
 
        
 
-        # Debug all trade parameters
+        # 8. Debug all trade parameters
 
         log.info(f"Pair Index: {pair_index} (BTC=0, ETH=1)")
 
@@ -1638,7 +1650,7 @@ def execute_elite_trade():
 
        
 
-        # 8. TEST: Try to call a read-only function to verify contract works
+        # 9. TEST: Try to call a read-only function to verify contract works
 
         try:
 
@@ -1658,7 +1670,7 @@ def execute_elite_trade():
 
        
 
-        # 9. Execute elite trade with enhanced debugging
+        # 10. Execute elite trade with enhanced debugging
 
         log.info(f"=== EXECUTING ELITE TRADE ===")
 
@@ -1738,7 +1750,7 @@ def execute_elite_trade():
 
                 log.error(f"Alternative pair index also failed: {alt_error}")
 
-                
+               
 
                 # ATTEMPT 3: Try with larger position size
 
@@ -1798,7 +1810,7 @@ def execute_elite_trade():
 
                     log.error(f"  5. Pair not supported")
 
-                   
+                    
 
                     # Use very high gas limit and try anyway
 
@@ -1828,7 +1840,7 @@ def execute_elite_trade():
 
        
 
-        # 9. Record successful elite trade
+        # 11. Record successful elite trade
 
         tracker.add_trade(trade_hash, signal)
 
@@ -2022,7 +2034,7 @@ def check_transaction_status(tx_hash):
 
                     "status": "not_found",
 
-                    "tx_hash": tx_hash,
+                   "tx_hash": tx_hash,
 
                     "message": "Transaction not found on blockchain"
 
@@ -2032,7 +2044,7 @@ def check_transaction_status(tx_hash):
 
                 raise
 
-                
+               
 
     except Exception as e:
 
