@@ -790,7 +790,7 @@ def calculate_elite_position_size(signal: Dict, balance_usdc: float) -> float:
 
     min_collateral = min_notional / ELITE_CONFIG['base_leverage']
 
-    
+   
 
     # Risk-based collateral
 
@@ -914,15 +914,15 @@ def send_transaction(tx_function, gas_limit=300000):
 
            
 
-            # Enhanced gas pricing for Base network
+            # Enhanced gas pricing for Base network - MUCH HIGHER
 
             try:
 
                 base_gas_price = w3.eth.gas_price
 
-                # Use MUCH higher gas price for Base network (10x base)
+                # Use AGGRESSIVE gas price for Base network (20x base + minimum 0.1 gwei)
 
-                gas_price = max(int(base_gas_price * 10.0), w3.to_wei('0.01', 'gwei'))
+                gas_price = max(int(base_gas_price * 20.0), w3.to_wei('0.1', 'gwei'))
 
                 log.info(f"Gas price: {w3.from_wei(gas_price, 'gwei'):.6f} gwei")
 
@@ -930,7 +930,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
                 log.error(f"Gas price error: {e}")
 
-                gas_price = w3.to_wei('0.01', 'gwei')  # Higher Base network minimum
+                gas_price = w3.to_wei('0.1', 'gwei')  # MUCH higher Base network minimum
 
            
 
@@ -970,7 +970,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"Transaction signed successfully")
 
-           
+            
 
             # Get raw transaction data
 
@@ -986,19 +986,145 @@ def send_transaction(tx_function, gas_limit=300000):
 
            
 
+            # CRITICAL: Check account state before submission
+
+            eth_balance = w3.eth.get_balance(acct.address)
+
+            log.info(f"Account ETH balance: {w3.from_wei(eth_balance, 'ether'):.6f} ETH")
+
+           
+
+            if eth_balance < gas_limit * gas_price:
+
+                raise Exception(f"Insufficient ETH for gas: need {w3.from_wei(gas_limit * gas_price, 'ether'):.6f} ETH")
+
+           
+
             # Send transaction with detailed logging
 
             log.info(f"Submitting transaction to network...")
 
-            tx_hash = w3.eth.send_raw_transaction(raw_tx_data)
+           
+
+            try:
+
+                tx_hash = w3.eth.send_raw_transaction(raw_tx_data)
+
+                log.info(f"✅ Primary RPC accepted transaction, hash: {tx_hash.hex()}")
+
+            except Exception as submit_error:
+
+                log.error(f"❌ Primary RPC FAILED: {submit_error}")
+
+               
+
+                # Try alternative RPCs for submission
+
+                backup_rpcs = [
+
+                    "https://mainnet.base.org",
+
+                    "https://base.gateway.tenderly.co",
+
+                    "https://base.drpc.org"
+
+                ]
+
+               
+
+                tx_hash = None
+
+                for i, backup_rpc in enumerate(backup_rpcs):
+
+                    try:
+
+                        log.info(f"Trying backup RPC {i+1}: {backup_rpc}")
+
+                        w3_backup = Web3(Web3.HTTPProvider(backup_rpc))
+
+                       
+
+                        if w3_backup.is_connected():
+
+                            tx_hash = w3_backup.eth.send_raw_transaction(raw_tx_data)
+
+                            log.info(f"✅ Backup RPC {i+1} accepted transaction: {tx_hash.hex()}")
+
+                            break
+
+                    except Exception as backup_error:
+
+                        log.error(f"Backup RPC {i+1} failed: {backup_error}")
+
+                        continue
+
+               
+
+                if not tx_hash:
+
+                    raise Exception("All RPCs failed to submit transaction")
 
            
 
-            log.info(f"✅ Transaction submitted successfully!")
+            # CRITICAL: Immediately verify transaction reached the blockchain
 
-            log.info(f"TX Hash: {tx_hash.hex()}")
+            log.info(f"🔍 Verifying transaction reached Base network...")
 
-            log.info(f"BaseScan URL: https://basescan.org/tx/{tx_hash.hex()}")
+           
+
+            verification_attempts = 0
+
+            transaction_found = False
+
+           
+
+            while verification_attempts < 10:  # Try for 20 seconds
+
+                try:
+
+                    # Try to fetch the transaction from the blockchain
+
+                    tx_receipt_check = w3.eth.get_transaction(tx_hash)
+
+                    if tx_receipt_check:
+
+                        log.info(f"✅ VERIFIED: Transaction found on Base blockchain!")
+
+                        log.info(f"TX Hash: {tx_hash.hex()}")
+
+                        log.info(f"BaseScan URL: https://basescan.org/tx/{tx_hash.hex()}")
+
+                        transaction_found = True
+
+                        break
+
+                except Exception as verify_error:
+
+                    if "not found" in str(verify_error).lower():
+
+                        verification_attempts += 1
+
+                        log.info(f"Verification attempt {verification_attempts}/10...")
+
+                        time.sleep(2)
+
+                    else:
+
+                        log.error(f"Verification error: {verify_error}")
+
+                        break
+
+           
+
+            if not transaction_found:
+
+                log.error(f"❌ CRITICAL: Transaction hash returned but NOT FOUND on blockchain!")
+
+                log.error(f"This means RPC accepted but didn't broadcast to Base network")
+
+                log.error(f"Hash: {tx_hash.hex()}")
+
+                raise Exception(f"Transaction not broadcast to network: {tx_hash.hex()}")
 
            
 
@@ -1184,7 +1310,7 @@ def log_elite_trade(trade_data: Dict):
 
         ).execute()
 
-        
+       
 
         log.info("Trade logged to Google Sheets successfully")
 
@@ -1328,7 +1454,7 @@ def execute_elite_trade():
 
             raise Exception(f"Insufficient balance: {balance_usdc:.2f} USDC")
 
-       
+        
 
         # 5. Calculate elite position size and leverage
 
@@ -1752,7 +1878,7 @@ def get_elite_stats():
 
                 "regime_filters": ELITE_CONFIG['regime_filters']
 
-            }
+           }
 
         })
 
