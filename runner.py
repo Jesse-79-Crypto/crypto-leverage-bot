@@ -8,6 +8,8 @@ Enhanced with regime-based position sizing, tier-based risk management,
 
 multi-timeframe validation, and advanced performance tracking.
 
+WITH EIP-1559 TRANSACTION FORMAT FIX FOR BASE NETWORK
+
 """
 
  
@@ -54,7 +56,7 @@ USDC_ADDRESS    = os.getenv('USDC_ADDRESS')
 
  
 
-# ✅ Use your Railway environment variable with the correct trading contract
+# ✅ CORRECT: Use the actual gTrade trading contract from Base mainnet
 
 GAINS_TRADING_ADDRESS = os.getenv('GAINS_CONTRACT_ADDRESS', "0x6cD5aC19a07518A8092eEFfDA4f1174C72704eeb")
 
@@ -456,7 +458,7 @@ try:
 
     log.info(f"Contracts loaded: Gains Trading={Web3.to_checksum_address(GAINS_TRADING_ADDRESS)}")
 
-        
+       
 
 except Exception as e:
 
@@ -804,7 +806,7 @@ def calculate_elite_position_size(signal: Dict, balance_usdc: float) -> float:
 
     min_collateral = min_notional / ELITE_CONFIG['base_leverage']
 
-    
+   
 
     # Risk-based collateral
 
@@ -894,7 +896,7 @@ def determine_elite_leverage(signal: Dict) -> int:
 
 def send_transaction(tx_function, gas_limit=300000):
 
-    """Enhanced transaction sending with comprehensive debugging"""
+    """Enhanced transaction sending with EIP-1559 format for Base network"""
 
     max_retries = 3
 
@@ -928,27 +930,51 @@ def send_transaction(tx_function, gas_limit=300000):
 
            
 
-            # Enhanced gas pricing for Base network - ULTRA HIGH for guaranteed confirmation
+            # Enhanced gas pricing for Base network - USE EIP-1559 FORMAT
 
             try:
 
-                base_gas_price = w3.eth.gas_price
+                # Get base fee from latest block
 
-                # Use VERY AGGRESSIVE gas price for Base network (50x base + minimum 0.5 gwei)
+                latest_block = w3.eth.get_block('latest')
 
-                gas_price = max(int(base_gas_price * 50.0), w3.to_wei('0.5', 'gwei'))
+                base_fee = latest_block.get('baseFeePerGas', w3.to_wei('0.1', 'gwei'))
 
-                log.info(f"Gas price: {w3.from_wei(gas_price, 'gwei'):.6f} gwei")
+               
+
+                # Set priority fee (tip) - higher for Base network
+
+                priority_fee = w3.to_wei('0.1', 'gwei')  # 0.1 gwei tip
+
+               
+
+                # Max fee = base fee * 2 + priority fee (EIP-1559 standard)
+
+                max_fee = base_fee * 2 + priority_fee
+
+               
+
+                log.info(f"Base fee: {w3.from_wei(base_fee, 'gwei'):.6f} gwei")
+
+                log.info(f"Priority fee: {w3.from_wei(priority_fee, 'gwei'):.6f} gwei")
+
+                log.info(f"Max fee: {w3.from_wei(max_fee, 'gwei'):.6f} gwei")
+
+               
 
             except Exception as e:
 
                 log.error(f"Gas price error: {e}")
 
-                gas_price = w3.to_wei('0.5', 'gwei')  # VERY high Base network minimum
+                # Fallback values
+
+                priority_fee = w3.to_wei('0.1', 'gwei')
+
+                max_fee = w3.to_wei('1.0', 'gwei')
 
            
 
-            # Build transaction with proper validation
+            # Build EIP-1559 transaction (Type 2) instead of legacy
 
             tx_params = {
 
@@ -958,15 +984,19 @@ def send_transaction(tx_function, gas_limit=300000):
 
                 'gas': gas_limit,
 
-                'gasPrice': gas_price,
+                'maxFeePerGas': max_fee,              # EIP-1559 format
 
-                'chainId': chain_id
+                'maxPriorityFeePerGas': priority_fee, # EIP-1559 format
+
+                'chainId': chain_id,
+
+                'type': 2  # Explicitly set as EIP-1559 transaction
 
             }
 
            
 
-            log.info(f"Building transaction with params: {tx_params}")
+            log.info(f"Building EIP-1559 transaction with params: {tx_params}")
 
             tx = tx_function.build_transaction(tx_params)
 
@@ -974,7 +1004,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             # Validate transaction before signing
 
-            log.info(f"Transaction built: {tx}")
+            log.info(f"EIP-1559 transaction built: {tx}")
 
            
 
@@ -1008,15 +1038,17 @@ def send_transaction(tx_function, gas_limit=300000):
 
            
 
-            if eth_balance < gas_limit * gas_price:
+            gas_cost = gas_limit * max_fee
 
-                raise Exception(f"Insufficient ETH for gas: need {w3.from_wei(gas_limit * gas_price, 'ether'):.6f} ETH")
+            if eth_balance < gas_cost:
+
+                raise Exception(f"Insufficient ETH for gas: need {w3.from_wei(gas_cost, 'ether'):.6f} ETH")
 
            
 
             # Send transaction with detailed logging
 
-            log.info(f"Submitting transaction to network...")
+            log.info(f"Submitting EIP-1559 transaction to network...")
 
            
 
@@ -1044,7 +1076,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
                 ]
 
-               
+                
 
                 tx_hash = None
 
@@ -1198,11 +1230,11 @@ def send_transaction(tx_function, gas_limit=300000):
 
             # Continue with longer timeout
 
-            log.info(f"Still pending after 60s, checking every 30s for 120s more...")
+            log.info(f"Still pending after 60s, checking every 30s for 240s more...")
 
            
 
-            for i in range(4):  # Check every 30 seconds for 2 more minutes
+            for i in range(8):  # Check every 30 seconds for 4 more minutes (total 5 min)
 
                 try:
 
@@ -1234,9 +1266,9 @@ def send_transaction(tx_function, gas_limit=300000):
 
             # Final timeout
 
-            raise Exception(f"Transaction timeout after 180s: {tx_hash.hex()}")
+            raise Exception(f"Transaction timeout after 300s: {tx_hash.hex()}")
 
-               
+                
 
         except Exception as e:
 
@@ -1292,7 +1324,7 @@ def log_elite_trade(trade_data: Dict):
 
             trade_data.get('direction'),
 
-            trade_data.get('tier', 'N/A'),
+           trade_data.get('tier', 'N/A'),
 
             trade_data.get('regime', 'UNKNOWN'),
 
@@ -1404,7 +1436,7 @@ def health():
 
             "status": "healthy" if not should_stop else "limited",
 
-            "version": "elite_v1.0",
+            "version": "elite_v1.0_eip1559",
 
             "wallet": acct.address,
 
@@ -1549,8 +1581,6 @@ def execute_elite_trade():
         log.info(f"Balance: ${balance_usdc:.2f} USDC")
 
        
-
-        # 6. CRITICAL: Debug trade parameters before execution
 
         # 7. Check and set allowance
 
@@ -1762,7 +1792,7 @@ def execute_elite_trade():
 
                 log.error(f"Alternative pair index also failed: {alt_error}")
 
-               
+                
 
                 # ATTEMPT 3: Try with larger position size
 
@@ -1834,13 +1864,11 @@ def execute_elite_trade():
 
         # Build the transaction
 
-       
-
         trade_tx = gains.functions.openTrade(
 
             trade_tuple,
 
-            ELITE_CONFIG['max_slippage'] * 10,  # max_slippage in basis points (300 for 3%)
+            ELITE_CONFIG['max_slippage'] * 10,  # max_slippage in basis points
 
             acct.address
 
@@ -1890,7 +1918,7 @@ def execute_elite_trade():
 
             "status": "success",
 
-            "version": "elite",
+            "version": "elite_eip1559",
 
             "tx_hash": tx_hash.hex(),
 
@@ -1936,7 +1964,7 @@ def execute_elite_trade():
 
             "status": "error",
 
-            "version": "elite",
+            "version": "elite_eip1559",
 
             "message": str(e)
 
@@ -1964,7 +1992,7 @@ def get_elite_positions():
 
             "status": "success",
 
-            "version": "elite",
+            "version": "elite_eip1559",
 
             "balance_usdc": round(balance, 2),
 
@@ -2074,7 +2102,7 @@ def get_elite_stats():
 
     try:
 
-        today = datetime.now().date()
+       today = datetime.now().date()
 
         daily_stats = tracker.daily_stats.get(today, {"trades": 0, "pnl": 0.0})
 
@@ -2084,7 +2112,7 @@ def get_elite_stats():
 
             "status": "success",
 
-            "version": "elite",
+            "version": "elite_eip1559",
 
             "today": {
 
@@ -2122,7 +2150,7 @@ def get_elite_stats():
 
 def not_found(e):
 
-    return jsonify({"error": "Endpoint not found", "version": "elite"}), 404
+    return jsonify({"error": "Endpoint not found", "version": "elite_eip1559"}), 404
 
  
 
@@ -2130,7 +2158,7 @@ def not_found(e):
 
 def server_error(e):
 
-    return jsonify({"error": "Internal server error", "version": "elite"}), 500
+    return jsonify({"error": "Internal server error", "version": "elite_eip1559"}), 500
 
  
 
@@ -2168,6 +2196,8 @@ if __name__ == '__main__':
 
         log.info(f"Authentication: {'🔒 Enabled' if os.getenv('WEBHOOK_SECRET') else '🔓 Disabled'}")
 
+        log.info(f"Transaction Format: EIP-1559 (Type 2) for Base compatibility")
+
         log.info(f"=== READY FOR ELITE SIGNALS ===")
 
     except Exception as e:
@@ -2183,3 +2213,4 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
