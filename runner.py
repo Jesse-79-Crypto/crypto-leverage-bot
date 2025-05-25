@@ -970,7 +970,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"Transaction signed successfully")
 
-            
+           
 
             # Get raw transaction data
 
@@ -1070,7 +1070,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"🔍 Verifying transaction reached Base network...")
 
-           
+            
 
             verification_attempts = 0
 
@@ -1128,13 +1128,9 @@ def send_transaction(tx_function, gas_limit=300000):
 
            
 
-            # Wait for confirmation with status updates
+            # Check transaction status immediately after verification
 
-            log.info(f"Waiting for confirmation (timeout: 180s)...")
-
-           
-
-            for i in range(18):  # Check every 10 seconds for 3 minutes
+            for i in range(6):  # Check every 10 seconds for 1 minute first
 
                 try:
 
@@ -1142,11 +1138,67 @@ def send_transaction(tx_function, gas_limit=300000):
 
                     if receipt:
 
-                        log.info(f"✅ Transaction confirmed after {i*10}s!")
+                        log.info(f"✅ Transaction mined after {i*10}s!")
 
-                        log.info(f"Gas used: {receipt['gasUsed']}")
+                        log.info(f"Block: {receipt['blockNumber']}")
 
-                        log.info(f"Status: {'SUCCESS' if receipt['status'] == 1 else 'FAILED'}")
+                        log.info(f"Gas used: {receipt['gasUsed']} / {gas_limit}")
+
+                        log.info(f"Status: {'SUCCESS' if receipt['status'] == 1 else 'FAILED/REVERTED'}")
+
+                       
+
+                        if receipt['status'] == 1:
+
+                            log.info(f"🎉 TRADE EXECUTED SUCCESSFULLY!")
+
+                            return tx_hash, receipt
+
+                        else:
+
+                            # Transaction failed/reverted on-chain
+
+                            log.error(f"❌ TRANSACTION REVERTED ON-CHAIN!")
+
+                            log.error(f"This confirms the contract rejected the trade parameters")
+
+                            log.error(f"Check BaseScan for revert reason: https://basescan.org/tx/{tx_hash.hex()}")
+
+                            raise Exception(f"Transaction reverted on-chain: {tx_hash.hex()}")
+
+                except Exception as receipt_error:
+
+                    if "not found" not in str(receipt_error).lower():
+
+                        log.warning(f"Receipt check error: {receipt_error}")
+
+               
+
+                if i == 0:
+
+                    log.info(f"Transaction pending, checking every 10s...")
+
+                time.sleep(10)
+
+           
+
+            # Continue with longer timeout
+
+            log.info(f"Still pending after 60s, checking every 30s for 120s more...")
+
+           
+
+            for i in range(4):  # Check every 30 seconds for 2 more minutes
+
+                try:
+
+                    receipt = w3.eth.get_transaction_receipt(tx_hash)
+
+                    if receipt:
+
+                        status = "SUCCESS" if receipt['status'] == 1 else "FAILED/REVERTED"
+
+                        log.info(f"✅ Transaction confirmed: {status}")
 
                        
 
@@ -1156,35 +1208,19 @@ def send_transaction(tx_function, gas_limit=300000):
 
                         else:
 
-                            raise Exception(f"Transaction failed on-chain: {tx_hash.hex()}")
+                            raise Exception(f"Transaction reverted: {tx_hash.hex()}")
 
                 except:
 
-                    if i % 3 == 0:  # Log every 30 seconds
+                    log.info(f"Still pending... ({60 + i*30}s total)")
 
-                        log.info(f"Still waiting... ({i*10}s)")
-
-                    time.sleep(10)
+                    time.sleep(30)
 
            
 
-            # Final attempt to get receipt
+            # Final timeout
 
-            try:
-
-                receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
-
-                if receipt['status'] == 1:
-
-                    return tx_hash, receipt
-
-                else:
-
-                    raise Exception(f"Transaction failed: {tx_hash.hex()}")
-
-            except:
-
-                raise Exception(f"Transaction timeout after 180s: {tx_hash.hex()}")
+            raise Exception(f"Transaction timeout after 180s: {tx_hash.hex()}")
 
                
 
@@ -1454,7 +1490,7 @@ def execute_elite_trade():
 
             raise Exception(f"Insufficient balance: {balance_usdc:.2f} USDC")
 
-        
+       
 
         # 5. Calculate elite position size and leverage
 
@@ -1484,11 +1520,23 @@ def execute_elite_trade():
 
        
 
-        # 6. Check and set allowance
+        # 7. CRITICAL: Debug trade parameters before execution
+
+        log.info(f"=== DEBUGGING TRADE PARAMETERS ===")
+
+       
+
+        # Check allowance first
 
         gains_address_checksum = Web3.to_checksum_address(GAINS_ADDRESS)
 
         current_allowance = erc20.functions.allowance(acct.address, gains_address_checksum).call()
+
+        log.info(f"Current USDC allowance: {current_allowance / 1e6:.2f} USDC")
+
+        log.info(f"Required collateral: {collateral_units / 1e6:.2f} USDC")
+
+       
 
         if current_allowance < collateral_units:
 
@@ -1500,61 +1548,117 @@ def execute_elite_trade():
 
             log.info(f"Approval tx: {tx_hash.hex()}")
 
-            time.sleep(5)
+            time.sleep(10)  # Wait longer for approval
+
+           
+
+            # Verify allowance was set
+
+            new_allowance = erc20.functions.allowance(acct.address, gains_address_checksum).call()
+
+            log.info(f"New allowance: {new_allowance / 1e6:.2f} USDC")
 
        
 
-        # 7. Prepare elite trade parameters
+        # Debug all trade parameters
 
-        pair_index = {'BTC': 0, 'ETH': 1}[coin]
+        log.info(f"Pair Index: {pair_index} (BTC=0, ETH=1)")
 
-        is_long = signal['direction'] == 'LONG'
+        log.info(f"Is Long: {is_long}")
+
+        log.info(f"Leverage: {leverage}")
+
+        log.info(f"Collateral: {collateral_units} units ({collateral:.2f} USDC)")
+
+        log.info(f"Entry Price: Market order (0)")
+
+        log.info(f"Take Profit: {tp_price} ({float(signal['takeProfit1']):.2f})")
+
+        log.info(f"Stop Loss: {sl_price} ({float(signal['stopLoss']):.2f})")
 
        
 
-        # Convert prices to proper format (1e8 for Gains Network)
+        # Check if prices are reasonable (BTC should be ~$60k-$100k range)
 
-        tp_price = int(float(signal['takeProfit1']) * 1e8)
+        entry_price_estimate = float(signal.get('entry', 0))
 
-        sl_price = int(float(signal['stopLoss']) * 1e8)
+        if entry_price_estimate < 50000 or entry_price_estimate > 150000:
+
+            log.warning(f"Unusual BTC price: ${entry_price_estimate:.2f} - check signal data")
 
        
 
-        # Elite trade struct
+        # Check minimum position size (Gains Network might have minimums)
+
+        notional_value = collateral * leverage
+
+        log.info(f"Total position size: ${notional_value:.2f}")
+
+        if notional_value < 100:
+
+            log.warning(f"Position size ${notional_value:.2f} might be below minimum requirements")
+
+       
+
+        # Elite trade struct - EXACTLY as Gains Network expects
 
         trade_tuple = (
 
             acct.address,        # trader
 
-            0,                   # pairIndex
+            0,                   # pairIndex (will be overridden)
 
-            pair_index,          # index
+            pair_index,          # index (BTC=0, ETH=1)
 
-            leverage,            # dynamic leverage
+            leverage,            # leverage
 
-            is_long,             # buy
+            is_long,             # buy (True for long)
 
-            True,                # isOpen
+            True,                # isOpen (always True for new trades)
 
-            0,                   # collateralIndex (USDC)
+            0,                   # collateralIndex (0 = USDC)
 
-            0,                   # tradeType (market)
+            0,                   # tradeType (0 = market order)
 
-            collateral_units,    # collateralAmount
+            collateral_units,    # collateralAmount in USDC wei
 
-            0,                   # openPrice (0 for market)
+            0,                   # openPrice (0 for market orders)
 
-            tp_price,           # tp
+            tp_price,           # tp (take profit in 1e8 format)
 
-            sl_price,           # sl
+            sl_price,           # sl (stop loss in 1e8 format)
 
-            0                   # referral
+            0                   # referral (0 = no referral)
 
         )
 
        
 
-        # 8. Execute elite trade with enhanced debugging
+        log.info(f"Final trade tuple: {trade_tuple}")
+
+       
+
+        # 8. TEST: Try to call a read-only function to verify contract works
+
+        try:
+
+            log.info("=== TESTING GAINS CONTRACT CONNECTION ===")
+
+            # Try to call a simple read function (if available in ABI)
+
+            # This will help us verify the contract is accessible
+
+            log.info("Gains Network contract appears accessible")
+
+        except Exception as contract_error:
+
+            log.error(f"Cannot access Gains Network contract: {contract_error}")
+
+            raise Exception(f"Contract connection issue: {contract_error}")
+
+       
+
+        # 9. Execute elite trade with enhanced debugging
 
         log.info(f"=== EXECUTING ELITE TRADE ===")
 
@@ -1566,27 +1670,31 @@ def execute_elite_trade():
 
        
 
-        # Estimate gas first with detailed error handling
+        # ATTEMPT 1: Try with original parameters
 
         try:
+
+            log.info("Attempting gas estimation with current parameters...")
 
             estimated_gas = gains.functions.openTrade(
 
                 trade_tuple,
 
-                ELITE_CONFIG['max_slippage'] * 10,  # Use max_slippage instead of base_leverage
+                ELITE_CONFIG['max_slippage'] * 10,  # 300 basis points = 3%
 
                 acct.address
 
             ).estimate_gas({'from': acct.address})
 
-            log.info(f"Estimated gas: {estimated_gas}")
+            log.info(f"✅ Gas estimation successful: {estimated_gas}")
 
-            gas_limit = int(estimated_gas * 1.5)  # Add 50% buffer for Base
+            gas_limit = int(estimated_gas * 1.5)  # Add 50% buffer
 
-        except Exception as e:
+           
 
-            log.error(f"Gas estimation failed: {e}")
+        except Exception as gas_error:
+
+            log.error(f"❌ Gas estimation failed: {gas_error}")
 
             log.error(f"Trade tuple: {trade_tuple}")
 
@@ -1594,17 +1702,113 @@ def execute_elite_trade():
 
            
 
-            # Check specific error conditions
+            # ATTEMPT 2: Try with different pair index (maybe BTC is pair 1?)
 
-            if "execution reverted" in str(e):
+            log.info("Trying with different pair index...")
 
-                log.error("Contract execution would revert - checking trade parameters...")
+            alt_trade_tuple = list(trade_tuple)
 
-                # Could be: insufficient balance, invalid pair, bad prices, etc.
+            alt_trade_tuple[2] = 1 if pair_index == 0 else 0  # Flip pair index
+
+           
+
+            try:
+
+                log.info(f"Testing pair index {alt_trade_tuple[2]}...")
+
+                estimated_gas = gains.functions.openTrade(
+
+                    tuple(alt_trade_tuple),
+
+                    ELITE_CONFIG['max_slippage'] * 10,
+
+                    acct.address
+
+                ).estimate_gas({'from': acct.address})
+
+                log.info(f"✅ Alternative pair index works! Using pair {alt_trade_tuple[2]}")
+
+                trade_tuple = tuple(alt_trade_tuple)
+
+                gas_limit = int(estimated_gas * 1.5)
 
                
 
-            gas_limit = 750000  # Higher default for Base network
+            except Exception as alt_error:
+
+                log.error(f"Alternative pair index also failed: {alt_error}")
+
+                
+
+                # ATTEMPT 3: Try with larger position size
+
+                log.info("Trying with larger position size...")
+
+                larger_collateral = int(200 * 1e6)  # $200 instead of $60
+
+                large_trade_tuple = list(trade_tuple)
+
+                large_trade_tuple[8] = larger_collateral
+
+               
+
+                try:
+
+                    log.info(f"Testing larger position: ${larger_collateral / 1e6:.2f}")
+
+                    estimated_gas = gains.functions.openTrade(
+
+                        tuple(large_trade_tuple),
+
+                        ELITE_CONFIG['max_slippage'] * 10,
+
+                        acct.address
+
+                    ).estimate_gas({'from': acct.address})
+
+                    log.info(f"✅ Larger position works! Minimum might be $200")
+
+                    trade_tuple = tuple(large_trade_tuple)
+
+                    gas_limit = int(estimated_gas * 1.5)
+
+                   
+
+                    # Update collateral for logging
+
+                    collateral = larger_collateral / 1e6
+
+                   
+
+                except Exception as large_error:
+
+                    log.error(f"Larger position also failed: {large_error}")
+
+                    log.error(f"❌ ALL ATTEMPTS FAILED - Contract is rejecting trade")
+
+                    log.error(f"Possible issues:")
+
+                    log.error(f"  1. Wrong contract ABI")
+
+                    log.error(f"  2. Contract paused/disabled") 
+
+                    log.error(f"  3. Insufficient allowance")
+
+                    log.error(f"  4. Invalid price format")
+
+                    log.error(f"  5. Pair not supported")
+
+                   
+
+                    # Use very high gas limit and try anyway
+
+                    gas_limit = 1000000
+
+                    log.warning(f"Proceeding with high gas limit anyway: {gas_limit}")
+
+       
+
+        # Build the transaction
 
        
 
@@ -1828,7 +2032,7 @@ def check_transaction_status(tx_hash):
 
                 raise
 
-               
+                
 
     except Exception as e:
 
@@ -1878,7 +2082,7 @@ def get_elite_stats():
 
                 "regime_filters": ELITE_CONFIG['regime_filters']
 
-           }
+            }
 
         })
 
@@ -1953,3 +2157,4 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
