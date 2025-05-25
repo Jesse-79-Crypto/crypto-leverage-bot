@@ -456,7 +456,7 @@ try:
 
     log.info(f"Contracts loaded: Gains Trading={Web3.to_checksum_address(GAINS_TRADING_ADDRESS)}")
 
-       
+        
 
 except Exception as e:
 
@@ -804,7 +804,7 @@ def calculate_elite_position_size(signal: Dict, balance_usdc: float) -> float:
 
     min_collateral = min_notional / ELITE_CONFIG['base_leverage']
 
-   
+    
 
     # Risk-based collateral
 
@@ -928,15 +928,15 @@ def send_transaction(tx_function, gas_limit=300000):
 
            
 
-            # Enhanced gas pricing for Base network - MUCH HIGHER
+            # Enhanced gas pricing for Base network - ULTRA HIGH for guaranteed confirmation
 
             try:
 
                 base_gas_price = w3.eth.gas_price
 
-                # Use AGGRESSIVE gas price for Base network (20x base + minimum 0.1 gwei)
+                # Use VERY AGGRESSIVE gas price for Base network (50x base + minimum 0.5 gwei)
 
-                gas_price = max(int(base_gas_price * 20.0), w3.to_wei('0.1', 'gwei'))
+                gas_price = max(int(base_gas_price * 50.0), w3.to_wei('0.5', 'gwei'))
 
                 log.info(f"Gas price: {w3.from_wei(gas_price, 'gwei'):.6f} gwei")
 
@@ -944,7 +944,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
                 log.error(f"Gas price error: {e}")
 
-                gas_price = w3.to_wei('0.1', 'gwei')  # MUCH higher Base network minimum
+                gas_price = w3.to_wei('0.5', 'gwei')  # VERY high Base network minimum
 
            
 
@@ -1084,7 +1084,7 @@ def send_transaction(tx_function, gas_limit=300000):
 
             log.info(f"🔍 Verifying transaction reached Base network...")
 
-            
+           
 
             verification_attempts = 0
 
@@ -1318,7 +1318,7 @@ def log_elite_trade(trade_data: Dict):
 
             trade_data.get('rrRatio', 0),
 
-           trade_data.get('rsi30m', 'N/A'),
+            trade_data.get('rsi30m', 'N/A'),
 
             trade_data.get('macd30m', 'N/A'),
 
@@ -2183,4 +2183,3 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
-
