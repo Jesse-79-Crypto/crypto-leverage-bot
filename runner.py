@@ -1,60 +1,32 @@
-
-#!/usr/bin/env python3
-
-"""
-
-Minimal Elite Trading Bot - Test Basic Startup
-
-"""
-
- 
-
-import os
-
 from flask import Flask, jsonify
 
  
-
-# Basic Flask app to test if gunicorn can import
 
 app = Flask(__name__)
 
  
 
-@app.route('/health', methods=['GET'])
+@app.route('/')
 
-def health():
+def hello():
 
-    return jsonify({
-
-        "status": "healthy",
-
-        "version": "minimal_test",
-
-        "message": "Basic startup working"
-
-    })
+    return jsonify({"message": "Hello World", "status": "working"})
 
  
 
-@app.route('/', methods=['GET'])
+@app.route('/health')
 
-def root():
+def health():
 
-    return jsonify({
-
-       "message": "Elite Trading Bot - Minimal Test Version",
-
-        "status": "running"
-
-    })
+    return jsonify({"status": "healthy"})
 
  
 
 if __name__ == '__main__':
 
+    import os
+
     port = int(os.getenv('PORT', 8080))
 
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port)
 
- 
