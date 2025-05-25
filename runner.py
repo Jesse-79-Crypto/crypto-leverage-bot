@@ -790,7 +790,7 @@ def calculate_elite_position_size(signal: Dict, balance_usdc: float) -> float:
 
     min_collateral = min_notional / ELITE_CONFIG['base_leverage']
 
-   
+    
 
     # Risk-based collateral
 
@@ -879,270 +879,6 @@ def determine_elite_leverage(signal: Dict) -> int:
  
 
 def send_transaction(tx_function, gas_limit=300000):
-
-    """Enhanced transaction sending with verification"""
-
-    max_retries = 3
-
-   
-
-    for attempt in range(max_retries):
-
-        try:
-
-            # Check Web3 connection thoroughly
-
-            if not w3.is_connected():
-
-                raise Exception("Web3 not connected to RPC")
-
-           
-
-            # Verify we can actually query the network
-
-            try:
-
-                latest_block = w3.eth.block_number
-
-                chain_id = w3.eth.chain_id
-
-                log.info(f"Network verified: Chain {chain_id}, Block {latest_block}")
-
-            except Exception as e:
-
-                raise Exception(f"Cannot query network: {e}")
-
-           
-
-            nonce = w3.eth.get_transaction_count(acct.address, 'pending')
-
-            log.info(f"Account nonce: {nonce}")
-
-           
-
-            # Enhanced gas pricing - use higher gas for Base
-
-            try:
-
-                base_gas_price = w3.eth.gas_price
-
-                # Use significantly higher gas price for Base network
-
-                gas_price = max(int(base_gas_price * 3.0), w3.to_wei('0.002', 'gwei'))
-
-                log.info(f"Gas price: {w3.from_wei(gas_price, 'gwei'):.6f} gwei")
-
-            except Exception as e:
-
-                log.error(f"Gas price error: {e}")
-
-                gas_price = w3.to_wei('0.002', 'gwei')  # Higher fallback
-
-           
-
-            # Build transaction
-
-            tx_params = {
-
-                'from': acct.address,
-
-                'nonce': nonce,
-
-                'gas': gas_limit,
-
-                'gasPrice': gas_price,
-
-                'chainId': chain_id
-
-            }
-
-           
-
-            log.info(f"Building transaction with params: {tx_params}")
-
-            tx = tx_function.build_transaction(tx_params)
-
-            log.info(f"Transaction built successfully")
-
-           
-
-            # Sign transaction
-
-            signed_tx = acct.sign_transaction(tx)
-
-            log.info(f"Transaction signed successfully")
-
-           
-
-            # Get raw transaction data
-
-            raw_tx_data = getattr(signed_tx, 'raw_transaction', getattr(signed_tx, 'rawTransaction', None))
-
-            if raw_tx_data is None:
-
-                raise Exception("Could not get raw transaction data")
-
-           
-
-            log.info(f"Raw transaction size: {len(raw_tx_data)} bytes")
-
-           
-
-            # CRITICAL: Submit with extensive error handling
-
-            log.info(f"Attempting to submit transaction to Base network...")
-
-           
-
-            try:
-
-                tx_hash = w3.eth.send_raw_transaction(raw_tx_data)
-
-                log.info(f"✅ Raw transaction submitted, hash: {tx_hash.hex()}")
-
-            except Exception as submit_error:
-
-                log.error(f"❌ Transaction submission failed: {submit_error}")
-
-                log.error(f"Submit error type: {type(submit_error).__name__}")
-
-               
-
-                # Try to get more details about the error
-
-                if "insufficient funds" in str(submit_error).lower():
-
-                    balance = erc20.functions.balanceOf(acct.address).call() / 1e6
-
-                    log.error(f"Balance check: {balance} USDC")
-
-               
-
-                raise Exception(f"Blockchain submission failed: {submit_error}")
-
-           
-
-            # Verify transaction actually reached the network
-
-            log.info(f"Verifying transaction reached blockchain...")
-
-            time.sleep(2)  # Give network a moment
-
-           
-
-            try:
-
-                # Try to get transaction from mempool/blockchain
-
-                tx_receipt_check = w3.eth.get_transaction(tx_hash)
-
-                log.info(f"✅ Transaction verified in network: {tx_hash.hex()}")
-
-                log.info(f"BaseScan URL: https://basescan.org/tx/{tx_hash.hex()}")
-
-            except Exception as verify_error:
-
-                log.error(f"❌ Transaction not found in network after submission: {verify_error}")
-
-                raise Exception(f"Transaction submitted but not found in blockchain: {tx_hash.hex()}")
-
-           
-
-            # Wait for confirmation with detailed status
-
-            log.info(f"Waiting for confirmation (timeout: 60s)...")
-
-           
-
-            for i in range(6):  # Check every 10 seconds for 1 minute
-
-                try:
-
-                    receipt = w3.eth.get_transaction_receipt(tx_hash)
-
-                    if receipt:
-
-                        log.info(f"✅ Transaction confirmed after {i*10}s!")
-
-                        log.info(f"Block: {receipt['blockNumber']}")
-
-                        log.info(f"Gas used: {receipt['gasUsed']}")
-
-                        log.info(f"Status: {'SUCCESS' if receipt['status'] == 1 else 'FAILED'}")
-
-                       
-
-                        if receipt['status'] == 1:
-
-                            return tx_hash, receipt
-
-                        else:
-
-                            raise Exception(f"Transaction failed on-chain: {tx_hash.hex()}")
-
-                except Exception as receipt_error:
-
-                    if "not found" not in str(receipt_error).lower():
-
-                        log.warning(f"Receipt check error: {receipt_error}")
-
-               
-
-                log.info(f"Still pending... ({i*10}s)")
-
-                time.sleep(10)
-
-           
-
-            # Return hash even if no receipt (might confirm later)
-
-            log.warning(f"Transaction submitted but not confirmed within 60s: {tx_hash.hex()}")
-
-            log.info(f"Check status later at: https://basescan.org/tx/{tx_hash.hex()}")
-
-           
-
-            # Create a dummy receipt for successful submission
-
-            dummy_receipt = {'status': 1, 'gasUsed': gas_limit, 'blockNumber': 'pending'}
-
-            return tx_hash, dummy_receipt
-
-               
-
-        except Exception as e:
-
-            log.error(f"Transaction attempt {attempt + 1} failed: {e}")
-
-           
-
-            # Check if it's a connection issue and try reconnecting
-
-            if "connection" in str(e).lower() or "ssl" in str(e).lower():
-
-                log.info("Connection issue detected, trying to reconnect...")
-
-                try:
-
-                    global w3
-
-                    w3 = create_web3_connection()
-
-                    log.info("Reconnected to RPC")
-
-                except:
-
-                    log.error("Reconnection failed")
-
-           
-
-            if attempt == max_retries - 1:
-
-                raise
-
-            else:
-
-                time.sleep(15)  # Longer wait between retries
 
     """Enhanced transaction sending with comprehensive debugging"""
 
@@ -1480,7 +1216,7 @@ def health():
 
         balance = erc20.functions.balanceOf(acct.address).call() / 1e6
 
-        
+       
 
         daily_trades = tracker.get_daily_trade_count()
 
@@ -1608,7 +1344,7 @@ def execute_elite_trade():
 
         collateral_units = int(collateral * 1e6)
 
-        
+       
 
         log.info(f"=== POSITION DETAILS ===")
 
@@ -1940,7 +1676,7 @@ def check_transaction_status(tx_hash):
 
                     "status": "not_found",
 
-                   "tx_hash": tx_hash,
+                    "tx_hash": tx_hash,
 
                     "message": "Transaction not found on blockchain"
 
