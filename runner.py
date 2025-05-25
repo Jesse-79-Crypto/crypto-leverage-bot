@@ -429,8 +429,8 @@ def send_transaction(tx_function, gas_limit=300000):
             
             log.info(f"Transaction sent: {tx_hash.hex()}")
             
-            # Wait for confirmation with timeout
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=90)
+            # Wait for confirmation with longer timeout for Base network
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)  # 2 minutes
             
             if receipt['status'] == 1:
                 log.info(f"Transaction confirmed: Gas used {receipt['gasUsed']}")
