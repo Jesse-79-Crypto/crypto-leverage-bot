@@ -652,7 +652,7 @@ def validate_elite_signal(signal: Dict) -> bool:
 
     # Get tier configuration
 
-   tier = signal.get('tier', 2)
+    tier = signal.get('tier', 2)
 
     if tier not in [1, 2]:
 
