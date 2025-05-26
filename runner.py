@@ -609,7 +609,7 @@ def send_transaction(tx_function, gas_limit=300000):
             elif attempt == max_retries - 1:
                 raise
             else:
-                time.sleep(10)
+                time.sleep(10)  
                 
 def log_elite_trade(trade_data: Dict):
     """Enhanced trade logging for elite signals"""
