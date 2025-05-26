@@ -1,619 +1,1016 @@
-#!/usr/bin/env python3
-"""
-🚀 UPDATED FLASK APP WITH AVANTIS INTEGRATION 🚀
-Drop-in replacement for your existing runner.py
-
-Changes Made:
-✅ Replaced ALL Gains Network code with Avantis SDK
-✅ Kept ALL your existing logic (validation, logging, auth, etc.)
-✅ Enhanced position sizing for $10 minimum
-✅ Added multiple TP support 
-✅ Zero fees + XP farming
-✅ 22+ asset support (crypto, forex, commodities)
-"""
-
 import os
+
 import json
-import time
+
 import logging
-import hashlib
-import asyncio
-from datetime import datetime, timedelta
+
+import smtplib
+
+from datetime import datetime
+
+from email.mime.text import MIMEText
+
+from email.mime.multipart import MIMEMultipart
+
 from flask import Flask, request, jsonify
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from functools import wraps
-from typing import Dict, Optional, Tuple
 
-# Import your new Avantis module
-from avantis_trading_module import (
-    AvantisEliteTrader, 
-    create_avantis_trader,
-    execute_elite_signal,
-    AVANTIS_CONFIG
-)
+import gspread
 
-# ----- KEEP YOUR EXISTING CONFIG (mostly unchanged) -----
-TRADE_LOG_SHEET = os.getenv('TRADE_LOG_SHEET_ID')
-TRADE_LOG_TAB   = os.getenv('TRADE_LOG_TAB_NAME', 'Elite Trade Log')
-WEBHOOK_SECRET  = os.getenv('WEBHOOK_SECRET')
+from google.oauth2.service_account import Credentials
 
-# Updated for Avantis (much better limits!)
-ELITE_CONFIG = {
-    "max_positions": 5,          # Can handle more positions now
-    "cooldown_minutes": 3,       # Faster cooldown (was 5)
-    "max_daily_trades": 8,       # More trades per day (was 5)
-    "min_balance": 50.0,         # Lower minimum balance (was 100)
-    
-    # Enhanced tier system for Avantis
-    "tier1": {
-        "risk_per_trade": 0.25,      # 25% (was 20%) - more aggressive with lower minimums
-        "min_rr_ratio": 1.1,         # More lenient (was 1.2)
-        "max_leverage": 10,          # Higher leverage available
-        "regime_multiplier": {
-            "BULL_TRENDING": 1.4,     # Even more aggressive (was 1.2)
-            "BEAR_TRENDING": 0.8,
-            "VOLATILE": 0.9,
-            "DEFAULT": 1.0
-        }
-    },
-    "tier2": {
-        "risk_per_trade": 0.18,      # 18% (was 15%)
-        "min_rr_ratio": 1.3,         # More lenient (was 1.5)
-        "max_leverage": 7,           # Higher leverage
-        "regime_multiplier": {
-            "BULL_TRENDING": 1.2,     # More aggressive (was 1.1)
-            "BEAR_TRENDING": 0.7,
-            "VOLATILE": 0.8,
-            "DEFAULT": 1.0
-        }
-    },
-    
-    # More lenient signal quality for more opportunities
-    "min_signal_quality": 55,        # Lower threshold (was 60)
-    "min_long_score": 3,             # Lower threshold (was 4)
-    "min_short_score": 3,            # Lower threshold (was 4)
-    
-    # Enhanced regime filters (allow more trading)
-    "regime_filters": {
-        "RANGING": False,            # Still avoid ranging
-        "BULL_TRENDING": True,
-        "BEAR_TRENDING": True,
-        "VOLATILE": True,
-        "TRENDING": True
-    }
-}
+from avantis_trading_module import AvantisTrader
 
-# ----- ENHANCED LOGGING -----
+ 
+
 logging.basicConfig(
+
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler("avantis_elite_bot.log"),
-        logging.StreamHandler()
-    ]
+
+    format='%(asctime)s - %(levelname)s - [AVANTIS] %(message)s',
+
+    handlers=[logging.StreamHandler()]
+
 )
-log = logging.getLogger("AvantisEliteBot")
 
-# ----- KEEP YOUR EXISTING TRADE TRACKER (enhanced) -----
-class TradeTracker:
-    def __init__(self):
-        self.recent_trades = {}
-        self.daily_stats = {}
-        self.performance_history = []
-        self.xp_earned = 0.0  # Track Avantis XP for airdrop
-        
-    def is_duplicate(self, trade_hash: str) -> bool:
-        if trade_hash in self.recent_trades:
-            trade_time = self.recent_trades[trade_hash]
-            return datetime.now() - trade_time < timedelta(minutes=ELITE_CONFIG['cooldown_minutes'])
-        return False
-    
-    def add_trade(self, trade_hash: str, signal: Dict, result: Dict):
-        self.recent_trades[trade_hash] = datetime.now()
-        
-        # Enhanced daily stats tracking
-        today = datetime.now().date()
-        if today not in self.daily_stats:
-            self.daily_stats[today] = {
-                "trades": 0, 
-                "volume": 0.0, 
-                "pnl": 0.0, 
-                "fees_saved": 0.0,  # Track fee savings vs Gains Network
-                "xp_earned": 0.0    # Track XP for airdrop
-            }
-        
-        stats = self.daily_stats[today]
-        stats["trades"] += 1
-        
-        if result.get('status') == 'SUCCESS':
-            stats["volume"] += result.get('notional_value', 0.0)
-            stats["fees_saved"] += result.get('notional_value', 0.0) * 0.001  # Assume 0.1% fee savings
-            stats["xp_earned"] += 10.0  # Assume 10 XP per trade
-            self.xp_earned += 10.0
-    
-    def get_daily_trade_count(self) -> int:
-        today = datetime.now().date()
-        return self.daily_stats.get(today, {}).get("trades", 0)
-    
-    def get_daily_volume(self) -> float:
-        today = datetime.now().date()
-        return self.daily_stats.get(today, {}).get("volume", 0.0)
-    
-    def should_stop_trading(self) -> Tuple[bool, str]:
-        # Enhanced checks for Avantis
-        daily_trades = self.get_daily_trade_count()
-        daily_volume = self.get_daily_volume()
-        
-        if daily_trades >= ELITE_CONFIG['max_daily_trades']:
-            return True, f"Daily trade limit reached ({daily_trades}/{ELITE_CONFIG['max_daily_trades']})"
-        
-        if daily_volume >= 10000:  # $10k daily volume limit
-            return True, f"Daily volume limit reached (${daily_volume:.0f})"
-        
-        return False, ""
+logger = logging.getLogger(__name__)
 
-tracker = TradeTracker()
+ 
 
-# ----- KEEP YOUR GOOGLE SHEETS SETUP (unchanged) -----
-def get_sheets_service():
-    try:
-        google_creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
-        if google_creds_json:
-            try:
-                creds_dict = json.loads(google_creds_json)
-                creds = service_account.Credentials.from_service_account_info(
-                    creds_dict,
-                    scopes=['https://www.googleapis.com/auth/spreadsheets']
-                )
-                log.info("Google Sheets: Using credentials from environment variable")
-                return build('sheets', 'v4', credentials=creds)
-            except json.JSONDecodeError:
-                log.error("Google Sheets: Invalid JSON in GOOGLE_CREDENTIALS_JSON")
-        
-        creds_path = os.getenv('GOOGLE_CREDENTIALS_PATH', 'credentials.json')
-        if os.path.exists(creds_path):
-            creds = service_account.Credentials.from_service_account_file(
-                creds_path,
-                scopes=['https://www.googleapis.com/auth/spreadsheets']
-            )
-            log.info("Google Sheets: Using credentials from file")
-            return build('sheets', 'v4', credentials=creds)
-        else:
-            log.warning("Google Sheets: No credentials found - logging will be disabled")
-            return None
-            
-    except Exception as e:
-        log.error(f"Google Sheets setup failed: {e}")
-        return None
-
-sheets_service = get_sheets_service()
-
-# ----- KEEP YOUR AUTH SYSTEM (unchanged) -----
-def require_auth(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        webhook_secret = os.getenv('WEBHOOK_SECRET')
-        if not webhook_secret or webhook_secret == 'your-secret-key':
-            return f(*args, **kwargs)
-        
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or auth_header != f"Bearer {webhook_secret}":
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-    return decorated_function
-
-# ----- ENHANCED HELPER FUNCTIONS -----
-def generate_elite_hash(signal: Dict) -> str:
-    """Generate unique hash for signals (same as before)"""
-    trade_str = f"{signal['symbol']}_{signal['direction']}_{signal['entry']}_{signal.get('tier', 0)}_{signal.get('regime', 'UNKNOWN')}"
-    return hashlib.md5(trade_str.encode()).hexdigest()
-
-def enhance_signal_data(signal: Dict) -> Dict:
-    """Enhance signal with Avantis-specific data"""
-    # Smart field mapping for different Google Apps Script formats
-    if 'rationale' in signal and ('regime' not in signal or signal.get('regime') == 'UNKNOWN'):
-        rationale = signal['rationale']
-        if 'BULL_TRENDING' in rationale:
-            signal['regime'] = 'BULL_TRENDING'
-        elif 'BEAR_TRENDING' in rationale:
-            signal['regime'] = 'BEAR_TRENDING' 
-        elif 'VOLATILE' in rationale:
-            signal['regime'] = 'VOLATILE'
-        elif 'TRENDING' in rationale:
-            signal['regime'] = 'TRENDING'
-        else:
-            signal['regime'] = 'DEFAULT'
-    
-    # Set default signal quality if missing
-    if 'signalQuality' not in signal or signal.get('signalQuality') == 'UNKNOWN':
-        tier = signal.get('tier', 2)
-        signal['signalQuality'] = 85 if tier == 1 else 75  # Higher defaults for Avantis
-    
-    # Add TP3 to webhook if Google script sends TP2
-    if 'takeProfit2' in signal and 'takeProfit3' not in signal:
-        tp1 = float(signal['takeProfit1'])
-        tp2 = float(signal['takeProfit2'])
-        entry = float(signal['entry'])
-        
-        # Extrapolate TP3 based on TP1->TP2 distance
-        if signal['direction'] == 'LONG':
-            tp_distance = tp2 - tp1
-            signal['takeProfit3'] = tp2 + (tp_distance * 0.8)  # 80% of the distance again
-        else:
-            tp_distance = tp1 - tp2
-            signal['takeProfit3'] = tp2 - (tp_distance * 0.8)
-    
-    return signal
-
-def log_elite_trade(trade_data: Dict):
-    """Enhanced trade logging for Avantis (keeping your existing structure)"""
-    if not sheets_service:
-        log.info("Google Sheets logging disabled - trade data logged locally only")
-        log.info(f"AVANTIS TRADE LOG: {json.dumps(trade_data, indent=2)}")
-        return
-    
-    if not TRADE_LOG_SHEET:
-        log.warning("TRADE_LOG_SHEET_ID not configured - skipping sheets logging")
-        return
-    
-    try:
-        # Enhanced trade log with Avantis-specific data
-        values = [[
-            datetime.now().isoformat(),
-            trade_data.get('symbol'),
-            trade_data.get('direction'),
-            trade_data.get('tier', 'N/A'),
-            trade_data.get('regime', 'UNKNOWN'),
-            trade_data.get('signalQuality', 0),
-            trade_data.get('longScore', 0),
-            trade_data.get('shortScore', 0),
-            trade_data.get('entry'),
-            trade_data.get('stopLoss'),
-            trade_data.get('takeProfit1'),
-            trade_data.get('takeProfit2', ''),
-            trade_data.get('takeProfit3', ''),  # Now we support TP3!
-            trade_data.get('collateral'),
-            trade_data.get('leverage'),
-            trade_data.get('rr_ratio', 0),
-            trade_data.get('notional_value', 0),  # New field
-            trade_data.get('fees_paid', 0),       # Track zero fees
-            trade_data.get('xp_earned', 0),       # Track XP for airdrop
-            trade_data.get('platform', 'Avantis'), # Platform identifier
-            trade_data.get('tx_hash', ''),
-            trade_data.get('status'),
-            trade_data.get('error', ''),
-            trade_data.get('balance_remaining', 0), # Remaining balance
-            trade_data.get('daily_trades', 0),     # Daily trade count
-            trade_data.get('daily_volume', 0)      # Daily volume
-        ]]
-        
-        body = {'values': values}
-        
-        sheets_service.spreadsheets().values().append(
-            spreadsheetId=TRADE_LOG_SHEET,
-            range=f"{TRADE_LOG_TAB}!A:Z",  # Extended columns
-            valueInputOption='USER_ENTERED',
-            body=body
-        ).execute()
-        
-        log.info("✅ Avantis trade logged to Google Sheets successfully")
-        
-    except Exception as e:
-        log.error(f"Failed to log to Google Sheets: {e}")
-        log.info(f"BACKUP AVANTIS TRADE LOG: {json.dumps(trade_data, indent=2)}")
-
-# ----- FLASK APP (UPDATED FOR AVANTIS) -----
 app = Flask(__name__)
 
-# Global Avantis trader instance
-avantis_trader = None
+ 
 
-def get_avantis_trader():
-    """Get or create Avantis trader instance"""
-    global avantis_trader
-    if avantis_trader is None:
-        avantis_trader = create_avantis_trader()
-    return avantis_trader
+WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'your-secret-key')
+
+NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', '')
+
+EMAIL_APP_PASSWORD = os.getenv('EMAIL_APP_PASSWORD', '')
+
+RESERVE_WALLET_ADDRESS = os.getenv('RESERVE_WALLET_ADDRESS', '')
+
+BTC_WALLET_ADDRESS = os.getenv('BTC_WALLET_ADDRESS', '')
+
+ 
+
+trader = AvantisTrader()
+
+ 
+
+def setup_google_sheets():
+
+    try:
+
+        credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+
+        if not credentials_json:
+
+            logger.warning("No Google credentials found - sheet logging disabled")
+
+            return None
+
+           
+
+        credentials_dict = json.loads(credentials_json)
+
+        credentials = Credentials.from_service_account_info(
+
+            credentials_dict,
+
+            scopes=['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+
+        )
+
+       
+
+        gc = gspread.authorize(credentials)
+
+        sheet_id = os.getenv('TRADE_LOG_SHEET_ID')
+
+        tab_name = os.getenv('TRADE_LOG_TAB_NAME', 'Elite Trade Log')
+
+       
+
+        if sheet_id:
+
+            sheet = gc.open_by_key(sheet_id).worksheet(tab_name)
+
+            return sheet
+
+    except Exception as e:
+
+        logger.error(f"Google Sheets setup failed: {e}")
+
+    return None
+
+ 
+
+google_sheet = setup_google_sheets()
+
+ 
+
+def log_to_sheet(data):
+
+    if not google_sheet:
+
+        return
+
+       
+
+    try:
+
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        row = [
+
+            timestamp,
+
+            data.get('action', ''),
+
+            data.get('symbol', ''),
+
+            data.get('direction', ''),
+
+            data.get('collateral', ''),
+
+            data.get('leverage', ''),
+
+            data.get('position_size', ''),
+
+            data.get('tier', ''),
+
+            data.get('pnl', ''),
+
+            data.get('balance', ''),
+
+            'Avantis Finance'
+
+        ]
+
+        google_sheet.append_row(row)
+
+        logger.info("✅ Trade logged to Google Sheets")
+
+    except Exception as e:
+
+        logger.error(f"❌ Sheet logging failed: {e}")
+
+ 
+
+def send_email_notification(subject, html_content):
+
+    if not NOTIFICATION_EMAIL or not EMAIL_APP_PASSWORD:
+
+        logger.warning("Email credentials not configured - skipping notification")
+
+        return
+
+       
+
+    try:
+
+        msg = MIMEMultipart('alternative')
+
+        msg['Subject'] = f"🔥 Avantis Trading Bot - {subject}"
+
+        msg['From'] = NOTIFICATION_EMAIL
+
+        msg['To'] = NOTIFICATION_EMAIL
+
+       
+
+        html_part = MIMEText(html_content, 'html')
+
+        msg.attach(html_part)
+
+       
+
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+
+            server.starttls()
+
+            server.login(NOTIFICATION_EMAIL, EMAIL_APP_PASSWORD)
+
+            server.send_message(msg)
+
+           
+
+        logger.info("📧 Email notification sent successfully")
+
+    except Exception as e:
+
+        logger.error(f"❌ Email notification failed: {e}")
+
+ 
+
+def format_trade_opened_email(trade_data):
+
+    return f"""
+
+    <!DOCTYPE html>
+
+    <html>
+
+    <head>
+
+        <meta charset="utf-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>Trade Opened</title>
+
+        <style>
+
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f8f9fa; }}
+
+            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
+
+            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }}
+
+            .content {{ padding: 30px; }}
+
+            .trade-details {{ background: #f8f9ff; border-radius: 8px; padding: 20px; margin: 20px 0; }}
+
+            .detail-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e9ecef; }}
+
+            .label {{ font-weight: 600; color: #495057; }}
+
+            .value {{ color: #212529; font-weight: 500; }}
+
+            .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }}
+
+            .logo {{ font-size: 24px; margin-bottom: 10px; }}
+
+        </style>
+
+    </head>
+
+    <body>
+
+        <div class="container">
+
+            <div class="header">
+
+                <div class="logo">🚀</div>
+
+                <h1 style="margin: 0; font-size: 28px;">Trade Opened</h1>
+
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Avantis Finance • Base Network</p>
+
+            </div>
+
+            <div class="content">
+
+                <div class="trade-details">
+
+                    <div class="detail-row">
+
+                        <span class="label">Symbol:</span>
+
+                        <span class="value">{trade_data.get('symbol', 'N/A')}</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">Direction:</span>
+
+                        <span class="value">{"🟢 LONG" if trade_data.get('direction') == 'long' else "🔴 SHORT"}</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">Collateral:</span>
+
+                        <span class="value">${trade_data.get('collateral', 0):.2f} USDC</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">Leverage:</span>
+
+                        <span class="value">{trade_data.get('leverage', 1)}x</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">Position Size:</span>
+
+                        <span class="value">${trade_data.get('position_size', 0):.2f}</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">Signal Tier:</span>
+
+                        <span class="value">Tier {trade_data.get('tier', 'N/A')}</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">Market Regime:</span>
+
+                        <span class="value">{trade_data.get('regime', 'Normal')}</span>
+
+                    </div>
+
+                </div>
+
+                <p><strong>🎯 Position active with multiple take-profit levels</strong></p>
+
+                <p>⚡ Zero fees during Season 2<br>
+
+                🛡️ Up to 20% loss protection rebate<br>
+
+                📊 XP farming for future airdrops</p>
+
+            </div>
+
+            <div class="footer">
+
+                <p>Elite Trading • Capital Efficiency Revolution • 60/20/20 Wealth Strategy</p>
+
+            </div>
+
+        </div>
+
+    </body>
+
+    </html>
+
+    """
+
+ 
+
+def format_trade_closed_email(trade_data, is_profit=True):
+
+    pnl = float(trade_data.get('pnl', 0))
+
+   
+
+    if is_profit and pnl > 0:
+
+        reinvest_amount = pnl * 0.60
+
+        btc_amount = pnl * 0.20
+
+        reserve_amount = pnl * 0.20
+
+       
+
+        profit_breakdown = f"""
+
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+
+            <h3 style="color: #155724; margin-top: 0;">💰 Elite Profit Management (60/20/20)</h3>
+
+            <div class="detail-row">
+
+                <span class="label">🔁 Reinvest (60%):</span>
+
+                <span class="value" style="color: #28a745; font-weight: bold;">${reinvest_amount:.2f}</span>
+
+            </div>
+
+            <div class="detail-row">
+
+                <span class="label">₿ BTC Stack (20%):</span>
+
+                <span class="value" style="color: #f57c00; font-weight: bold;">${btc_amount:.2f}</span>
+
+            </div>
+
+            <div class="detail-row">
+
+                <span class="label">🏦 Reserve (20%):</span>
+
+                <span class="value" style="color: #6f42c1; font-weight: bold;">${reserve_amount:.2f}</span>
+
+            </div>
+
+        </div>
+
+        <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0;">
+
+            <h4 style="color: #856404; margin-top: 0;">📋 Action Items:</h4>
+
+            <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
+
+                <li><strong>${reinvest_amount:.2f}</strong> stays in account for compounding</li>
+
+                <li>Convert <strong>${btc_amount:.2f}</strong> to Bitcoin weekly</li>
+
+                <li>Transfer <strong>${reserve_amount:.2f}</strong> to backup wallet</li>
+
+            </ul>
+
+        </div>
+
+        """
+
+        header_color = "linear-gradient(135deg, #28a745 0%, #20c997 100%)"
+
+        status_emoji = "🎉"
+
+        status_text = "PROFIT"
+
+    else:
+
+        profit_breakdown = f"""
+
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+
+            <h3 style="color: #721c24; margin-top: 0;">📊 Loss Information</h3>
+
+            <p style="color: #721c24; margin: 10px 0;">
+
+                🛡️ Check if you're eligible for Avantis loss protection rebate (up to 20%)<br>
+
+                💪 Your BTC stack and reserve funds remain protected<br>
+
+                🔄 Ready for the next opportunity
+
+            </p>
+
+        </div>
+
+        """
+
+        header_color = "linear-gradient(135deg, #dc3545 0%, #c82333 100%)"
+
+        status_emoji = "📊"
+
+        status_text = "CLOSED"
+
+   
+
+    return f"""
+
+    <!DOCTYPE html>
+
+    <html>
+
+    <head>
+
+        <meta charset="utf-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>Trade Closed</title>
+
+        <style>
+
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f8f9fa; }}
+
+            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
+
+            .header {{ background: {header_color}; color: white; padding: 30px; text-align: center; }}
+
+            .content {{ padding: 30px; }}
+
+            .trade-details {{ background: #f8f9ff; border-radius: 8px; padding: 20px; margin: 20px 0; }}
+
+            .detail-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e9ecef; }}
+
+            .label {{ font-weight: 600; color: #495057; }}
+
+            .value {{ color: #212529; font-weight: 500; }}
+
+            .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }}
+
+            .logo {{ font-size: 24px; margin-bottom: 10px; }}
+
+        </style>
+
+    </head>
+
+    <body>
+
+        <div class="container">
+
+            <div class="header">
+
+                <div class="logo">{status_emoji}</div>
+
+                <h1 style="margin: 0; font-size: 28px;">Trade {status_text}</h1>
+
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Avantis Finance • Base Network</p>
+
+            </div>
+
+            <div class="content">
+
+                <div class="trade-details">
+
+                    <div class="detail-row">
+
+                        <span class="label">Symbol:</span>
+
+                        <span class="value">{trade_data.get('symbol', 'N/A')}</span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">P&L:</span>
+
+                        <span class="value" style="color: {'#28a745' if pnl > 0 else '#dc3545'}; font-weight: bold; font-size: 18px;">
+
+                            ${pnl:+.2f} USDC
+
+                        </span>
+
+                    </div>
+
+                    <div class="detail-row">
+
+                        <span class="label">New Balance:</span>
+
+                        <span class="value">${trade_data.get('balance', 0):.2f} USDC</span>
+
+                    </div>
+
+                </div>
+
+                {profit_breakdown}
+
+            </div>
+
+            <div class="footer">
+
+                <p>Elite Trading • Capital Efficiency Revolution • Building Unstoppable Wealth</p>
+
+            </div>
+
+        </div>
+
+    </body>
+
+    </html>
+
+    """
+
+ 
 
 @app.route('/health', methods=['GET'])
-def health():
-    """Enhanced health check with Avantis status"""
-    try:
-        trader = get_avantis_trader()
-        balance = trader.get_balance_usdc()
-        
-        daily_trades = tracker.get_daily_trade_count()
-        daily_volume = tracker.get_daily_volume()
-        should_stop, stop_reason = tracker.should_stop_trading()
-        
-        return jsonify({
-            "status": "healthy" if not should_stop else "limited",
-            "platform": "Avantis",
-            "version": "elite_v2.0_avantis",
-            "wallet": trader.account.address,
-            "balance_usdc": round(balance, 2),
-            "min_trade_size": AVANTIS_CONFIG["min_trade_size"],  # $10 vs $200+!
-            "daily_trades": daily_trades,
-            "daily_volume": round(daily_volume, 2),
-            "max_daily_trades": ELITE_CONFIG['max_daily_trades'],
-            "trading_enabled": not should_stop,
-            "stop_reason": stop_reason if should_stop else None,
-            "features": {
-                "zero_fees": True,  # Season 2 benefit
-                "multiple_tps": True,  # TP1, TP2, TP3 support
-                "loss_protection": True,  # Up to 20% rebate
-                "xp_farming": True,  # Airdrop rewards
-                "forex_trading": True,  # EUR/USD, GBP/USD, etc.
-                "commodity_trading": True,  # Gold, Silver
-                "min_trade_improvement": "20x better than Gains Network"
-            },
-            "airdrop_status": {
-                "season_2_active": True,
-                "total_xp_earned": tracker.xp_earned,
-                "trades_for_airdrop": daily_trades
-            },
-            "google_sheets": "enabled" if sheets_service else "disabled",
-            "authentication": "enabled" if os.getenv('WEBHOOK_SECRET') else "disabled"
-        })
-    except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
 
-@app.route('/execute', methods=['POST'])
-@require_auth
-def execute_avantis_trade():
-    """
-    🔥 MAIN TRADE EXECUTION - COMPLETELY REPLACED WITH AVANTIS! 🔥
-    This replaces your entire 200+ line Gains Network execution
-    """
-    signal = request.json
-    trade_data = signal.copy()
-    
+def health_check():
+
+    return jsonify({
+
+        'status': 'healthy',
+
+        'platform': 'Avantis Finance',
+
+        'network': 'Base',
+
+        'features': [
+
+            '20x better capital efficiency',
+
+            'Zero fees (Season 2)',
+
+            'Multiple take-profit levels',
+
+            '22+ trading assets',
+
+            'XP farming active',
+
+            'Loss protection rebates'
+
+        ],
+
+        'timestamp': datetime.now().isoformat()
+
+    })
+
+ 
+
+@app.route('/webhook', methods=['POST'])
+
+def handle_webhook():
+
     try:
-        log.info(f"🚀 AVANTIS ELITE SIGNAL RECEIVED")
-        log.info(f"   Symbol: {signal.get('symbol', 'UNKNOWN')}")
-        log.info(f"   Direction: {signal.get('direction', 'UNKNOWN')}")
-        log.info(f"   Tier: {signal.get('tier', 'UNKNOWN')}")
-        log.info(f"   Entry: {signal.get('entry', 'UNKNOWN')}")
-        
-        # 1. Enhance signal data for Avantis
-        signal = enhance_signal_data(signal)
-        
-        # 2. Check if trading should be stopped
-        should_stop, stop_reason = tracker.should_stop_trading()
-        if should_stop:
-            log.warning(f"Trading stopped: {stop_reason}")
-            return jsonify({"status": "rejected", "reason": stop_reason}), 200
-        
-        # 3. Check for duplicate trades
-        trade_hash = generate_elite_hash(signal)
-        if tracker.is_duplicate(trade_hash):
-            log.warning(f"Duplicate trade detected: {trade_hash}")
-            return jsonify({"status": "rejected", "reason": "duplicate trade"}), 200
-        
-        # 4. Get Avantis trader and execute
-        trader = get_avantis_trader()
-        
-        # ⚡ THIS IS THE MAGIC - One simple async call replaces 200+ lines! ⚡
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(execute_elite_signal(trader, signal))
-        finally:
-            loop.close()
-        
-        # 5. Handle result
-        if result['status'] == 'SUCCESS':
-            # Record successful trade
-            tracker.add_trade(trade_hash, signal, result)
-            
-            # Enhanced logging with Avantis data
-            log_data = {
-                **trade_data,
-                **result,
-                'timestamp': datetime.now().isoformat(),
-                'trade_hash': trade_hash
-            }
-            log_elite_trade(log_data)
-            
-            log.info(f"✅ AVANTIS TRADE SUCCESS!")
-            log.info(f"   TX: {result.get('tx_hash', 'N/A')}")
-            log.info(f"   Collateral: ${result.get('collateral', 0):.2f}")
-            log.info(f"   Leverage: {result.get('leverage', 0)}x")
-            log.info(f"   Notional: ${result.get('notional_value', 0):.2f}")
-            log.info(f"   Fees: ${result.get('fees_paid', 0):.2f} (ZERO!)")
-            log.info(f"   XP Earned: {result.get('xp_earned', False)}")
-            
-            return jsonify({
-                "status": "success",
-                "platform": "Avantis",
-                "version": "elite_v2.0",
-                "improvements_vs_gains": {
-                    "min_trade_size": "20x better ($10 vs $200+)",
-                    "fees_saved": "$0 vs $5-20 per trade",
-                    "multiple_tps": "Native TP1/TP2/TP3 support",
-                    "execution_speed": "3x faster",
-                    "airdrop_farming": "Earning XP for future rewards"
-                },
-                **result
-            })
+
+        provided_secret = request.headers.get('X-Webhook-Secret', '')
+
+        if provided_secret != WEBHOOK_SECRET:
+
+            logger.warning(f"❌ Invalid webhook secret: {provided_secret}")
+
+            return jsonify({'error': 'Invalid webhook secret'}), 401
+
+       
+
+        data = request.get_json()
+
+        if not data:
+
+            return jsonify({'error': 'No data provided'}), 400
+
+           
+
+        logger.info(f"🎯 [AVANTIS] Received signal: {data}")
+
+       
+
+        action = data.get('action', '').lower()
+
+       
+
+        if action == 'open':
+
+            result = handle_open_trade(data)
+
+        elif action == 'close':
+
+            result = handle_close_trade(data)
+
         else:
-            # Log failed trade
-            log_data = {
-                **trade_data,
-                **result,
-                'timestamp': datetime.now().isoformat(),
-                'trade_hash': trade_hash
+
+            logger.warning(f"❌ Unknown action: {action}")
+
+            return jsonify({'error': f'Unknown action: {action}'}), 400
+
+           
+
+        return jsonify(result)
+
+       
+
+    except Exception as e:
+
+        logger.error(f"❌ Webhook error: {e}")
+
+        return jsonify({'error': str(e)}), 500
+
+ 
+
+def handle_open_trade(data):
+
+    try:
+
+        symbol = data.get('symbol', '').upper()
+
+        direction = data.get('direction', '').lower()
+
+        tier = data.get('tier', 2)
+
+        regime = data.get('regime', 'normal')
+
+       
+
+        logger.info(f"🚀 [AVANTIS] Opening {direction} position on {symbol} (Tier {tier}, {regime} regime)")
+
+       
+
+        balance = trader.get_balance()
+
+       
+
+        if tier == 1:
+
+            size_percentage = 0.25
+
+        else:
+
+            size_percentage = 0.18
+
+           
+
+        if regime.lower() == 'bear':
+
+            size_percentage *= 0.8
+
+        elif regime.lower() == 'bull':
+
+            size_percentage *= 1.1
+
+           
+
+        collateral = balance * size_percentage
+
+       
+
+        if collateral < 10:
+
+            logger.warning(f"⚠️ Collateral ${collateral:.2f} below $10 minimum")
+
+            return {'status': 'skipped', 'reason': 'Insufficient collateral for minimum trade'}
+
+       
+
+        if symbol in ['BTC', 'ETH', 'BTCUSD', 'ETHUSD']:
+
+            leverage = 5 if tier == 1 else 7
+
+        elif symbol.endswith('USD') and len(symbol) == 6:
+
+            leverage = 10 if tier == 1 else 15
+
+        else:
+
+            leverage = 5 if tier == 1 else 10
+
+           
+
+        result = trader.open_position(
+
+            symbol=symbol,
+
+            direction=direction,
+
+            collateral=collateral,
+
+            leverage=leverage
+
+        )
+
+       
+
+        if result.get('success'):
+
+            trade_data = {
+
+                'action': 'OPEN',
+
+                'symbol': symbol,
+
+                'direction': direction.upper(),
+
+                'collateral': f"{collateral:.2f}",
+
+                'leverage': leverage,
+
+                'position_size': f"{collateral * leverage:.2f}",
+
+                'tier': tier,
+
+                'regime': regime,
+
+                'balance': f"{balance:.2f}"
+
             }
-            log_elite_trade(log_data)
-            
-            log.error(f"❌ AVANTIS TRADE FAILED: {result.get('error', 'Unknown error')}")
-            return jsonify(result), 500
-        
-    except Exception as e:
-        log.error(f"❌ CRITICAL ERROR in Avantis execution: {str(e)}", exc_info=True)
-        
-        # Log failed trade with full context
-        error_data = {
-            **trade_data,
-            'status': 'CRITICAL_ERROR',
-            'error': str(e),
-            'platform': 'Avantis',
-            'timestamp': datetime.now().isoformat()
-        }
-        log_elite_trade(error_data)
-        
-        return jsonify({
-            "status": "error",
-            "platform": "Avantis",
-            "version": "elite_v2.0",
-            "message": str(e)
-        }), 500
 
-@app.route('/positions', methods=['GET'])
-@require_auth
-def get_avantis_positions():
-    """Get current positions from Avantis"""
-    try:
-        trader = get_avantis_trader()
-        balance = trader.get_balance_usdc()
-        
-        # Get positions asynchronously
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            positions = loop.run_until_complete(trader.get_positions())
-        finally:
-            loop.close()
-        
-        daily_trades = tracker.get_daily_trade_count()
-        daily_volume = tracker.get_daily_volume()
-        
-        return jsonify({
-            "status": "success",
-            "platform": "Avantis",
-            "version": "elite_v2.0",
-            "balance_usdc": round(balance, 2),
-            "daily_trades": daily_trades,
-            "daily_volume": round(daily_volume, 2),
-            "max_daily_trades": ELITE_CONFIG['max_daily_trades'],
-            "positions": positions,
-            "total_xp_earned": tracker.xp_earned,
-            "season_2_benefits": {
-                "zero_fees": True,
-                "xp_farming": True,
-                "loss_protection": "Up to 20% rebate"
+           
+
+            log_to_sheet(trade_data)
+
+           
+
+            send_email_notification(
+
+                f"{direction.upper()} {symbol} Opened",
+
+                format_trade_opened_email({
+
+                    'symbol': symbol,
+
+                    'direction': direction,
+
+                    'collateral': collateral,
+
+                    'leverage': leverage,
+
+                    'position_size': collateral * leverage,
+
+                    'tier': tier,
+
+                    'regime': regime
+
+                })
+
+            )
+
+           
+
+            logger.info(f"✅ [AVANTIS] Position opened successfully: {symbol} {direction} ${collateral:.2f} @ {leverage}x")
+
+            return {
+
+                'status': 'success',
+
+                'message': f"Opened {direction} {symbol} position",
+
+                'collateral': collateral,
+
+                'leverage': leverage,
+
+                'position_size': collateral * leverage,
+
+                'platform': 'Avantis Finance'
+
             }
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/close/<position_id>', methods=['POST'])
-@require_auth
-def close_avantis_position(position_id):
-    """Close a specific position"""
-    try:
-        data = request.json or {}
-        percentage = float(data.get('percentage', 100.0))
-        
-        trader = get_avantis_trader()
-        
-        # Close position asynchronously
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(trader.close_position(position_id, percentage))
-        finally:
-            loop.close()
-        
-        return jsonify({
-            "status": "success",
-            "platform": "Avantis",
-            **result
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        else:
 
-@app.route('/stats', methods=['GET'])
-@require_auth
-def get_avantis_stats():
-    """Enhanced stats with Avantis benefits"""
+            logger.error(f"❌ [AVANTIS] Failed to open position: {result.get('error')}")
+
+            return {'status': 'error', 'message': result.get('error')}
+
+           
+
+    except Exception as e:
+
+        logger.error(f"❌ [AVANTIS] Open trade error: {e}")
+
+        return {'status': 'error', 'message': str(e)}
+
+ 
+
+def handle_close_trade(data):
+
     try:
-        trader = get_avantis_trader()
-        trader_stats = trader.get_elite_stats()
-        
-        today = datetime.now().date()
-        daily_stats = tracker.daily_stats.get(today, {
-            "trades": 0, "volume": 0.0, "pnl": 0.0, 
-            "fees_saved": 0.0, "xp_earned": 0.0
-        })
-        
+
+        symbol = data.get('symbol', '').upper()
+
+        reason = data.get('reason', 'signal')
+
+       
+
+        logger.info(f"🎯 [AVANTIS] Closing position on {symbol} (reason: {reason})")
+
+       
+
+        positions = trader.get_positions()
+
+        target_position = None
+
+       
+
+        for pos in positions:
+
+            if pos.get('symbol') == symbol:
+
+                target_position = pos
+
+                break
+
+               
+
+        if not target_position:
+
+            logger.warning(f"⚠️ No open position found for {symbol}")
+
+            return {'status': 'skipped', 'reason': f'No open position for {symbol}'}
+
+       
+
+        result = trader.close_position(symbol)
+
+       
+
+        if result.get('success'):
+
+            pnl = result.get('pnl', 0)
+
+            new_balance = trader.get_balance()
+
+           
+
+            trade_data = {
+
+                'action': 'CLOSE',
+
+                'symbol': symbol,
+
+                'pnl': f"{pnl:.2f}",
+
+                'balance': f"{new_balance:.2f}",
+
+                'reason': reason
+
+            }
+
+           
+
+            log_to_sheet(trade_data)
+
+           
+
+            send_email_notification(
+
+                f"{symbol} Closed - ${pnl:+.2f}",
+
+                format_trade_closed_email({
+
+                    'symbol': symbol,
+
+                    'pnl': pnl,
+
+                    'balance': new_balance
+
+                }, is_profit=(pnl > 0))
+
+            )
+
+           
+
+            logger.info(f"✅ [AVANTIS] Position closed: {symbol} P&L: ${pnl:+.2f}")
+
+            return {
+
+                'status': 'success',
+
+                'message': f"Closed {symbol} position",
+
+                'pnl': pnl,
+
+                'balance': new_balance,
+
+                'platform': 'Avantis Finance'
+
+            }
+
+        else:
+
+            logger.error(f"❌ [AVANTIS] Failed to close position: {result.get('error')}")
+
+            return {'status': 'error', 'message': result.get('error')}
+
+           
+
+    except Exception as e:
+
+        logger.error(f"❌ [AVANTIS] Close trade error: {e}")
+
+        return {'status': 'error', 'message': str(e)}
+
+ 
+
+@app.route('/status', methods=['GET'])
+
+def get_status():
+
+    try:
+
+        balance = trader.get_balance()
+
+        positions = trader.get_positions()
+
+       
+
         return jsonify({
-            "status": "success",
-            "platform": "Avantis",
-            "version": "elite_v2.0",
-            "today": daily_stats,
-            "total_xp": tracker.xp_earned,
-            "trader_stats": trader_stats,
-            "migration_benefits": {
-                "capital_efficiency": "20x improvement",
-                "fee_savings": f"${daily_stats.get('fees_saved', 0):.2f} saved today",
-                "execution_speed": "3x faster than Gains Network",
-                "asset_variety": "22+ assets vs 2 on Gains",
-                "minimum_trade": "$10 vs $200+ (2000% improvement!)"
+
+            'platform': 'Avantis Finance',
+
+            'network': 'Base',
+
+            'balance': f"${balance:.2f} USDC",
+
+            'open_positions': len(positions),
+
+            'positions': positions,
+
+            'features': {
+
+                'minimum_trade': '$10 (vs $200+ on Gains)',
+
+                'trading_fees': '$0 (Season 2)',
+
+                'assets': '22+ (crypto, forex, commodities)',
+
+                'take_profits': 'TP1, TP2, TP3',
+
+                'loss_protection': 'Up to 20% rebate',
+
+                'xp_farming': 'Active for airdrops'
+
             },
-            "airdrop_tracking": {
-                "season_2_active": True,
-                "xp_per_trade": "~10 XP",
-                "volume_bonuses": "Available for $100+ trades",
-                "estimated_airdrop_value": "TBD (could be substantial)"
-            }
+
+            'profit_strategy': '60/20/20 Elite Wealth Management',
+
+            'timestamp': datetime.now().isoformat()
+
         })
+
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
 
-# ----- KEEP YOUR EXISTING ERROR HANDLERS -----
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"error": "Endpoint not found", "platform": "Avantis", "version": "elite_v2.0"}), 404
+        logger.error(f"❌ Status error: {e}")
 
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({"error": "Internal server error", "platform": "Avantis", "version": "elite_v2.0"}), 500
+        return jsonify({'error': str(e)}), 500
+
+ 
 
 if __name__ == '__main__':
-    # Enhanced startup checks for Avantis
-    try:
-        trader = get_avantis_trader()
-        balance = trader.get_balance_usdc()
-        
-        log.info(f"🔥 AVANTIS ELITE BOT STARTED 🔥")
-        log.info(f"Platform: Avantis (Base Network)")
-        log.info(f"Wallet: {trader.account.address}")
-        log.info(f"Balance: ${balance:.2f} USDC")
-        log.info(f"Min Trade: ${AVANTIS_CONFIG['min_trade_size']} (20x better than Gains!)")
-        log.info(f"Max Daily Trades: {ELITE_CONFIG['max_daily_trades']}")
-        log.info(f"Supported Assets: {len(AVANTIS_CONFIG['pair_mapping'])}")
-        log.info(f"Zero Fees: ✅ Active (Season 2)")
-        log.info(f"XP Farming: ✅ Active (Airdrop eligible)")
-        log.info(f"Multiple TPs: ✅ TP1/TP2/TP3 supported")
-        log.info(f"Loss Protection: ✅ Up to 20% rebate")
-        log.info(f"Google Sheets: {'✅ Enabled' if sheets_service else '❌ Disabled'}")
-        log.info(f"🚀 READY FOR ELITE SIGNALS ON AVANTIS!")
-        
-        # Show migration benefits
-        log.info(f"\n📊 MIGRATION BENEFITS vs GAINS NETWORK:")
-        log.info(f"   💰 Min Trade Size: $10 vs $200+ (2000% improvement!)")
-        log.info(f"   💸 Fees: $0 vs $5-20 per trade (100% savings!)")
-        log.info(f"   📈 Assets: 22+ vs 2 (1100% more opportunities!)")
-        log.info(f"   🎯 Multiple TPs: Native vs Single TP only")
-        log.info(f"   🎁 Airdrops: XP farming vs None")
-        log.info(f"   🛡️ Loss Protection: Up to 20% rebate vs None")
-        
-    except Exception as e:
-        log.error(f"❌ Avantis startup check failed: {e}")
-        log.error(f"Check your environment variables and network connection")
-    
-    # Run Flask app
-    port = int(os.getenv('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=False)
+
+    logger.info("🚀 Starting Avantis Trading Bot...")
+
+    logger.info("🔥 Capital Efficiency: 2000% improvement vs Gains Network")
+
+    logger.info("💰 Fees: $0 vs $5-20 per trade")
+
+    logger.info("📊 Assets: 22+ vs 2 assets")
+
+    logger.info("🎯 Strategy: 60/20/20 Elite Wealth Management")
+
+   
+
+    port = int(os.environ.get('PORT', 5000))
+
+   app.run(host='0.0.0.0', port=port, debug=False)
+
