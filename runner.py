@@ -4,13 +4,7 @@ import json
 
 import logging
 
-import smtplib
-
 from datetime import datetime
-
-from email.mime.text import MIMEText
-
-from email.mime.multipart import MIMEMultipart
 
 from flask import Flask, request, jsonify
 
@@ -19,6 +13,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from avantis_trading_module import AvantisTrader
+
+from profit_management import create_elite_profit_manager
 
  
 
@@ -42,17 +38,11 @@ app = Flask(__name__)
 
 WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'your-secret-key')
 
-NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', '')
-
-EMAIL_APP_PASSWORD = os.getenv('EMAIL_APP_PASSWORD', '')
-
-RESERVE_WALLET_ADDRESS = os.getenv('RESERVE_WALLET_ADDRESS', '')
-
-BTC_WALLET_ADDRESS = os.getenv('BTC_WALLET_ADDRESS', '')
-
  
 
 trader = AvantisTrader()
+
+profit_manager = create_elite_profit_manager(trader)
 
  
 
@@ -156,406 +146,6 @@ def log_to_sheet(data):
 
  
 
-def send_email_notification(subject, html_content):
-
-    if not NOTIFICATION_EMAIL or not EMAIL_APP_PASSWORD:
-
-        logger.warning("Email credentials not configured - skipping notification")
-
-        return
-
-       
-
-    try:
-
-        msg = MIMEMultipart('alternative')
-
-        msg['Subject'] = f"🔥 Avantis Trading Bot - {subject}"
-
-        msg['From'] = NOTIFICATION_EMAIL
-
-        msg['To'] = NOTIFICATION_EMAIL
-
-       
-
-        html_part = MIMEText(html_content, 'html')
-
-        msg.attach(html_part)
-
-       
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-
-            server.starttls()
-
-            server.login(NOTIFICATION_EMAIL, EMAIL_APP_PASSWORD)
-
-            server.send_message(msg)
-
-           
-
-        logger.info("📧 Email notification sent successfully")
-
-    except Exception as e:
-
-        logger.error(f"❌ Email notification failed: {e}")
-
- 
-
-def format_trade_opened_email(trade_data):
-
-    return f"""
-
-    <!DOCTYPE html>
-
-    <html>
-
-    <head>
-
-        <meta charset="utf-8">
-
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-        <title>Trade Opened</title>
-
-        <style>
-
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f8f9fa; }}
-
-            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
-
-            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }}
-
-            .content {{ padding: 30px; }}
-
-            .trade-details {{ background: #f8f9ff; border-radius: 8px; padding: 20px; margin: 20px 0; }}
-
-            .detail-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e9ecef; }}
-
-            .label {{ font-weight: 600; color: #495057; }}
-
-            .value {{ color: #212529; font-weight: 500; }}
-
-            .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }}
-
-            .logo {{ font-size: 24px; margin-bottom: 10px; }}
-
-        </style>
-
-    </head>
-
-    <body>
-
-        <div class="container">
-
-            <div class="header">
-
-                <div class="logo">🚀</div>
-
-                <h1 style="margin: 0; font-size: 28px;">Trade Opened</h1>
-
-                <p style="margin: 10px 0 0 0; opacity: 0.9;">Avantis Finance • Base Network</p>
-
-            </div>
-
-            <div class="content">
-
-                <div class="trade-details">
-
-                    <div class="detail-row">
-
-                        <span class="label">Symbol:</span>
-
-                        <span class="value">{trade_data.get('symbol', 'N/A')}</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">Direction:</span>
-
-                        <span class="value">{"🟢 LONG" if trade_data.get('direction') == 'long' else "🔴 SHORT"}</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">Collateral:</span>
-
-                        <span class="value">${trade_data.get('collateral', 0):.2f} USDC</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">Leverage:</span>
-
-                        <span class="value">{trade_data.get('leverage', 1)}x</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">Position Size:</span>
-
-                        <span class="value">${trade_data.get('position_size', 0):.2f}</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">Signal Tier:</span>
-
-                        <span class="value">Tier {trade_data.get('tier', 'N/A')}</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">Market Regime:</span>
-
-                        <span class="value">{trade_data.get('regime', 'Normal')}</span>
-
-                    </div>
-
-                </div>
-
-                <p><strong>🎯 Position active with multiple take-profit levels</strong></p>
-
-                <p>⚡ Zero fees during Season 2<br>
-
-                🛡️ Up to 20% loss protection rebate<br>
-
-                📊 XP farming for future airdrops</p>
-
-            </div>
-
-            <div class="footer">
-
-                <p>Elite Trading • Capital Efficiency Revolution • 60/20/20 Wealth Strategy</p>
-
-            </div>
-
-        </div>
-
-    </body>
-
-    </html>
-
-    """
-
- 
-
-def format_trade_closed_email(trade_data, is_profit=True):
-
-    pnl = float(trade_data.get('pnl', 0))
-
-   
-
-    if is_profit and pnl > 0:
-
-        reinvest_amount = pnl * 0.60
-
-        btc_amount = pnl * 0.20
-
-        reserve_amount = pnl * 0.20
-
-       
-
-        profit_breakdown = f"""
-
-        <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-
-            <h3 style="color: #155724; margin-top: 0;">💰 Elite Profit Management (60/20/20)</h3>
-
-            <div class="detail-row">
-
-                <span class="label">🔁 Reinvest (60%):</span>
-
-                <span class="value" style="color: #28a745; font-weight: bold;">${reinvest_amount:.2f}</span>
-
-            </div>
-
-            <div class="detail-row">
-
-                <span class="label">₿ BTC Stack (20%):</span>
-
-                <span class="value" style="color: #f57c00; font-weight: bold;">${btc_amount:.2f}</span>
-
-            </div>
-
-            <div class="detail-row">
-
-                <span class="label">🏦 Reserve (20%):</span>
-
-                <span class="value" style="color: #6f42c1; font-weight: bold;">${reserve_amount:.2f}</span>
-
-            </div>
-
-        </div>
-
-        <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0;">
-
-            <h4 style="color: #856404; margin-top: 0;">📋 Action Items:</h4>
-
-            <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
-
-                <li><strong>${reinvest_amount:.2f}</strong> stays in account for compounding</li>
-
-                <li>Convert <strong>${btc_amount:.2f}</strong> to Bitcoin weekly</li>
-
-                <li>Transfer <strong>${reserve_amount:.2f}</strong> to backup wallet</li>
-
-            </ul>
-
-        </div>
-
-        """
-
-        header_color = "linear-gradient(135deg, #28a745 0%, #20c997 100%)"
-
-        status_emoji = "🎉"
-
-        status_text = "PROFIT"
-
-    else:
-
-        profit_breakdown = f"""
-
-        <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-
-            <h3 style="color: #721c24; margin-top: 0;">📊 Loss Information</h3>
-
-            <p style="color: #721c24; margin: 10px 0;">
-
-                🛡️ Check if you're eligible for Avantis loss protection rebate (up to 20%)<br>
-
-                💪 Your BTC stack and reserve funds remain protected<br>
-
-                🔄 Ready for the next opportunity
-
-            </p>
-
-        </div>
-
-        """
-
-        header_color = "linear-gradient(135deg, #dc3545 0%, #c82333 100%)"
-
-        status_emoji = "📊"
-
-        status_text = "CLOSED"
-
-   
-
-    return f"""
-
-    <!DOCTYPE html>
-
-    <html>
-
-    <head>
-
-        <meta charset="utf-8">
-
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-        <title>Trade Closed</title>
-
-        <style>
-
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f8f9fa; }}
-
-            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
-
-            .header {{ background: {header_color}; color: white; padding: 30px; text-align: center; }}
-
-            .content {{ padding: 30px; }}
-
-            .trade-details {{ background: #f8f9ff; border-radius: 8px; padding: 20px; margin: 20px 0; }}
-
-            .detail-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e9ecef; }}
-
-            .label {{ font-weight: 600; color: #495057; }}
-
-            .value {{ color: #212529; font-weight: 500; }}
-
-            .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }}
-
-            .logo {{ font-size: 24px; margin-bottom: 10px; }}
-
-        </style>
-
-    </head>
-
-    <body>
-
-        <div class="container">
-
-            <div class="header">
-
-                <div class="logo">{status_emoji}</div>
-
-                <h1 style="margin: 0; font-size: 28px;">Trade {status_text}</h1>
-
-                <p style="margin: 10px 0 0 0; opacity: 0.9;">Avantis Finance • Base Network</p>
-
-            </div>
-
-            <div class="content">
-
-                <div class="trade-details">
-
-                    <div class="detail-row">
-
-                        <span class="label">Symbol:</span>
-
-                        <span class="value">{trade_data.get('symbol', 'N/A')}</span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">P&L:</span>
-
-                        <span class="value" style="color: {'#28a745' if pnl > 0 else '#dc3545'}; font-weight: bold; font-size: 18px;">
-
-                            ${pnl:+.2f} USDC
-
-                        </span>
-
-                    </div>
-
-                    <div class="detail-row">
-
-                        <span class="label">New Balance:</span>
-
-                        <span class="value">${trade_data.get('balance', 0):.2f} USDC</span>
-
-                    </div>
-
-                </div>
-
-                {profit_breakdown}
-
-            </div>
-
-            <div class="footer">
-
-                <p>Elite Trading • Capital Efficiency Revolution • Building Unstoppable Wealth</p>
-
-            </div>
-
-        </div>
-
-    </body>
-
-    </html>
-
-    """
-
- 
-
 @app.route('/health', methods=['GET'])
 
 def health_check():
@@ -574,15 +164,17 @@ def health_check():
 
             'Zero fees (Season 2)',
 
-            'Multiple take-profit levels',
+            'Elite profit management',
 
             '22+ trading assets',
 
             'XP farming active',
 
-            'Loss protection rebates'
+            'Dynamic strategy scaling'
 
         ],
+
+        'profit_management': profit_manager.get_elite_summary(),
 
         'timestamp': datetime.now().isoformat()
 
@@ -762,29 +354,27 @@ def handle_open_trade(data):
 
            
 
-            send_email_notification(
+            elite_trade_result = {
 
-                f"{direction.upper()} {symbol} Opened",
+                'pair': symbol,
 
-                format_trade_opened_email({
+                'direction': direction.upper(),
 
-                    'symbol': symbol,
+                'collateral': collateral,
 
-                    'direction': direction,
+                'leverage': leverage,
 
-                    'collateral': collateral,
+                'notional_value': collateral * leverage,
 
-                    'leverage': leverage,
+                'tier': tier,
 
-                    'position_size': collateral * leverage,
+                'regime': regime
 
-                    'tier': tier,
+            }
 
-                    'regime': regime
+           
 
-                })
-
-            )
+            profit_manager.notify_trade_opened(elite_trade_result)
 
            
 
@@ -802,7 +392,9 @@ def handle_open_trade(data):
 
                 'position_size': collateral * leverage,
 
-                'platform': 'Avantis Finance'
+                'platform': 'Avantis Finance',
+
+                'profit_strategy': profit_manager.get_elite_summary()['current_strategy']
 
             }
 
@@ -892,21 +484,17 @@ def handle_close_trade(data):
 
            
 
-            send_email_notification(
+            position_data = {
 
-                f"{symbol} Closed - ${pnl:+.2f}",
+               'symbol': symbol,
 
-                format_trade_closed_email({
+                'direction': target_position.get('direction', 'UNKNOWN')
 
-                    'symbol': symbol,
+            }
 
-                    'pnl': pnl,
+           
 
-                    'balance': new_balance
-
-                }, is_profit=(pnl > 0))
-
-            )
+            profit_manager.notify_trade_closed(position_data, pnl)
 
            
 
@@ -922,7 +510,9 @@ def handle_close_trade(data):
 
                 'balance': new_balance,
 
-                'platform': 'Avantis Finance'
+                'platform': 'Avantis Finance',
+
+                'elite_summary': profit_manager.get_elite_summary()
 
             }
 
@@ -951,6 +541,8 @@ def get_status():
         balance = trader.get_balance()
 
         positions = trader.get_positions()
+
+        elite_summary = profit_manager.get_elite_summary()
 
        
 
@@ -982,7 +574,9 @@ def get_status():
 
             },
 
-            'profit_strategy': '60/20/20 Elite Wealth Management',
+            'elite_profit_management': elite_summary,
+
+            'capital_efficiency_improvement': '2000% vs Gains Network',
 
             'timestamp': datetime.now().isoformat()
 
@@ -996,21 +590,65 @@ def get_status():
 
  
 
+@app.route('/elite-summary', methods=['GET'])
+
+def get_elite_summary():
+
+    try:
+
+        return jsonify({
+
+            'elite_profit_management': profit_manager.get_elite_summary(),
+
+            'setup_status': 'Complete - Elite System Active',
+
+            'wealth_building_features': [
+
+                'Dynamic strategy scaling by balance',
+
+                'BTC stack building automation',
+
+                'Reserve wallet protection',
+
+                'Emotional trading protection',
+
+                'Zero-fee compounding on Avantis'
+
+            ]
+
+        })
+
+    except Exception as e:
+
+        logger.error(f"❌ Elite summary error: {e}")
+
+        return jsonify({'error': str(e)}), 500
+
+ 
+
 if __name__ == '__main__':
 
-    logger.info("🚀 Starting Avantis Trading Bot...")
+    logger.info("🔥 Starting Elite Avantis Trading Bot...")
 
-    logger.info("🔥 Capital Efficiency: 2000% improvement vs Gains Network")
+    logger.info("🚀 Capital Efficiency: 2000% improvement vs Gains Network")
 
     logger.info("💰 Fees: $0 vs $5-20 per trade")
 
     logger.info("📊 Assets: 22+ vs 2 assets")
 
-    logger.info("🎯 Strategy: 60/20/20 Elite Wealth Management")
+    logger.info("🏆 Elite Profit Management: Active")
+
+   
+
+    elite_summary = profit_manager.get_elite_summary()
+
+    logger.info(f"💎 Strategy: {elite_summary['current_strategy']}")
+
+    logger.info(f"🎯 Wealth Protection: {elite_summary['wealth_protection_rate']}")
 
    
 
     port = int(os.environ.get('PORT', 5000))
 
-   app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
 
