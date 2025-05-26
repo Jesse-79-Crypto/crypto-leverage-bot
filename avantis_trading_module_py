@@ -1,963 +1,336 @@
-#!/usr/bin/env python3
-
-"""
-
-🔥 AVANTIS ELITE TRADING MODULE 🔥
-
-Drop-in replacement for Gains Network integration
-
- 
-
-Key Improvements:
-
-- $10 minimum vs $1500+ (20x better capital efficiency!)
-
-- Zero fees during Season 2 (save hundreds in fees!)
-
-- Multiple TP levels supported natively
-
-- 22+ assets (crypto, forex, commodities)
-
-- Loss protection rebates up to 20%
-
-- Airdrop farming (Season 2 XP rewards)
-
-"""
-
- 
-
 import os
-
-import json
-
-import time
 
 import logging
 
-import asyncio
+import time
 
 from datetime import datetime
 
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple
 
 from web3 import Web3
 
- 
+from avantis_trader_sdk import AvantisClient
 
-# Install: pip install avantis-trader-sdk
-
-from avantis_trader_sdk import TraderClient
+import requests
 
  
 
-# ----- AVANTIS ELITE CONFIG -----
+# Configure logging
 
-AVANTIS_CONFIG = {
+logging.basicConfig(level=logging.INFO)
 
-    # Network settings
-
-    "base_rpc_url": os.getenv('BASE_RPC_URL', 'https://mainnet.base.org'),
-
-    "private_key": os.getenv('WALLET_PRIVATE_KEY'),
-
-    "usdc_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",  # Base USDC
-
-   
-
-    # Trading parameters (MUCH better than Gains Network!)
-
-    "min_trade_size": 10.0,        # $10 vs $1500+ for Gains!
-
-    "max_position_size": 1000.0,   # $1000 max per position
-
-    "max_daily_volume": 5000.0,    # $5000 daily limit
-
-   
-
-    # Leverage limits by asset type
-
-    "leverage_limits": {
-
-        "crypto": {"min": 2, "max": 50, "default": 5},      # Up to 50x on crypto
-
-        "forex": {"min": 2, "max": 100, "default": 10},     # Up to 100x on forex
-
-        "commodities": {"min": 2, "max": 30, "default": 5}  # Up to 30x on commodities
-
-    },
-
-   
-
-    # Asset mapping (Google Script symbol -> Avantis pair index)
-
-    "pair_mapping": {
-
-        "BTC/USDT": {"pair_index": 0, "type": "crypto", "symbol": "BTC"},
-
-        "ETH/USDT": {"pair_index": 1, "type": "crypto", "symbol": "ETH"},
-
-        "EUR/USD": {"pair_index": 10, "type": "forex", "symbol": "EURUSD"},
-
-        "GBP/USD": {"pair_index": 11, "type": "forex", "symbol": "GBPUSD"},
-
-        "XAU/USD": {"pair_index": 20, "type": "commodities", "symbol": "GOLD"},
-
-        "XAG/USD": {"pair_index": 21, "type": "commodities", "symbol": "SILVER"}
-
-    },
-
-   
-
-    # Elite position sizing (keep your existing tiers!)
-
-    "tier_config": {
-
-        1: {
-
-            "risk_per_trade": 0.25,      # 25% for Tier 1 (was 20%)
-
-            "max_position": 0.40,        # Max 40% of balance
-
-            "min_rr_ratio": 1.2,
-
-            "regime_multipliers": {
-
-                "BULL_TRENDING": 1.3,     # Even bigger in bull markets
-
-                "BEAR_TRENDING": 0.8,
-
-                "VOLATILE": 0.9,
-
-                "DEFAULT": 1.0
-
-            }
-
-        },
-
-        2: {
-
-            "risk_per_trade": 0.15,      # 15% for Tier 2
-
-            "max_position": 0.25,        # Max 25% of balance
-
-            "min_rr_ratio": 1.5,
-
-            "regime_multipliers": {
-
-                "BULL_TRENDING": 1.1,
-
-                "BEAR_TRENDING": 0.7,
-
-                "VOLATILE": 0.8,
-
-                "DEFAULT": 1.0
-
-            }
-
-        }
-
-    },
-
-   
-
-    # XP farming config for airdrop
-
-    "xp_optimization": {
-
-        "min_trade_for_xp": 10.0,      # Min $10 for XP
-
-        "volume_bonus_threshold": 100.0, # $100+ for volume bonuses
-
-        "preferred_assets": ["BTC", "ETH"], # Higher XP on major pairs
-
-        "diversification_bonus": True    # Trade multiple assets for bonus XP
-
-    }
-
-}
+logger = logging.getLogger(__name__)
 
  
 
-# Enhanced logging
-
-log = logging.getLogger("AvantisEliteBot")
-
- 
-
-# ----- AVANTIS CLIENT SETUP -----
-
-class AvantisEliteTrader:
+class AvantisTrader:
 
     def __init__(self):
 
-        self.client = None
+        """Initialize Avantis Trading Module with enhanced capabilities"""
 
-        self.w3 = None
+       
 
-        self.account = None
+        # Environment variables
 
-        self.daily_volume = 0.0
+        self.base_rpc_url = os.getenv('BASE_RPC_URL')
 
-        self.daily_trades = 0
+        self.wallet_private_key = os.getenv('WALLET_PRIVATE_KEY')
 
-        self.setup_client()
+        self.usdc_address = os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')
 
-   
+       
 
-    def setup_client(self):
+        # Email notifications
 
-        """Initialize Avantis client with enhanced error handling"""
+        self.notification_email = os.getenv('NOTIFICATION_EMAIL')
 
-        try:
+        self.email_app_password = os.getenv('EMAIL_APP_PASSWORD')
 
-            # Setup Web3 connection for balance checks
+       
 
-            self.w3 = Web3(Web3.HTTPProvider(AVANTIS_CONFIG["base_rpc_url"]))
+        # Elite profit management (optional)
 
-            if not self.w3.is_connected():
+        self.reserve_wallet = os.getenv('RESERVE_WALLET_ADDRESS')
 
-                raise Exception("Failed to connect to Base network")
+        self.btc_wallet = os.getenv('BTC_WALLET_ADDRESS')
 
-               
+       
 
-            self.account = self.w3.eth.account.from_key(AVANTIS_CONFIG["private_key"])
+        # Trading parameters - ENHANCED for Avantis
 
-            log.info(f"✅ Connected to Base network, wallet: {self.account.address}")
+        self.trading_params = {
 
-           
+            'max_daily_trades': 8,  # Increased from 5
 
-            # Initialize Avantis client
+            'cooldown_minutes': 3,  # Reduced from 5
 
-            self.client = TraderClient(AVANTIS_CONFIG["base_rpc_url"])
+            'min_balance_usd': 50,  # Reduced from 100
 
-            log.info("✅ Avantis SDK client initialized")
+            'min_signal_quality': 55,  # Reduced from 60
 
-           
+            'tier_1_percentage': 25,  # Tier 1 signal position size
 
-            # Test connection
+            'tier_2_percentage': 18,  # Tier 2 signal position size
 
-            asyncio.run(self._test_connection())
+        }
 
-           
+       
 
-        except Exception as e:
+        # Asset-specific leverage limits
 
-            log.error(f"❌ Failed to setup Avantis client: {e}")
+        self.leverage_limits = {
 
-            raise
+            'crypto': {'max': 50, 'bot_range': (5, 7)},
 
-   
+            'forex': {'max': 100, 'bot_range': (10, 15)},
 
-    async def _test_connection(self):
+            'commodities': {'max': 30, 'bot_range': (5, 10)}
 
-        """Test Avantis SDK connection"""
+        }
 
-        try:
+       
 
-            pairs_info = await self.client.pairs_cache.get_pairs_info()
+        # Initialize Web3 and Avantis client
 
-            log.info(f"✅ Avantis connection test passed, {len(pairs_info)} pairs available")
+        self.w3 = Web3(Web3.HTTPProvider(self.base_rpc_url))
 
-        except Exception as e:
+        self.avantis_client = AvantisClient(
 
-            log.error(f"❌ Avantis connection test failed: {e}")
+            private_key=self.wallet_private_key,
 
-            raise
+            rpc_url=self.base_rpc_url,
+
+            usdc_address=self.usdc_address
+
+        )
+
+       
+
+        # Trade tracking
+
+        self.daily_trade_count = 0
+
+        self.last_trade_time = 0
+
+        self.last_reset_day = datetime.now().day
+
+       
+
+        logger.info("🚀 Avantis Elite Trading Module Initialized!")
+
+        logger.info(f"📊 Enhanced Parameters: {self.trading_params}")
+
+        logger.info(f"💰 USDC Address: {self.usdc_address}")
 
  
 
-    def get_balance_usdc(self) -> float:
+    def get_account_balance(self) -> float:
 
-        """Get USDC balance using Web3"""
+        """Get USDC balance with enhanced error handling"""
 
         try:
 
-            usdc_contract = self.w3.eth.contract(
+            balance = self.avantis_client.get_usdc_balance()
 
-                address=AVANTIS_CONFIG["usdc_address"],
+            logger.info(f"💰 Current USDC Balance: ${balance:.2f}")
 
-                abi=[{"constant": True, "inputs": [{"name": "_owner", "type": "address"}],
-
-                     "name": "balanceOf", "outputs": [{"name": "balance", "type": "uint256"}],
-
-                     "type": "function"}]
-
-            )
-
-            balance_wei = usdc_contract.functions.balanceOf(self.account.address).call()
-
-            return balance_wei / 1e6  # USDC has 6 decimals
+            return balance
 
         except Exception as e:
 
-            log.error(f"Failed to get USDC balance: {e}")
+            logger.error(f"❌ Error getting balance: {e}")
 
             return 0.0
 
  
 
-    def validate_avantis_signal(self, signal: Dict) -> bool:
-
-        """Enhanced signal validation for Avantis"""
-
-        log.info(f"🔍 Validating Avantis signal: {signal.get('symbol')} {signal.get('direction')}")
-
-       
-
-        # Check if symbol is supported
-
-        symbol = signal.get('symbol')
-
-        if symbol not in AVANTIS_CONFIG["pair_mapping"]:
-
-            raise ValueError(f"Unsupported symbol: {symbol}. Supported: {list(AVANTIS_CONFIG['pair_mapping'].keys())}")
-
-       
-
-        # Get pair info
-
-        pair_info = AVANTIS_CONFIG["pair_mapping"][symbol]
-
-       
-
-        # Validate direction
-
-        direction = signal.get('direction')
-
-        if direction not in ['LONG', 'SHORT']:
-
-            raise ValueError(f"Invalid direction: {direction}")
-
-       
-
-        # Validate prices
-
-        required_prices = ['entry', 'stopLoss', 'takeProfit1']
-
-        for price_field in required_prices:
-
-            if price_field not in signal:
-
-                raise ValueError(f"Missing {price_field}")
-
-           
-
-            price = float(signal[price_field])
-
-            if price <= 0:
-
-                raise ValueError(f"Invalid {price_field}: {price}")
-
-       
-
-        # Validate tier
-
-        tier = signal.get('tier', 2)
-
-        if tier not in [1, 2]:
-
-            raise ValueError(f"Invalid tier: {tier}")
-
-       
-
-        # Calculate R:R ratio (keep your existing logic)
-
-        entry = float(signal['entry'])
-
-        stop = float(signal['stopLoss'])
-
-        tp1 = float(signal['takeProfit1'])
-
-       
-
-        if direction == 'LONG':
-
-            risk = entry - stop
-
-            reward = tp1 - entry
-
-        else:
-
-            risk = stop - entry
-
-            reward = entry - tp1
-
-       
-
-        if risk <= 0:
-
-            raise ValueError("Invalid stop loss placement")
-
-       
-
-        rr_ratio = reward / risk
-
-        min_rr = AVANTIS_CONFIG["tier_config"][tier]["min_rr_ratio"]
-
-       
-
-        if rr_ratio < min_rr:
-
-            raise ValueError(f"R:R ratio {rr_ratio:.2f} below minimum {min_rr}")
-
-       
-
-        log.info(f"✅ Signal validation passed: Tier {tier}, R:R {rr_ratio:.2f}, Asset: {pair_info['type']}")
-
-        return True
-
- 
-
-    def calculate_avantis_position_size(self, signal: Dict, balance_usdc: float) -> Tuple[float, int]:
+    def calculate_position_size(self, signal_tier: int, balance: float) -> Tuple[float, float]:
 
         """
 
-        Calculate optimal position size for Avantis
+        Calculate position size based on signal tier and current balance
 
-        Returns: (collateral_amount, leverage)
+        Returns: (collateral_amount, max_leverage)
 
         """
-
-        symbol = signal['symbol']
-
-        tier = signal.get('tier', 2)
-
-        regime = signal.get('regime', 'DEFAULT')
-
-        signal_quality = signal.get('signalQuality', 70)
-
-       
-
-        pair_info = AVANTIS_CONFIG["pair_mapping"][symbol]
-
-        asset_type = pair_info['type']
-
-        tier_config = AVANTIS_CONFIG["tier_config"][tier]
-
-       
-
-        log.info(f"📊 Position sizing: {symbol} (Tier {tier}, {regime}, Quality {signal_quality})")
-
-       
-
-        # Base position size from tier
-
-        base_risk = tier_config["risk_per_trade"]
-
-        max_position = tier_config["max_position"]
-
-       
-
-        # Apply regime multiplier
-
-        regime_multiplier = tier_config["regime_multipliers"].get(regime, 1.0)
-
-       
-
-        # Apply signal quality adjustment (60-100 range)
-
-        quality_multiplier = 0.7 + (signal_quality - 60) / 100  # 0.7x to 1.1x
-
-        quality_multiplier = max(0.5, min(1.5, quality_multiplier))
-
-       
-
-        # Calculate position size
-
-        adjusted_risk = base_risk * regime_multiplier * quality_multiplier
-
-        position_size = balance_usdc * adjusted_risk
-
-       
-
-        # Apply maximum position limit
-
-        max_allowed = balance_usdc * max_position
-
-        position_size = min(position_size, max_allowed)
-
-       
-
-        # Ensure minimum trade size for Avantis
-
-        position_size = max(position_size, AVANTIS_CONFIG["min_trade_size"])
-
-       
-
-        # Ensure we don't exceed max position size
-
-        position_size = min(position_size, AVANTIS_CONFIG["max_position_size"])
-
-       
-
-        # Determine optimal leverage based on asset type and tier
-
-        leverage_config = AVANTIS_CONFIG["leverage_limits"][asset_type]
-
-       
-
-        if tier == 1:
-
-            # Tier 1: Use higher leverage for better capital efficiency
-
-            if asset_type == "crypto":
-
-                leverage = min(7, leverage_config["max"])
-
-            elif asset_type == "forex":
-
-                leverage = min(15, leverage_config["max"])
-
-            else:  # commodities
-
-                leverage = min(10, leverage_config["max"])
-
-        else:
-
-            # Tier 2: More conservative leverage
-
-            leverage = leverage_config["default"]
-
-       
-
-        # Adjust leverage based on regime
-
-        if regime == "VOLATILE":
-
-            leverage = max(2, leverage - 2)  # Reduce leverage in volatile markets
-
-        elif regime in ["BULL_TRENDING", "BEAR_TRENDING"]:
-
-            leverage = min(leverage + 1, leverage_config["max"])  # Slightly higher in trending markets
-
-       
-
-        log.info(f"💰 Position: ${position_size:.2f} @ {leverage}x = ${position_size * leverage:.2f} notional")
-
-        log.info(f"   📈 Multipliers: Regime {regime_multiplier:.1f}x, Quality {quality_multiplier:.1f}x")
-
-        log.info(f"   🎯 Risk: {adjusted_risk:.1%} of ${balance_usdc:.2f} balance")
-
-       
-
-        return position_size, leverage
-
- 
-
-    async def execute_avantis_trade(self, signal: Dict) -> Dict:
-
-        """
-
-        Execute trade on Avantis platform
-
-        This replaces your entire Gains Network execution logic!
-
-        """
-
-        log.info(f"🚀 EXECUTING AVANTIS TRADE")
-
-        log.info(f"   Symbol: {signal['symbol']}")
-
-        log.info(f"   Direction: {signal['direction']}")
-
-        log.info(f"   Tier: {signal.get('tier', 2)}")
-
-        log.info(f"   Regime: {signal.get('regime', 'DEFAULT')}")
-
-       
 
         try:
 
-            # 1. Validate signal
+            # Determine position percentage based on tier
 
-            self.validate_avantis_signal(signal)
+            if signal_tier == 1:
 
-           
+                position_percentage = self.trading_params['tier_1_percentage']
 
-            # 2. Check balance
+            elif signal_tier == 2:
 
-            balance = self.get_balance_usdc()
+                position_percentage = self.trading_params['tier_2_percentage']
 
-            if balance < AVANTIS_CONFIG["min_trade_size"]:
+            else:
 
-                raise Exception(f"Insufficient balance: ${balance:.2f} USDC")
-
-           
-
-            # 3. Check daily limits
-
-            if self.daily_trades >= 5:  # Keep your 5 daily trade limit
-
-                raise Exception("Daily trade limit reached (5 trades)")
+                position_percentage = 15  # Default for lower tier signals
 
            
 
-            if self.daily_volume >= AVANTIS_CONFIG["max_daily_volume"]:
+            # Calculate collateral amount
 
-                raise Exception(f"Daily volume limit reached: ${self.daily_volume:.2f}")
-
-            
-
-            # 4. Calculate position size and leverage
-
-            collateral, leverage = self.calculate_avantis_position_size(signal, balance)
+            collateral = balance * (position_percentage / 100)
 
            
 
-            # 5. Get pair information
+            # Ensure minimum collateral of $10 (Avantis minimum)
 
-            symbol = signal['symbol']
-
-            pair_info = AVANTIS_CONFIG["pair_mapping"][symbol]
-
-            pair_index = pair_info["pair_index"]
+            collateral = max(collateral, 10.0)
 
            
 
-            # 6. Prepare trade parameters
+            # Dynamic leverage based on balance (conservative approach)
 
-            is_long = signal['direction'] == 'LONG'
+            if balance < 500:
 
-           
+                max_leverage = 5
 
-            # Convert prices to appropriate format (Avantis uses different precision)
+            elif balance < 1000:
 
-            entry_price = 0  # 0 = market order
+                max_leverage = 7
 
-            stop_loss = float(signal['stopLoss'])
+            elif balance < 2000:
 
-            take_profit_1 = float(signal['takeProfit1'])
+                max_leverage = 10
 
-           
+            else:
 
-            # Multiple TPs if available (this is NEW - Gains Network only supported 1!)
-
-            take_profits = [take_profit_1]
-
-            if 'takeProfit2' in signal and signal['takeProfit2']:
-
-                take_profits.append(float(signal['takeProfit2']))
-
-            if 'takeProfit3' in signal and signal['takeProfit3']:
-
-                take_profits.append(float(signal['takeProfit3']))
+                max_leverage = 15
 
            
 
-            log.info(f"📋 Trade Details:")
+            logger.info(f"📊 Position Calc: Tier {signal_tier}, ${collateral:.2f} collateral, {max_leverage}x max leverage")
 
-            log.info(f"   Pair Index: {pair_index} ({pair_info['symbol']})")
-
-            log.info(f"   Collateral: ${collateral:.2f} USDC")
-
-            log.info(f"   Leverage: {leverage}x")
-
-            log.info(f"   Notional: ${collateral * leverage:.2f}")
-
-            log.info(f"   Stop Loss: ${stop_loss:.4f}")
-
-            log.info(f"   Take Profits: {[f'${tp:.4f}' for tp in take_profits]}")
-
-           
-
-            # 7. Execute trade using Avantis SDK
-
-            # NOTE: This is a simplified version - actual SDK methods may vary
-
-            # Check Avantis SDK documentation for exact method signatures
-
-           
-
-            trade_params = {
-
-                'pair_index': pair_index,
-
-                'is_long': is_long,
-
-                'collateral_amount': collateral,
-
-                'leverage': leverage,
-
-                'take_profits': take_profits,
-
-                'stop_loss': stop_loss,
-
-                'trader_address': self.account.address
-
-            }
-
-           
-
-            log.info("📡 Submitting trade to Avantis...")
-
-           
-
-            # This would be the actual Avantis SDK call:
-
-            # result = await self.client.open_trade(**trade_params)
-
-           
-
-            # For now, simulate the trade execution
-
-            # TODO: Replace with actual Avantis SDK call once we have the exact API
-
-            tx_hash = f"0x{''.join(['a' for _ in range(64)])}"  # Placeholder
-
-           
-
-            # 8. Update tracking
-
-            self.daily_trades += 1
-
-            self.daily_volume += collateral * leverage
-
-           
-
-            # 9. Calculate metrics for logging
-
-            notional_value = collateral * leverage
-
-            risk_amount = collateral  # Max loss is collateral amount
-
-            reward_amount = (take_profits[0] - float(signal['entry'])) * (collateral * leverage) / float(signal['entry'])
-
-            if not is_long:
-
-                reward_amount = (float(signal['entry']) - take_profits[0]) * (collateral * leverage) / float(signal['entry'])
-
-           
-
-            rr_ratio = abs(reward_amount / risk_amount) if risk_amount > 0 else 0
-
-           
-
-            log.info(f"✅ AVANTIS TRADE EXECUTED!")
-
-            log.info(f"   TX Hash: {tx_hash}")
-
-            log.info(f"   Notional: ${notional_value:.2f}")
-
-            log.info(f"   Risk: ${risk_amount:.2f}")
-
-            log.info(f"   Potential Reward: ${reward_amount:.2f}")
-
-            log.info(f"   R:R Ratio: {rr_ratio:.2f}:1")
-
-           
-
-            # 10. Return comprehensive result
-
-            return {
-
-                'status': 'SUCCESS',
-
-                'platform': 'Avantis',
-
-                'tx_hash': tx_hash,
-
-                'pair': symbol,
-
-                'direction': signal['direction'],
-
-                'tier': signal.get('tier', 2),
-
-                'regime': signal.get('regime', 'DEFAULT'),
-
-                'collateral': collateral,
-
-                'leverage': leverage,
-
-                'notional_value': notional_value,
-
-                'stop_loss': stop_loss,
-
-                'take_profits': take_profits,
-
-                'rr_ratio': rr_ratio,
-
-                'fees_paid': 0.0,  # Zero fees during Season 2!
-
-                'xp_earned': True,  # Earning Avantis XP for airdrop
-
-                'daily_trades': self.daily_trades,
-
-                'daily_volume': self.daily_volume,
-
-                'balance_remaining': balance - collateral
-
-            }
+            return collateral, max_leverage
 
            
 
         except Exception as e:
 
-            log.error(f"❌ Avantis trade execution failed: {e}")
+            logger.error(f"❌ Error calculating position size: {e}")
 
-            return {
-
-                'status': 'FAILED',
-
-                'platform': 'Avantis',
-
-                'error': str(e),
-
-                'pair': signal.get('symbol', 'UNKNOWN'),
-
-                'direction': signal.get('direction', 'UNKNOWN')
-
-            }
+            return 10.0, 5  # Safe defaults
 
  
 
-    async def get_positions(self) -> List[Dict]:
+    def get_asset_type(self, symbol: str) -> str:
 
-        """Get current open positions from Avantis"""
+        """Determine asset type for leverage calculation"""
 
-        try:
+        crypto_pairs = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC', 'ARB', 'OP']
 
-            # TODO: Implement with actual Avantis SDK position tracking
+        forex_pairs = ['EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD']
 
-            # positions = await self.client.get_positions(self.account.address)
-
-           
-
-            # For now, return empty list
-
-            return []
-
-           
-
-        except Exception as e:
-
-            log.error(f"Failed to get Avantis positions: {e}")
-
-            return []
-
- 
-
-    async def close_position(self, position_id: str, percentage: float = 100.0) -> Dict:
-
-        """Close a position (full or partial)"""
-
-        try:
-
-            # TODO: Implement with actual Avantis SDK
-
-            # result = await self.client.close_trade(position_id, percentage)
-
-           
-
-            log.info(f"Position {position_id} closed ({percentage}%)")
-
-            return {'status': 'SUCCESS', 'position_id': position_id, 'percentage': percentage}
-
-           
-
-        except Exception as e:
-
-            log.error(f"Failed to close position {position_id}: {e}")
-
-            return {'status': 'FAILED', 'error': str(e)}
-
- 
-
-    def get_elite_stats(self) -> Dict:
-
-        """Get enhanced trading statistics"""
-
-        balance = self.get_balance_usdc()
+        commodities = ['GOLD', 'SILVER', 'OIL', 'GAS']
 
        
 
-        return {
+        symbol_upper = symbol.upper()
 
-            'platform': 'Avantis',
+       
 
-            'version': 'elite_v2.0',
+        for crypto in crypto_pairs:
 
-            'wallet': self.account.address,
+            if crypto in symbol_upper:
 
-            'balance_usdc': balance,
+                return 'crypto'
 
-            'daily_trades': self.daily_trades,
+       
 
-            'daily_volume': self.daily_volume,
+        for forex in forex_pairs:
 
-            'max_daily_trades': 5,
+            if forex in symbol_upper:
 
-            'max_daily_volume': AVANTIS_CONFIG["max_daily_volume"],
+                return 'forex'
 
-            'min_trade_size': AVANTIS_CONFIG["min_trade_size"],
+               
 
-            'supported_assets': len(AVANTIS_CONFIG["pair_mapping"]),
+        for commodity in commodities:
 
-            'zero_fees': True,  # During Season 2
+            if commodity in symbol_upper:
 
-            'xp_farming': True,  # Earning airdrop points
+                return 'commodities'
 
-            'features': {
+       
 
-                'multiple_tps': True,
-
-                'loss_protection': True,
-
-                'forex_trading': True,
-
-                'commodity_trading': True,
-
-                'min_trade_20x_lower': True  # $10 vs $200+ on Gains
-
-            }
-
-        }
+        return 'crypto'  # Default to crypto
 
  
 
-# ----- HELPER FUNCTIONS FOR EASY INTEGRATION -----
+    def can_place_trade(self) -> bool:
 
- 
+        """Enhanced trade validation with Avantis parameters"""
 
-def create_avantis_trader() -> AvantisEliteTrader:
+        try:
 
-    """Factory function to create Avantis trader instance"""
+            current_time = time.time()
 
-    return AvantisEliteTrader()
+            current_day = datetime.now().day
 
- 
+           
 
-async def execute_elite_signal(trader: AvantisEliteTrader, signal: Dict) -> Dict:
+            # Reset daily counter if new day
 
-    """Execute an elite signal on Avantis platform"""
+            if current_day != self.last_reset_day:
 
-    return await trader.execute_avantis_trade(signal)
+                self.daily_trade_count = 0
 
- 
+                self.last_reset_day = current_day
 
-def validate_signal_for_avantis(signal: Dict) -> bool:
+                logger.info("🔄 Daily trade counter reset")
 
-    """Validate signal before execution"""
+           
 
-    trader = create_avantis_trader()
+            # Check daily trade limit
 
-    return trader.validate_avantis_signal(signal)
+            if self.daily_trade_count >= self.trading_params['max_daily_trades']:
 
- 
+                logger.warning(f"⚠️ Daily trade limit reached: {self.daily_trade_count}/{self.trading_params['max_daily_trades']}")
 
-if __name__ == "__main__":
+                return False
 
-    # Test the Avantis integration
+           
 
-    print("🔥 AVANTIS ELITE TRADING MODULE READY!")
+            # Check cooldown period
 
-    print(f"✅ Minimum trade size: ${AVANTIS_CONFIG['min_trade_size']}")
+            time_since_last = (current_time - self.last_trade_time) / 60
 
-    print(f"✅ Supported pairs: {len(AVANTIS_CONFIG['pair_mapping'])}")
+            if time_since_last < self.trading_params['cooldown_minutes']:
 
-    print(f"✅ Zero fees: Season 2 active")
+                remaining = self.trading_params['cooldown_minutes'] - time_since_last
 
-    print(f"✅ Multiple TPs: Native support")
+                logger.warning(f"⏱️ Cooldown active: {remaining:.1f} minutes remaining")
 
-    print(f"✅ Airdrop farming: XP rewards enabled")
+                return False
 
-    print("🚀 Ready to replace Gains Network integration!")
+           
+
+            # Check minimum balance
+
+            balance = self.get_account_balance()
+
+            if balance < self.trading_params['min_balance_usd']:
+
+                logger.warning(f"💰 Balance too low: ${balance:.2f} < ${self.trading_params['min_balance_usd']}")
+
+                return False
+
+           
+
+            return True
+
+           
+
+        except Exception as e:
+
+            logger.error(f"❌ Error checking trade eligibility: {e}")
+
+            return False
+
