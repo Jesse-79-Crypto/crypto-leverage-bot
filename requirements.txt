@@ -1,2 +1,11 @@
 flask
 gunicorn
+web3>=6.0.0
+pycryptodome
+requests>=2.31.0
+python-dotenv>=1.0.1
+google-api-python-client
+google-auth-oauthlib
+google-auth
+gspread>=5.12.0
+oauth2client>=4.1.3
