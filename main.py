@@ -1,17 +1,15 @@
+
 #!/usr/bin/env python3
 """
-Entrypoint for Gunicorn / your container.
-Imports the Flask app (with its /execute route) from runner.py
-and adds a simple healthcheck at “/”.
+Heroku entry point for Elite Trading Bot
+Imports the main Flask app from runner.py
 """
 
-import os
-from runner import app     # <-- runner.py must define `app = Flask(__name__)`
+from runner import app
 
-@app.route("/")
-def home():
-    return "✅ Agent 3 is live!"
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    # This ensures the app runs correctly when called directly
+    # but Heroku will use gunicorn main:app
+    import os
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)
