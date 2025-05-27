@@ -1,336 +1,105 @@
+import smtplib
+
 import os
-
-import logging
-
-import time
 
 from datetime import datetime
 
-from typing import Dict, Any, Optional, Tuple
+from email.mime.text import MIMEText
 
-from web3 import Web3
-
-from avantis_trader_sdk import AvantisClient
-
-import requests
+from email.mime.multipart import MIMEMultipart
 
  
 
-# Configure logging
-
-logging.basicConfig(level=logging.INFO)
-
-logger = logging.getLogger(__name__)
-
- 
-
-class AvantisTrader:
+class EnhancedProfitManager:
 
     def __init__(self):
 
-        """Initialize Avantis Trading Module with enhanced capabilities"""
-
-       
-
-        # Environment variables
-
-        self.base_rpc_url = os.getenv('BASE_RPC_URL')
-
-        self.wallet_private_key = os.getenv('WALLET_PRIVATE_KEY')
-
-        self.usdc_address = os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')
-
-       
-
-        # Email notifications
-
         self.notification_email = os.getenv('NOTIFICATION_EMAIL')
 
-        self.email_app_password = os.getenv('EMAIL_APP_PASSWORD')
+        self.email_password = os.getenv('EMAIL_APP_PASSWORD')
+
+        self.system_start_date = self._get_system_start_date()
 
        
 
-        # Elite profit management (optional)
+        # 🎯 Dynamic allocation phases
 
-        self.reserve_wallet = os.getenv('RESERVE_WALLET_ADDRESS')
+        self.allocation_phases = {
 
-        self.btc_wallet = os.getenv('BTC_WALLET_ADDRESS')
+            "growth_focus": {"reinvest": 0.80, "btc_stack": 0.15, "reserve": 0.05},
 
-       
+            "balanced_growth": {"reinvest": 0.70, "btc_stack": 0.20, "reserve": 0.10},
 
-        # Trading parameters - ENHANCED for Avantis
-
-        self.trading_params = {
-
-            'max_daily_trades': 8,  # Increased from 5
-
-            'cooldown_minutes': 3,  # Reduced from 5
-
-            'min_balance_usd': 50,  # Reduced from 100
-
-            'min_signal_quality': 55,  # Reduced from 60
-
-            'tier_1_percentage': 25,  # Tier 1 signal position size
-
-            'tier_2_percentage': 18,  # Tier 2 signal position size
+            "wealth_protection": {"reinvest": 0.60, "btc_stack": 0.20, "reserve": 0.20}
 
         }
 
+   
+
+    def _get_system_start_date(self):
+
+        """Get system start date from environment variable"""
+
+        try:
+
+            start_date_str = os.getenv('SYSTEM_START_DATE', '2025-05-27T00:00:00')
+
+            return datetime.fromisoformat(start_date_str)
+
+        except:
+
+            return datetime.now()
+
+   
+
+    def get_months_running(self):
+
+        """Calculate how many months the system has been running"""
+
+        delta = datetime.now() - self.system_start_date
+
+        return delta.days // 30
+
+   
+
+    def get_dynamic_allocation(self, account_balance):
+
+        """Get dynamic allocation ratios based on system maturity"""
+
+        months = self.get_months_running()
+
        
 
-        # Asset-specific leverage limits
+        if months <= 6:
 
-        self.leverage_limits = {
+            phase_key = "growth_focus"
 
-            'crypto': {'max': 50, 'bot_range': (5, 7)},
+            phase_name = "Phase 1: Aggressive Growth (80/15/5)"
 
-            'forex': {'max': 100, 'bot_range': (10, 15)},
+        elif months <= 12:
 
-            'commodities': {'max': 30, 'bot_range': (5, 10)}
+            phase_key = "balanced_growth"
+
+            phase_name = "Phase 2: Balanced Approach (70/20/10)"
+
+        else:
+
+            phase_key = "wealth_protection"
+
+            phase_name = "Phase 3: Wealth Protection (60/20/20)"
+
+        
+
+        allocation = self.allocation_phases[phase_key].copy()
+
+       
+
+        return {
+
+            **allocation,
+
+            "phase": phase_name,
+
+            "months_running": months
 
         }
-
-       
-
-        # Initialize Web3 and Avantis client
-
-        self.w3 = Web3(Web3.HTTPProvider(self.base_rpc_url))
-
-        self.avantis_client = AvantisClient(
-
-            private_key=self.wallet_private_key,
-
-            rpc_url=self.base_rpc_url,
-
-            usdc_address=self.usdc_address
-
-        )
-
-       
-
-        # Trade tracking
-
-        self.daily_trade_count = 0
-
-        self.last_trade_time = 0
-
-        self.last_reset_day = datetime.now().day
-
-       
-
-        logger.info("🚀 Avantis Elite Trading Module Initialized!")
-
-        logger.info(f"📊 Enhanced Parameters: {self.trading_params}")
-
-        logger.info(f"💰 USDC Address: {self.usdc_address}")
-
- 
-
-    def get_account_balance(self) -> float:
-
-        """Get USDC balance with enhanced error handling"""
-
-        try:
-
-            balance = self.avantis_client.get_usdc_balance()
-
-            logger.info(f"💰 Current USDC Balance: ${balance:.2f}")
-
-            return balance
-
-        except Exception as e:
-
-            logger.error(f"❌ Error getting balance: {e}")
-
-            return 0.0
-
- 
-
-    def calculate_position_size(self, signal_tier: int, balance: float) -> Tuple[float, float]:
-
-        """
-
-        Calculate position size based on signal tier and current balance
-
-        Returns: (collateral_amount, max_leverage)
-
-        """
-
-        try:
-
-            # Determine position percentage based on tier
-
-            if signal_tier == 1:
-
-                position_percentage = self.trading_params['tier_1_percentage']
-
-            elif signal_tier == 2:
-
-                position_percentage = self.trading_params['tier_2_percentage']
-
-            else:
-
-                position_percentage = 15  # Default for lower tier signals
-
-           
-
-            # Calculate collateral amount
-
-            collateral = balance * (position_percentage / 100)
-
-           
-
-            # Ensure minimum collateral of $10 (Avantis minimum)
-
-            collateral = max(collateral, 10.0)
-
-           
-
-            # Dynamic leverage based on balance (conservative approach)
-
-            if balance < 500:
-
-                max_leverage = 5
-
-            elif balance < 1000:
-
-                max_leverage = 7
-
-            elif balance < 2000:
-
-                max_leverage = 10
-
-            else:
-
-                max_leverage = 15
-
-           
-
-            logger.info(f"📊 Position Calc: Tier {signal_tier}, ${collateral:.2f} collateral, {max_leverage}x max leverage")
-
-            return collateral, max_leverage
-
-           
-
-        except Exception as e:
-
-            logger.error(f"❌ Error calculating position size: {e}")
-
-            return 10.0, 5  # Safe defaults
-
- 
-
-    def get_asset_type(self, symbol: str) -> str:
-
-        """Determine asset type for leverage calculation"""
-
-        crypto_pairs = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC', 'ARB', 'OP']
-
-        forex_pairs = ['EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD']
-
-        commodities = ['GOLD', 'SILVER', 'OIL', 'GAS']
-
-       
-
-        symbol_upper = symbol.upper()
-
-       
-
-        for crypto in crypto_pairs:
-
-            if crypto in symbol_upper:
-
-                return 'crypto'
-
-       
-
-        for forex in forex_pairs:
-
-            if forex in symbol_upper:
-
-                return 'forex'
-
-               
-
-        for commodity in commodities:
-
-            if commodity in symbol_upper:
-
-                return 'commodities'
-
-       
-
-        return 'crypto'  # Default to crypto
-
- 
-
-    def can_place_trade(self) -> bool:
-
-        """Enhanced trade validation with Avantis parameters"""
-
-        try:
-
-            current_time = time.time()
-
-            current_day = datetime.now().day
-
-           
-
-            # Reset daily counter if new day
-
-            if current_day != self.last_reset_day:
-
-                self.daily_trade_count = 0
-
-                self.last_reset_day = current_day
-
-                logger.info("🔄 Daily trade counter reset")
-
-           
-
-            # Check daily trade limit
-
-            if self.daily_trade_count >= self.trading_params['max_daily_trades']:
-
-                logger.warning(f"⚠️ Daily trade limit reached: {self.daily_trade_count}/{self.trading_params['max_daily_trades']}")
-
-                return False
-
-           
-
-            # Check cooldown period
-
-            time_since_last = (current_time - self.last_trade_time) / 60
-
-            if time_since_last < self.trading_params['cooldown_minutes']:
-
-                remaining = self.trading_params['cooldown_minutes'] - time_since_last
-
-                logger.warning(f"⏱️ Cooldown active: {remaining:.1f} minutes remaining")
-
-                return False
-
-           
-
-            # Check minimum balance
-
-            balance = self.get_account_balance()
-
-            if balance < self.trading_params['min_balance_usd']:
-
-                logger.warning(f"💰 Balance too low: ${balance:.2f} < ${self.trading_params['min_balance_usd']}")
-
-                return False
-
-           
-
-            return True
-
-           
-
-        except Exception as e:
-
-            logger.error(f"❌ Error checking trade eligibility: {e}")
-
-            return False
-
