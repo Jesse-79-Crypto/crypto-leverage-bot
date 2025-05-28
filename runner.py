@@ -902,20 +902,8 @@ def get_trade_summary():
 
             "supported_symbols": engine.supported_symbols,
 
-            "timestamp": datetime.now().isoformat()
+            if __name__ == '__main__':
 
-        })
+                logging.basicConfig(level=logging.INFO)
 
-       
-
-    except Exception as e:
-
-        return jsonify({"status": "error", "message": str(e)}), 500
-
- 
-
-if __name__ == '__main__':
-
-    logging.basicConfig(level=logging.INFO)
-
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+                app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
