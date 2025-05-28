@@ -10,7 +10,7 @@ import json
 
 try:
 
-    from avantis_trader_sdk import AvantisTrader as SDKTrader
+    from avantis_trader_sdk.client import TraderClient as SDKTrader
 
 except ImportError:
 
