@@ -870,40 +870,25 @@ def get_status():
 
         return jsonify({"status": "error", "message": str(e)}), 500
 
- 
-
 @app.route('/trade-summary', methods=['GET'])
-
 def get_trade_summary():
-
     """Enhanced trade summary with TP3 performance metrics"""
-
     try:
-
-        # This would typically query your trade log database/sheets
-
-        # For now, returning enhanced structure
-
         return jsonify({
-
             "summary": "Enhanced trade tracking active",
-
             "new_metrics": {
-
                 "tp3_hit_rate": "Tracking TP3 success rate",
-
                 "tp3_timing": "Average time to TP3",
-
                 "bear_market_performance": "Optimized TP3 levels active",
-
                 "multi_position_efficiency": f"Max {MAX_OPEN_POSITIONS} positions"
-
             },
-
             "supported_symbols": engine.supported_symbols,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-            if __name__ == '__main__':
 
-                logging.basicConfig(level=logging.INFO)
-
-                app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
