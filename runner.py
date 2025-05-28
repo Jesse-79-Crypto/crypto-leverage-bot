@@ -2,7 +2,14 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import json
 import os
-from avantis_trading_module import AvantisTrader
+from avantis_trader_sdk import TraderClient as SDKTrader
+    REAL_SDK_AVAILABLE = True
+    logging.info("✅ Real Avantis SDK imported successfully")
+except ImportError as e:
+    logging.warning(f"⚠️ Real Avantis SDK not found: {e}")
+    logging.warning("📦 Install with: pip install git+https://github.com/Avantis-Labs/avantis_trader_sdk.git")
+    REAL_SDK_AVAILABLE = False
+    SDKTrader = None
 from profit_management import EnhancedProfitManager as ProfitManager
 import logging
 import traceback
@@ -289,7 +296,7 @@ class EnhancedAvantisEngine:
         logger.info("🚀 INITIALIZING ENHANCED AVANTIS ENGINE...")
         
         try:
-            self.trader = AvantisTrader(
+            self.trader = SDKTrader(...)
                 private_key=os.getenv('WALLET_PRIVATE_KEY'),
                 rpc_url=os.getenv('BASE_RPC_URL')
             )
