@@ -10,6 +10,13 @@ try:
     from avantis_trader_sdk.client import TraderClient as AvantisTrader
     SDKTrader = AvantisTrader
     REAL_SDK_AVAILABLE = True
+    
+    # Debug: Check what parameters TraderClient expects
+    import inspect
+    print("=== TraderClient Constructor Debug ===")
+    print("TraderClient signature:", inspect.signature(TraderClient.__init__))
+    print("TraderClient docstring:", TraderClient.__init__.__doc__)
+    
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
     logging.warning(f"⚠️ Real Avantis SDK not found: {e}")
