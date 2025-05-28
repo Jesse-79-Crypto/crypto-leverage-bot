@@ -305,9 +305,7 @@ class EnhancedAvantisEngine:
                 raise RuntimeError("❌ SDKTrader not initialized. Real Avantis SDK is missing.")
             signer = LocalSigner(private_key=os.getenv('WALLET_PRIVATE_KEY'))
             self.trader = SDKTrader(
-                provider_url=os.getenv('BASE_RPC_URL'),
-                signer=signer
-            )
+                provider_url=os.getenv('BASE_RPC_URL')
             logger.info("✅ AvantisTrader initialized successfully")
         except Exception as e:
             logger.error(f"❌ Failed to initialize AvantisTrader: {str(e)}")
