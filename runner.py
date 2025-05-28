@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import json
 import os
-from avantis_trader_sdk import TraderClient as SDKTrader
+try:
+    from avantis_trader_sdk import TraderClient as SDKTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
