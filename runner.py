@@ -7,32 +7,7 @@ import traceback
 import time
 
 try:
-    import avantis_trader_sdk
-    
-    # Debug: Print everything available in the SDK
-    print("=== SDK DEBUG INFO ===")
-    print("SDK attributes:", dir(avantis_trader_sdk))
-    print("SDK file location:", avantis_trader_sdk.__file__)
-    
-    # Try to find any class that might be AvantisTrader
-    for attr_name in dir(avantis_trader_sdk):
-        attr = getattr(avantis_trader_sdk, attr_name)
-        if hasattr(attr, '__class__') and 'Trader' in str(attr):
-            print(f"Found potential trader class: {attr_name} = {attr}")
-    
-    # Try common class names
-    possible_names = ['AvantisTrader', 'Trader', 'Client', 'AvantisClient', 'TradingClient']
-    AvantisTrader = None
-    
-    for name in possible_names:
-        if hasattr(avantis_trader_sdk, name):
-            AvantisTrader = getattr(avantis_trader_sdk, name)
-            print(f"✅ Found {name} class!")
-            break
-    
-    if AvantisTrader is None:
-        raise ImportError("No trader class found in SDK")
-        
+    from avantis_trader_sdk.client import TraderClient as AvantisTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
