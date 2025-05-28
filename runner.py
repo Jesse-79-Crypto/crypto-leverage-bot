@@ -3,7 +3,7 @@ from datetime import datetime
 import json
 import os
 try:
-    from avantis_trader_sdk import TraderClient as SDKTrader
+    from avantis_trader_sdk import AvantisTrader as SDKTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
