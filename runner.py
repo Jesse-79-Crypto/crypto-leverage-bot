@@ -8,11 +8,7 @@ import time
 
 try:
     from avantis_trader_sdk.client import TraderClient as AvantisTrader
-    import avantis_trader_sdk.signers as signers
-    
-    print("=== Available Signers ===")
-    print("Signers module contents:", dir(signers))
-    
+    from avantis_trader_sdk.signers.local_signer import LocalSigner
     SDKTrader = AvantisTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
