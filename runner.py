@@ -8,6 +8,7 @@ import time
 
 try:
     from avantis_trader_sdk.client import TraderClient as AvantisTrader
+    SDKTrader = AvantisTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
