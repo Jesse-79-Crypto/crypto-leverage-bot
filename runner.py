@@ -2,6 +2,10 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import json
 import os
+import logging  # ⬅️ MOVE THIS UP
+import traceback
+import time
+
 try:
     from avantis_trader_sdk import AvantisTrader as SDKTrader
     REAL_SDK_AVAILABLE = True
@@ -11,10 +15,6 @@ except ImportError as e:
     logging.warning("📦 Install with: pip install git+https://github.com/Avantis-Labs/avantis_trader_sdk.git")
     REAL_SDK_AVAILABLE = False
     SDKTrader = None
-from profit_management import EnhancedProfitManager as ProfitManager
-import logging
-import traceback
-import time
 
 app = Flask(__name__)
 
