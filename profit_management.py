@@ -51,15 +51,22 @@ class EnhancedProfitManager:
    
 
     def get_system_start_date(self):
+     
     """Get system start date (store in file or env var)"""
+ 
     try:
         start_date_str = os.getenv('SYSTEM_START_DATE')
+     
         if start_date_str:
+         
             return datetime.fromisoformat(start_date_str)
+         
         else:
             # Default to today if not set
             return datetime.now()
+         
      except:
+      
          return datetime.now()
 
    
