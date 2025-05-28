@@ -14,8 +14,8 @@ try:
     # Debug: Check what parameters TraderClient expects
     import inspect
     print("=== TraderClient Constructor Debug ===")
-    print("TraderClient signature:", inspect.signature(TraderClient.__init__))
-    print("TraderClient docstring:", TraderClient.__init__.__doc__)
+    print("TraderClient signature:", inspect.signature(AvantisTrader.__init__))
+    print("TraderClient docstring:", AvantisTrader.__init__.__doc__)
     
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
