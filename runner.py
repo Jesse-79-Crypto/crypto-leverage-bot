@@ -297,7 +297,7 @@ class EnhancedAvantisEngine:
         logger.info("🚀 INITIALIZING ENHANCED AVANTIS ENGINE...")
         
         try:
-            self.trader = SDKTrader(...)
+            self.trader = SDKTrader(
                 private_key=os.getenv('WALLET_PRIVATE_KEY'),
                 rpc_url=os.getenv('BASE_RPC_URL')
             )
