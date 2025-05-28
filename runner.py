@@ -8,7 +8,7 @@ import os
 
 from avantis_trading_module import AvantisTrader
 
-from profit_management import ProfitManager
+from profit_management import EnhancedProfitManager as ProfitManager
 
 import logging
 
