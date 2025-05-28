@@ -51,7 +51,7 @@ class EnhancedProfitManager:
    
 
     def _get_system_start_date(self):
-    """Get system start date (store in file or env var)"""
+            """Get system start date (store in file or env var)"""
     try:
         start_date_str = os.getenv('SYSTEM_START_DATE')
 
