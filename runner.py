@@ -16,6 +16,8 @@ except ImportError as e:
     REAL_SDK_AVAILABLE = False
     SDKTrader = None
 
+from profit_management import EnhancedProfitManager as ProfitManager
+
 app = Flask(__name__)
 
 # ========================================
