@@ -8,15 +8,13 @@ import time
 
 try:
     from avantis_trader_sdk.client import TraderClient as AvantisTrader
+    import avantis_trader_sdk.signers as signers
+    
+    print("=== Available Signers ===")
+    print("Signers module contents:", dir(signers))
+    
     SDKTrader = AvantisTrader
     REAL_SDK_AVAILABLE = True
-    
-    # Debug: Check what parameters TraderClient expects
-    import inspect
-    print("=== TraderClient Constructor Debug ===")
-    print("TraderClient signature:", inspect.signature(AvantisTrader.__init__))
-    print("TraderClient docstring:", AvantisTrader.__init__.__doc__)
-    
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
     logging.warning(f"⚠️ Real Avantis SDK not found: {e}")
