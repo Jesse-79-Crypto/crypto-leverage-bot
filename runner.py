@@ -7,7 +7,7 @@ import traceback
 import time
 
 try:
-    from avantis_trader_sdk import AvantisTrader as SDKTrader
+    from avantis_trader_sdk.trader import AvantisTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
