@@ -1,6 +1,5 @@
 flask
 gunicorn
-web3>=6.0.0
 pycryptodome
 requests>=2.31.0
 python-dotenv>=1.0.1
@@ -11,3 +10,5 @@ gspread>=5.12.0
 oauth2client>=4.1.3
 avantis-trader-sdk>=0.2.1
 git+https://github.com/Avantis-Labs/avantis_trader_sdk.git
+web3>=6.0.0
+eth-account>=0.8.0
