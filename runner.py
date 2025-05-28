@@ -299,7 +299,10 @@ class EnhancedAvantisEngine:
         logger.info("🚀 INITIALIZING ENHANCED AVANTIS ENGINE...")
         
         try:
+            if SDKTrader is None:
+                raise RuntimeError("❌ SDKTrader not initialized. Real Avantis SDK is missing.")
             self.trader = SDKTrader(
+            
                 private_key=os.getenv('WALLET_PRIVATE_KEY'),
                 rpc_url=os.getenv('BASE_RPC_URL')
             )
