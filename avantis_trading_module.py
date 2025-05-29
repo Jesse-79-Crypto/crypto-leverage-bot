@@ -208,6 +208,40 @@ class BasicAvantisTrader:
                         print(f"   SDK Client Type: {type(self.sdk_client)}")
                         logger.info(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
                         logger.info(f"   SDK Client Type: {type(self.sdk_client)}")
+    
+                    # ========== ADD THIS ENHANCED DEBUGGING CODE HERE ==========
+                        print("🧪 ========== IMMEDIATE SDK METHOD DUMP ==========")
+    
+                    # Check if 'trade' property exists and what's inside it
+                    if hasattr(self.sdk_client, 'trade'):
+                        print("✅ Found 'trade' property on SDK client!")
+                        logger.info("✅ Found 'trade' property on SDK client!")
+        
+                        trade_obj = getattr(self.sdk_client, 'trade')
+                        print(f"🔍 Type of trade object: {type(trade_obj)}")
+                        logger.info(f"🔍 Type of trade object: {type(trade_obj)}")
+        
+                        print(f"📋 Methods/attributes under 'trade': {dir(trade_obj)}")
+                        logger.info(f"📋 Methods/attributes under 'trade': {dir(trade_obj)}")
+        
+                # Check for specific trading methods under trade
+                        trade_methods_to_check = ['open_position', 'open_trade', 'place_order', 'create_position', 'execute', 'submit']
+                        print("🔍 Checking for trading methods under client.trade:")
+                        logger.info("🔍 Checking for trading methods under client.trade:")
+        
+                        for method in dir(trade_obj):
+                            if not method.startswith('_'):  # Skip private methods
+                                attr = getattr(trade_obj, method)
+                                if callable(attr):
+                                    print(f"   📞 trade.{method} - CALLABLE")
+                                    logger.info(f"   📞 trade.{method} - CALLABLE")
+                    else:
+                        print("❌ No 'trade' property found on SDK client")
+                        logger.info("❌ No 'trade' property found on SDK client")
+    
+                    print("🧪 ========== END SDK METHOD DUMP ==========")
+                    logger.info("🧪 ========== END SDK METHOD DUMP ==========")
+                # ========== END OF DEBUGGING CODE ==========
                         
                         # CRITICAL: Always run method discovery
                         print("🔍 Running method discovery...")
