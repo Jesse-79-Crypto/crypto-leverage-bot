@@ -745,7 +745,7 @@ class BasicAvantisTrader:
                                     'success': True,
                                     'position_id': str(result.get('position_id', f'live_{int(time.time())}') if isinstance(result, dict) else f'live_{int(time.time())}'),
                                     'avantis_position_id': str(result.get('position_id', result.get('id', 'unknown')) if isinstance(result, dict) else result),
-                                    'transaction_hash': str(result.get('tx_hash', result.get('transactionHash', result.get('hash', f'tx_{int(time.time())}')) if isinstance(result, dict) else f'tx_{int(time.time())}'),
+                                    'transaction_hash': str(result.get('tx_hash', result.get('transactionHash', result.get('hash', f'tx_{int(time.time())}')) if isinstance(result, dict) else f'tx_{int(time.time())}')),
                                     'actual_entry_price': result.get('entry_price', result.get('price', trade_data.get('entry_price', 0))) if isinstance(result, dict) else trade_data.get('entry_price', 0),
                                     'collateral_used': position_size,
                                     'leverage': leverage,
