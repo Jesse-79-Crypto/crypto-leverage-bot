@@ -140,7 +140,7 @@ class BasicAvantisTrader:
         print(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
         logger.info(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
 
-        def _initialize_real_sdk(self):
+def _initialize_real_sdk(self):
         print("🛠 _initialize_real_sdk() CALLED")
         logger.info("🛠 _initialize_real_sdk() CALLED")
         
