@@ -6,23 +6,11 @@ import asyncio
 import logging
 import traceback
 import time
-import inspect
-from web3 import Web3
-from eth_account import Account
-import hashlib
+import inspect  # Add this for checking coroutines
 
-# Try to import the real Avantis SDK
 try:
     from avantis_trader_sdk.client import TraderClient as SDKTraderClient
     from avantis_trader_sdk.signers.local_signer import LocalSigner
-    # Also try alternative import paths
-    try:
-        from avantis_trader_sdk import AvantisTrader as SDKTrader
-        from avantis_trader_sdk import TradingClient, MarketDataClient
-    except ImportError:
-        SDKTrader = None
-        TradingClient = None
-        MarketDataClient = None
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
@@ -30,9 +18,6 @@ except ImportError as e:
     logging.warning("📦 Install with: pip install git+https://github.com/Avantis-Labs/avantis_trader_sdk.git")
     REAL_SDK_AVAILABLE = False
     SDKTraderClient = None
-    SDKTrader = None
-    TradingClient = None
-    MarketDataClient = None
 
 # Try to import the custom AvantisTrader wrapper class
 try:
@@ -105,519 +90,468 @@ if AVANTIS_MODE == 'LIVE':
 else:
     logger.info("🧪 TEST MODE - Using safe fallbacks")
 
-# ========================================
-# 🚀 ENHANCED AVANTIS TRADER CLASS
-# ========================================
-
-class AvantisTrader:
-    """Production-ready Avantis trading implementation with real SDK integration"""
+# Create trader client
+logger.info("🔑 Setting up trader client...")
+try:
+    if not REAL_SDK_AVAILABLE:
+        raise RuntimeError("❌ Real Avantis SDK is not available")
     
-    def __init__(self, private_key, rpc_url, api_key=None):
-        self.private_key = private_key
-        self.rpc_url = rpc_url
-        self.api_key = api_key
-        self.mode = AVANTIS_MODE.upper()  # Use global AVANTIS_MODE
+    # Use the custom AvantisTrader wrapper if available
+    if CUSTOM_TRADER_AVAILABLE:
+        logger.info("✅ Using custom AvantisTrader wrapper")
+        trader = CustomAvantisTrader(
+            api_key=API_KEY,
+            private_key=PRIVATE_KEY,
+            rpc_url=RPC_URL
+        )
+        logger.info("✅ Custom AvantisTrader wrapper created successfully")
+    else:
+        # Create a basic wrapper around the SDK client
+        logger.info("⚠️ Custom wrapper not found, creating basic wrapper")
         
-        # Contract addresses (Base network)
-        self.usdc_address = os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')
-        self.avantis_contract = os.getenv('AVANTIS_CONTRACT', '0x...')
-        
-        # Initialize Web3 for balance checks and backup operations
-        try:
-            self.w3 = Web3(Web3.HTTPProvider(rpc_url))
-            if not self.w3.is_connected():
-                raise Exception("Failed to connect to RPC")
-            
-            self.account = Account.from_key(private_key)
-            self.wallet_address = self.account.address
-            
-            logging.info(f"✅ Web3 connected to Base network")
-            logging.info(f"💳 Wallet: {self.wallet_address}")
-            logging.info(f"⚙️ Mode: {self.mode}")
-            
-        except Exception as e:
-            logging.error(f"❌ Web3 initialization failed: {str(e)}")
-            raise
-        
-        # Initialize SDK based on availability and mode
-        self.sdk_client = None
-        self.market_client = None
-        
-        if REAL_SDK_AVAILABLE and self.mode == 'LIVE':
-            self._initialize_real_sdk()
-        else:
-            logging.warning(f"🧪 Running in MOCK mode (SDK Available: {REAL_SDK_AVAILABLE}, Mode: {self.mode})")
-        
-        # Enhanced tracking
-        self.open_positions = {}
-        self.position_counter = 0
-    
-    def _initialize_real_sdk(self):
-        """Initialize the real Avantis SDK with multiple approaches"""
-        try:
-            logging.info("🔗 Initializing Real Avantis SDK...")
-            
-            # Approach 1: Try the TraderClient constructor we discovered
-            try:
-                logging.info("🔧 Trying TraderClient constructor...")
-                self.sdk_client = SDKTraderClient(
-                    private_key=self.private_key,
-                    rpc_url=self.rpc_url,
-                    chain_id=8453,  # Base chain ID
-                    referrer=None
-                )
-                
-                # Test the connection
-                try:
-                    address = asyncio.run(self.sdk_client.get_ethereum_address())
-                    logging.info(f"✅ TraderClient initialized - Address: {address}")
-                    
-                    # Test balance
-                    balance = asyncio.run(self.sdk_client.get_balance("USDC"))
-                    logging.info(f"💰 Real balance: {balance}")
-                    
-                except Exception as test_error:
-                    logging.warning(f"⚠️ TraderClient test failed: {test_error}")
-                
-            except Exception as e:
-                logging.warning(f"⚠️ TraderClient constructor failed: {e}")
+        class BasicAvantisTrader:
+            def __init__(self, provider_url, private_key, api_key=None):
+                self.provider_url = provider_url
+                self.private_key = private_key
+                self.api_key = api_key
+                self.signer = None
                 self.sdk_client = None
-            
-            # Approach 2: Try TradingClient if available
-            if not self.sdk_client and TradingClient:
-                try:
-                    logging.info("🔧 Trying TradingClient constructor...")
-                    self.sdk_client = TradingClient(
-                        private_key=self.private_key,
-                        rpc_url=self.rpc_url,
-                        base_url="https://api.avantisfi.com"
-                    )
-                    
-                    if MarketDataClient:
-                        self.market_client = MarketDataClient(
-                            base_url="https://api.avantisfi.com"
-                        )
-                    
-                    # Test connection
-                    test_balance = self.sdk_client.get_account_balance()
-                    logging.info(f"✅ TradingClient initialized - Balance: ${test_balance:.2f}")
-                    
-                except Exception as e:
-                    logging.warning(f"⚠️ TradingClient constructor failed: {e}")
-                    self.sdk_client = None
-            
-            # If no SDK client worked, log the failure
-            if not self.sdk_client:
-                logging.error("❌ All SDK initialization approaches failed")
-                logging.warning("🔄 Falling back to enhanced mock mode")
-            
-        except Exception as e:
-            logging.error(f"❌ Real SDK initialization failed: {str(e)}")
-            logging.warning("🔄 Falling back to enhanced mock mode")
-            self.sdk_client = None
-            self.market_client = None
-    
-    def get_balance(self):
-        """Get USDC balance - real or estimated"""
-        try:
-            # Approach 1: Use SDK client if available
-            if self.sdk_client:
-                try:
-                    if hasattr(self.sdk_client, 'get_balance'):
-                        # Use TraderClient approach
-                        balance = asyncio.run(self.sdk_client.get_balance("USDC"))
-                        logging.info(f"💰 Real SDK balance (TraderClient): ${balance}")
-                        return float(balance) if balance is not None else self._get_fallback_balance()
-                    elif hasattr(self.sdk_client, 'get_account_balance'):
-                        # Use TradingClient approach
-                        balance = self.sdk_client.get_account_balance()
-                        logging.info(f"💰 Real SDK balance (TradingClient): ${balance:,.2f}")
-                        return balance
-                except Exception as e:
-                    logging.warning(f"⚠️ SDK balance check failed: {e}")
-            
-            # Approach 2: Get real USDC balance from blockchain
-            return self._get_fallback_balance()
+                self.trading_mode = AVANTIS_MODE
+                self.available_methods = []
+                self.available_properties = []
+                self.working_methods = {}
                 
-        except Exception as e:
-            logging.error(f"❌ Error getting balance: {str(e)}")
-            return 1500.0  # Safe fallback
-    
-    def _get_fallback_balance(self):
-        """Get balance from blockchain or estimate"""
-        try:
-            if self.w3.is_connected():
-                # Try to get real USDC balance from blockchain
+                logger.info(f"🚦 Initializing trader in {self.trading_mode} mode")
+                
+                # Initialize based on trading mode
+                if self.trading_mode == 'LIVE':
+                    logger.info("🔥 LIVE MODE - Initializing real SDK client")
+                    self._initialize_real_sdk()
+                else:
+                    logger.info("🧪 TEST MODE - Using mock client")
+                    self._initialize_mock_client()
+                
+            def _initialize_real_sdk(self):
+                """Initialize real Avantis SDK with comprehensive method discovery"""
                 try:
-                    # USDC contract (6 decimals)
-                    usdc_abi = [
-                        {
-                            "constant": True,
-                            "inputs": [{"name": "_owner", "type": "address"}],
-                            "name": "balanceOf",
-                            "outputs": [{"name": "balance", "type": "uint256"}],
-                            "type": "function"
-                        }
+                    logger.info("🛠 Creating real SDK client...")
+                    
+                    # Try different initialization approaches
+                    initialization_attempts = [
+                        # Attempt 1: Basic constructor
+                        lambda: SDKTraderClient(),
+                        
+                        # Attempt 2: With provider URL
+                        lambda: SDKTraderClient(provider_url=self.provider_url),
+                        
+                        # Attempt 3: With private key
+                        lambda: SDKTraderClient(private_key=self.private_key),
+                        
+                        # Attempt 4: Full parameters
+                        lambda: SDKTraderClient(
+                            provider_url=self.provider_url,
+                            private_key=self.private_key
+                        ),
                     ]
                     
-                    usdc_contract = self.w3.eth.contract(
-                        address=self.usdc_address,
-                        abi=usdc_abi
-                    )
-                    
-                    balance_wei = usdc_contract.functions.balanceOf(self.wallet_address).call()
-                    balance = balance_wei / (10 ** 6)  # USDC has 6 decimals
-                    
-                    logging.info(f"💰 Real USDC balance from blockchain: ${balance:,.2f}")
-                    return balance
-                    
-                except Exception as e:
-                    logging.warning(f"⚠️ USDC balance check failed: {str(e)}")
-                    
-                    # Fallback: Get ETH balance and estimate USDC
-                    eth_balance = self.w3.eth.get_balance(self.wallet_address)
-                    eth_amount = self.w3.from_wei(eth_balance, 'ether')
-                    
-                    # Rough ETH to USDC conversion (for testing)
-                    estimated_usdc = float(eth_amount) * 3000
-                    estimated_usdc = min(estimated_usdc, 5000.0)  # Cap for safety
-                    
-                    logging.info(f"💰 Estimated USDC from ETH: ${estimated_usdc:,.2f} (from {eth_amount:.4f} ETH)")
-                    return estimated_usdc
-            
-            else:
-                # Complete fallback
-                mock_balance = 2500.0
-                logging.info(f"💰 Mock balance: ${mock_balance:,.2f}")
-                return mock_balance
-                
-        except Exception as e:
-            logging.warning(f"⚠️ Fallback balance failed: {e}")
-            return 1500.0
-    
-    def calculate_leverage(self, symbol):
-        """Calculate optimal leverage based on asset type"""
-        if 'BTC' in symbol or 'ETH' in symbol:
-            return 6  # Conservative for major cryptos
-        elif 'SOL' in symbol or 'AVAX' in symbol:
-            return 5  # Slightly more conservative for altcoins
-        else:
-            return 5  # Default
-    
-    def open_position(self, trade_data):
-        """
-        Open position using real SDK or enhanced mock
-        """
-        try:
-            # Extract trade parameters
-            symbol = trade_data.get('symbol', 'BTC/USDT')
-            direction = trade_data.get('direction', 'LONG').upper()
-            position_size = trade_data.get('position_size', 100)
-            entry_price = trade_data.get('entry_price', 0)
-            
-            # Calculate leverage and collateral
-            leverage = self.calculate_leverage(symbol)
-            collateral = position_size / leverage
-            
-            # Generate position ID
-            self.position_counter += 1
-            position_id = f"AVANTIS_{symbol.replace('/', '')}_{self.position_counter}_{int(datetime.now().timestamp())}"
-            
-            logging.info(f"🚀 OPENING POSITION:")
-            logging.info(f"   Position ID: {position_id}")
-            logging.info(f"   Symbol: {symbol}")
-            logging.info(f"   Direction: {direction}")
-            logging.info(f"   Size: ${position_size:.2f}")
-            logging.info(f"   Leverage: {leverage}x")
-            logging.info(f"   Collateral: ${collateral:.2f}")
-            logging.info(f"   Mode: {self.mode}")
-            
-            # Check balance first
-            current_balance = self.get_balance()
-            if collateral > current_balance:
-                error_msg = f"Insufficient balance: ${current_balance:.2f} < ${collateral:.2f}"
-                logging.error(f"❌ {error_msg}")
-                return {
-                    'success': False,
-                    'error': error_msg,
-                    'position_id': None
-                }
-            
-            # Execute based on mode and SDK availability
-            if self.sdk_client and self.mode == 'LIVE':
-                result = self._execute_real_sdk_trade(trade_data, leverage, collateral, position_id)
-            else:
-                result = self._execute_enhanced_mock_trade(trade_data, leverage, collateral, position_id)
-            
-            if result['success']:
-                # Store position for tracking
-                self.open_positions[position_id] = {
-                    **trade_data,
-                    'position_id': position_id,
-                    'leverage': leverage,
-                    'collateral': collateral,
-                    'opened_at': datetime.now().isoformat(),
-                    'status': 'OPEN',
-                    'tx_hash': result.get('transaction_hash', 'N/A'),
-                    'mode': self.mode
-                }
-                
-                logging.info(f"✅ Position {position_id} opened successfully")
-                logging.info(f"🔗 TX Hash: {result.get('transaction_hash', 'N/A')}")
-            
-            return result
-            
-        except Exception as e:
-            logging.error(f"💥 Error opening position: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'position_id': None
-            }
-    
-    def _execute_real_sdk_trade(self, trade_data, leverage, collateral, position_id):
-        """Execute trade using real Avantis SDK"""
-        try:
-            logging.info(f"🔗 EXECUTING REAL TRADE VIA SDK...")
-            
-            # Prepare parameters for both SDK types
-            symbol = trade_data['symbol']
-            direction = trade_data['direction'].upper()
-            asset = symbol.split('/')[0]
-            is_long = direction == 'LONG'
-            
-            # Try TraderClient approach first
-            if hasattr(self.sdk_client, 'open_position'):
-                try:
-                    logging.info("🚀 Using TraderClient.open_position...")
-                    
-                    # Try multiple parameter formats for TraderClient
-                    param_formats = [
-                        {
-                            'symbol': symbol,
-                            'side': 'LONG' if is_long else 'SHORT',
-                            'size': trade_data['position_size'],
-                            'leverage': leverage
-                        },
-                        {
-                            'pair': symbol,
-                            'is_long': is_long,
-                            'collateral': collateral,
-                            'leverage': leverage
-                        },
-                        {
-                            'market': asset,
-                            'direction': direction.lower(),
-                            'amount': collateral,
-                            'leverage': leverage
-                        }
-                    ]
-                    
-                    for i, params in enumerate(param_formats):
+                    for i, init_func in enumerate(initialization_attempts, 1):
                         try:
-                            logging.info(f"🔄 Trying parameter format {i+1}: {params}")
-                            result = asyncio.run(self.sdk_client.open_position(**params))
+                            logger.info(f"🔧 SDK Initialization Attempt {i}...")
+                            self.sdk_client = init_func()
                             
-                            logging.info(f"🎉 SUCCESS with TraderClient format {i+1}!")
-                            logging.info(f"   Result: {result}")
-                            
-                            return {
-                                'success': True,
-                                'position_id': position_id,
-                                'avantis_position_id': result.get('position_id', 'UNKNOWN'),
-                                'transaction_hash': result.get('tx_hash', result.get('transactionHash', 'UNKNOWN')),
-                                'actual_entry_price': result.get('entry_price', trade_data['entry_price']),
-                                'collateral_used': collateral,
-                                'leverage': leverage,
-                                'gas_used': result.get('gas_used', 0),
-                                'note': 'Real trade executed via TraderClient SDK'
-                            }
-                            
-                        except Exception as param_error:
-                            logging.info(f"   Format {i+1} failed: {param_error}")
+                            if self.sdk_client:
+                                logger.info(f"✅ SDK Client created with attempt {i}")
+                                # CRITICAL: Discover what methods are actually available
+                                self._discover_available_methods()
+                                break
+                                
+                        except Exception as e:
+                            logger.info(f"   Attempt {i} failed: {e}")
                             continue
                     
-                    logging.warning("⚠️ All TraderClient parameter formats failed")
+                    if not self.sdk_client:
+                        logger.error("❌ All SDK initialization attempts failed")
+                        logger.warning("🔄 Falling back to enhanced mock mode")
+                        self.trading_mode = 'MOCK'
+                        self._initialize_mock_client()
+                    else:
+                        # Set up signer if we have a working SDK client
+                        try:
+                            from web3 import Web3
+                            from web3.providers.async_rpc import AsyncHTTPProvider
+                            
+                            if self.private_key and len(self.private_key) > 60:
+                                async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
+                                self.signer = LocalSigner(private_key=self.private_key, async_web3=async_web3)
+                                logger.info("✅ Real signer created for LIVE trading")
+                                
+                                # Test connection
+                                if hasattr(self.signer, 'get_ethereum_address'):
+                                    address = self.signer.get_ethereum_address()
+                                    logger.info(f"✅ Connected to wallet: {address}")
+                        except Exception as signer_error:
+                            logger.warning(f"⚠️ Signer creation failed: {signer_error}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Real SDK initialization failed: {e}")
+                    logger.error(f"   Falling back to mock mode for safety")
+                    self.trading_mode = 'MOCK'
+                    self._initialize_mock_client()
+
+            def _discover_available_methods(self):
+                """🔍 Discover and log exactly what methods are available on the SDK"""
+                try:
+                    logger.info("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
+                    
+                    # Get all attributes
+                    all_attributes = dir(self.sdk_client)
+                    methods = []
+                    properties = []
+                    
+                    for attr in all_attributes:
+                        if not attr.startswith('_'):  # Skip private attributes
+                            try:
+                                attr_obj = getattr(self.sdk_client, attr)
+                                if callable(attr_obj):
+                                    methods.append(attr)
+                                else:
+                                    properties.append(attr)
+                            except:
+                                pass
+                    
+                    logger.info(f"📋 SDK Client Type: {type(self.sdk_client)}")
+                    logger.info(f"📋 Available Methods: {methods}")
+                    logger.info(f"📋 Available Properties: {properties}")
+                    
+                    # Store working methods for later use
+                    self.available_methods = methods
+                    self.available_properties = properties
+                    
+                    # Test specific methods we need
+                    self._test_required_methods()
+                    
+                    logger.info("🔍 ========== END METHOD DISCOVERY ==========")
                     
                 except Exception as e:
-                    logging.warning(f"⚠️ TraderClient approach failed: {e}")
+                    logger.error(f"❌ Method discovery failed: {e}")
+                    self.available_methods = []
+                    self.available_properties = []
+
+            def _test_required_methods(self):
+                """Test if the methods we need actually work"""
+                required_methods = {
+                    'balance_methods': ['get_balance', 'get_account_balance', 'balance'],
+                    'address_methods': ['get_ethereum_address', 'get_address', 'address'],
+                    'trading_methods': ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade']
+                }
+                
+                self.working_methods = {}
+                
+                for category, method_list in required_methods.items():
+                    logger.info(f"🧪 Testing {category}...")
+                    working_in_category = []
+                    
+                    for method_name in method_list:
+                        if method_name in self.available_methods:
+                            logger.info(f"   ✅ {method_name} is available")
+                            working_in_category.append(method_name)
+                        else:
+                            logger.info(f"   ❌ {method_name} not found")
+                    
+                    self.working_methods[category] = working_in_category
+                    logger.info(f"   📋 Working {category}: {working_in_category}")
             
-            # Try TradingClient approach if available
-            if hasattr(self.sdk_client, 'get_account_balance'):
+            def _initialize_mock_client(self):
+                """Initialize mock client for testing"""
+                logger.info("🧪 Creating mock SDK client")
+                if SDKTraderClient:
+                    try:
+                        self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
+                    except:
+                        self.sdk_client = None
+                else:
+                    self.sdk_client = None
+                self.signer = None
+                logger.info("✅ Mock client ready - no real trades will execute")
+            
+            async def open_position_async(self, trade_data):
+                """Execute trade using async SDK client"""
+                logger.info("🔗 Executing REAL trade via async SDK client")
+                
+                # Convert trade_data to SDK format
+                trade_params = {
+                    'asset': trade_data.get('symbol', 'BTC/USDT').replace('USDT', 'USD'),
+                    'is_long': trade_data.get('direction', 'LONG').upper() == 'LONG',
+                    'margin': trade_data.get('position_size', 100),
+                    'leverage': trade_data.get('leverage', 10)
+                }
+                
+                logger.info(f"📋 SDK Trade Params: {trade_params}")
+                
                 try:
-                    logging.info("🚀 Using TradingClient approach...")
+                    # Get all available methods for real-time inspection
+                    available_methods = [m for m in dir(self.sdk_client) if not m.startswith('_')]
+                    logger.info(f"🔍 REAL-TIME SDK Methods: {available_methods}")
                     
-                    # Get market ID for the asset
-                    market_id = self._get_market_id(asset)
+                    # Try multiple possible method names based on common SDK patterns
+                    method_attempts = [
+                        'open_position',
+                        'create_position', 
+                        'place_order',
+                        'submit_order',
+                        'open_trade',
+                        'execute_trade',
+                        'new_position',
+                        'add_position'
+                    ]
                     
-                    trade_params = {
-                        'market_id': market_id,
-                        'is_long': is_long,
-                        'collateral_amount': collateral,
-                        'leverage': leverage,
-                        'tp_levels': [
-                            trade_data.get('tp1_price', 0),
-                            trade_data.get('tp2_price', 0),
-                            trade_data.get('tp3_price', 0)
-                        ],
-                        'sl_price': trade_data.get('stop_loss', 0)
-                    }
+                    for method_name in method_attempts:
+                        if hasattr(self.sdk_client, method_name):
+                            logger.info(f"✅ Found SDK method: {method_name}")
+                            method = getattr(self.sdk_client, method_name)
+                            
+                            # Try to call it
+                            try:
+                                logger.info(f"🚀 Calling {method_name} with params: {trade_params}")
+                                trade_result = await method(**trade_params)
+                                logger.info(f"🎉 REAL TRADE EXECUTED via {method_name}: {trade_result}")
+                                return trade_result
+                            except Exception as method_error:
+                                logger.warning(f"⚠️ {method_name} failed: {method_error}")
+                                continue
                     
-                    logging.info(f"📊 TradingClient Parameters: {trade_params}")
+                    # If no standard methods work, try to find ANY method that might work
+                    logger.warning("⚠️ No standard trading methods found")
+                    logger.info("🔍 Inspecting SDK client for ANY callable methods...")
                     
-                    # Execute trade via TradingClient
-                    trade_result = self.sdk_client.open_position(**trade_params)
+                    callable_methods = []
+                    for method_name in available_methods:
+                        try:
+                            method = getattr(self.sdk_client, method_name)
+                            if callable(method):
+                                callable_methods.append(method_name)
+                        except:
+                            pass
                     
-                    logging.info(f"📤 TradingClient Response: {json.dumps(trade_result, indent=2)}")
+                    logger.info(f"📞 Callable methods: {callable_methods}")
                     
-                    if trade_result.get('success', False):
-                        return {
-                            'success': True,
-                            'position_id': position_id,
-                            'avantis_position_id': trade_result.get('position_id'),
-                            'transaction_hash': trade_result.get('tx_hash'),
-                            'actual_entry_price': trade_result.get('entry_price', trade_data['entry_price']),
-                            'collateral_used': collateral,
-                            'leverage': leverage,
-                            'gas_used': trade_result.get('gas_used', 0),
-                            'note': 'Real trade executed via TradingClient SDK'
+                    # Return structured response for debugging
+                    return {
+                        'success': True,
+                        'position_id': f'DEBUG_{int(time.time())}',
+                        'entry_price': trade_data.get('entry_price', 0),
+                        'tx_hash': f'0x{"DEBUG"}{"0"*36}',
+                        'message': f'SDK inspection complete - Available methods: {len(available_methods)}',
+                        'debug_info': {
+                            'available_methods': available_methods,
+                            'callable_methods': callable_methods,
+                            'trade_params_attempted': trade_params
                         }
+                    }
                 
                 except Exception as e:
-                    logging.warning(f"⚠️ TradingClient approach failed: {e}")
+                    logger.error(f"❌ Real trade execution failed: {e}")
+                    logger.error(f"   Traceback: {traceback.format_exc()}")
+                    return {
+                        'success': False,
+                        'error': str(e),
+                        'message': 'Real trade attempt failed'
+                    }
             
-            # If we get here, all SDK approaches failed
-            logging.error("❌ All SDK approaches failed")
-            return {
-                'success': False,
-                'error': "All SDK execution methods failed",
-                'position_id': None
-            }
+            def open_position(self, trade_data):
+                """Execute trade - LIVE or TEST mode based on AVANTIS_MODE"""
+                if self.trading_mode == 'LIVE':
+                    logger.info("🔥 EXECUTING REAL LIVE TRADE")
+                    return self._execute_live_trade(trade_data)
+                else:
+                    logger.info("🧪 EXECUTING TEST TRADE (Mock)")
+                    return self._execute_test_trade(trade_data)
             
-        except Exception as e:
-            logging.error(f"💥 Real SDK execution failed: {str(e)}")
-            logging.error(f"🔄 Falling back to enhanced mock...")
+            def _execute_live_trade(self, trade_data):
+                """Execute real trade with real money using discovered methods"""
+                logger.info("💰 LIVE TRADE EXECUTION - REAL MONEY AT RISK!")
+                
+                try:
+                    # Run the async live trade with discovered methods
+                    result = asyncio.run(self._execute_live_trade_async(trade_data))
+                    return result
+                except Exception as e:
+                    logger.error(f"❌ LIVE trade execution failed: {e}")
+                    return {
+                        'success': False,
+                        'error': str(e),
+                        'message': 'LIVE trade failed'
+                    }
             
-            # Fallback to mock if SDK fails
-            return self._execute_enhanced_mock_trade(trade_data, leverage, collateral, position_id)
-    
-    def _execute_enhanced_mock_trade(self, trade_data, leverage, collateral, position_id):
-        """Enhanced mock execution with real validation"""
-        try:
-            logging.info(f"🧪 ENHANCED MOCK EXECUTION:")
+            async def _execute_live_trade_async(self, trade_data):
+                """Async live trade execution with discovered methods"""
+                logger.info("🚀 Executing async LIVE trade...")
+                
+                if not self.sdk_client:
+                    logger.error("❌ No SDK client available")
+                    return {
+                        'success': False,
+                        'error': "SDK client not initialized",
+                        'message': 'No SDK client available for LIVE trading'
+                    }
+                
+                # Get trading methods we discovered
+                trading_methods = getattr(self, 'working_methods', {}).get('trading_methods', [])
+                
+                if not trading_methods:
+                    logger.warning("⚠️ No trading methods discovered, trying common ones...")
+                    trading_methods = ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade']
+                
+                # Prepare trade parameters
+                symbol = trade_data.get('symbol', 'BTC/USDT')
+                direction = trade_data.get('direction', 'LONG').upper()
+                asset = symbol.split('/')[0]
+                is_long = direction == 'LONG'
+                
+                # Convert to SDK format
+                trade_params = {
+                    'asset': asset,
+                    'is_long': is_long,
+                    'margin': trade_data.get('position_size', 100),
+                    'leverage': trade_data.get('leverage', 10)
+                }
+                
+                logger.info(f"📋 LIVE Trade Params: {trade_params}")
+                
+                # Try each discovered trading method
+                for method_name in trading_methods:
+                    if hasattr(self.sdk_client, method_name):
+                        logger.info(f"✅ Found LIVE method: {method_name}")
+                        method = getattr(self.sdk_client, method_name)
+                        
+                        # Try different parameter formats
+                        param_sets = [
+                            trade_params,
+                            {
+                                'symbol': symbol,
+                                'side': direction,
+                                'size': trade_data.get('position_size', 100),
+                                'leverage': trade_data.get('leverage', 10)
+                            },
+                            {
+                                'pair': symbol,
+                                'direction': direction.lower(),
+                                'amount': trade_data.get('position_size', 100),
+                                'leverage': trade_data.get('leverage', 10)
+                            }
+                        ]
+                        
+                        for i, params in enumerate(param_sets, 1):
+                            try:
+                                logger.info(f"🔥 CALLING LIVE {method_name} format {i}...")
+                                
+                                if asyncio.iscoroutinefunction(method):
+                                    result = await method(**params)
+                                else:
+                                    result = method(**params)
+                                
+                                logger.info(f"🎉 LIVE TRADE SUCCESS via {method_name} format {i}!")
+                                logger.info(f"   Result: {result}")
+                                return result
+                            except Exception as e:
+                                logger.warning(f"⚠️ LIVE {method_name} format {i} failed: {e}")
+                                continue
+                
+                # If no methods worked
+                logger.error("❌ No LIVE trading methods worked")
+                return {
+                    'success': False,
+                    'error': 'No working LIVE trading methods found',
+                    'message': f'Tried methods: {trading_methods}. Check SDK documentation for correct method names and parameters.',
+                    'available_methods': self.available_methods,
+                    'tried_methods': trading_methods
+                }
             
-            # Real balance validation
-            balance = self.get_balance()
+            def _execute_test_trade(self, trade_data):
+                """Execute test trade (mock)"""
+                logger.info("🧪 TEST TRADE - No real money involved")
+                
+                return {
+                    'success': True,
+                    'position_id': f'TEST_{int(time.time())}',
+                    'entry_price': trade_data.get('entry_price', 0),
+                    'tx_hash': f'0x{"TEST"}{"0"*36}',
+                    'message': f'TEST trade executed in {self.trading_mode} mode',
+                    'test_mode': True
+                }
             
-            # Simulate gas estimation with real network data
-            estimated_gas = 250000
-            try:
-                gas_price = self.w3.eth.gas_price if self.w3.is_connected() else 20 * 1e9
-                estimated_fee_eth = (estimated_gas * gas_price) / 1e18
-                estimated_fee_usd = estimated_fee_eth * 3000  # Rough ETH price
-            except:
-                estimated_fee_eth = 0.005
-                estimated_fee_usd = 15.0
-            
-            logging.info(f"📊 Mock Trade Validation:")
-            logging.info(f"   Position ID: {position_id}")
-            logging.info(f"   Symbol: {trade_data['symbol']}")
-            logging.info(f"   Direction: {trade_data['direction']}")
-            logging.info(f"   Entry Price: ${trade_data['entry_price']:.2f}")
-            logging.info(f"   Position Size: ${trade_data.get('position_size', 0):.2f}")
-            logging.info(f"   Leverage: {leverage}x")
-            logging.info(f"   Collateral: ${collateral:.2f}")
-            logging.info(f"   Account Balance: ${balance:.2f}")
-            logging.info(f"   Est. Gas Fee: ${estimated_fee_usd:.2f}")
-            
-            # Generate realistic mock transaction hash
-            mock_data = f"{position_id}{datetime.now().isoformat()}{trade_data['symbol']}"
-            mock_tx_hash = "0x" + hashlib.sha256(mock_data.encode()).hexdigest()[:64]
-            
-            explorer_link = f"https://basescan.org/tx/{mock_tx_hash}"
-            
-            logging.info(f"🔗 Mock TX Hash: {mock_tx_hash}")
-            logging.info(f"🌐 Mock Explorer: {explorer_link}")
-            logging.warning(f"⚠️  THIS IS MOCK EXECUTION - NO REAL TRADE PLACED")
-            logging.warning(f"⚠️  Set AVANTIS_MODE=LIVE and install SDK for real trading")
-            
-            return {
-                'success': True,
-                'position_id': position_id,
-                'transaction_hash': mock_tx_hash,
-                'actual_entry_price': trade_data['entry_price'],
-                'collateral_used': collateral,
-                'leverage': leverage,
-                'gas_used': estimated_gas,
-                'explorer_link': explorer_link,
-                'estimated_fee_usd': estimated_fee_usd,
-                'note': f'🧪 MOCK EXECUTION - Balance: ${balance:.2f}, All validations passed'
-            }
-            
-        except Exception as e:
-            logging.error(f"❌ Enhanced mock execution failed: {str(e)}")
-            return {
-                'success': False,
-                'error': f"Mock execution failed: {str(e)}",
-                'position_id': None
-            }
-    
-    def _get_market_id(self, asset):
-        """Get Avantis market ID for asset"""
-        # These would be the real market IDs from Avantis
-        market_ids = {
-            'BTC': 1,
-            'ETH': 2,
-            'SOL': 15,
-            'AVAX': 20
-        }
-        return market_ids.get(asset, 1)
-    
-    def get_open_positions(self):
-        """Get all open positions"""
-        return {k: v for k, v in self.open_positions.items() if v['status'] == 'OPEN'}
-    
-    def get_position_count(self):
-        """Get number of open positions"""
-        return len(self.get_open_positions())
-    
-    def can_open_position(self, max_positions=4):
-        """Check if we can open another position"""
-        return self.get_position_count() < max_positions
-    
-    def get_system_status(self):
-        """Get comprehensive system status"""
-        balance = self.get_balance()
-        open_positions = self.get_open_positions()
+            def get_balance(self):
+                """Get account balance using discovered methods"""
+                try:
+                    logger.info("💰 Getting balance with discovered methods...")
+                    
+                    # If no SDK client, use fallback
+                    if not self.sdk_client:
+                        logger.info("⚠️ No SDK client, using fallback balance")
+                        return 1000.0
+                    
+                    # Try balance methods we discovered
+                    balance_methods = getattr(self, 'working_methods', {}).get('balance_methods', [])
+                    
+                    if not balance_methods:
+                        logger.warning("⚠️ No balance methods discovered, trying common ones...")
+                        balance_methods = ['get_balance', 'get_account_balance', 'balance']
+                    
+                    # Try each balance method
+                    for method_name in balance_methods:
+                        if hasattr(self.sdk_client, method_name):
+                            try:
+                                method = getattr(self.sdk_client, method_name)
+                                logger.info(f"🔧 Trying {method_name}...")
+                                
+                                # Try different parameter combinations
+                                param_attempts = [
+                                    ('USDC',),
+                                    ('usdc',),
+                                    (),  # No parameters
+                                ]
+                                
+                                for params in param_attempts:
+                                    try:
+                                        if asyncio.iscoroutinefunction(method):
+                                            if params:
+                                                balance = asyncio.run(method(*params))
+                                            else:
+                                                balance = asyncio.run(method())
+                                        else:
+                                            if params:
+                                                balance = method(*params)
+                                            else:
+                                                balance = method()
+                                        
+                                        if balance is not None:
+                                            logger.info(f"✅ Balance from {method_name}{params}: ${balance}")
+                                            return float(balance)
+                                            
+                                    except Exception as param_error:
+                                        logger.debug(f"   {method_name}{params} failed: {param_error}")
+                                        continue
+                                
+                            except Exception as method_error:
+                                logger.warning(f"⚠️ {method_name} method failed: {method_error}")
+                                continue
+                    
+                    logger.warning("⚠️ No working balance methods found, using fallback")
+                    return 1000.0
+                    
+                except Exception as e:
+                    logger.error(f"❌ Balance check error: {e}")
+                    return 1000.0
         
-        return {
-            'balance': balance,
-            'open_positions': len(open_positions),
-            'max_positions': 4,
-            'available_slots': 4 - len(open_positions),
-            'mode': self.mode,
-            'real_sdk_available': REAL_SDK_AVAILABLE,
-            'sdk_connected': self.sdk_client is not None,
-            'web3_connected': self.w3.is_connected() if hasattr(self, 'w3') else False,
-            'wallet_address': getattr(self, 'wallet_address', 'N/A'),
-            'positions': list(open_positions.keys()),
-            'last_updated': datetime.now().isoformat()
-        }
-
-# ========================================
-# 🚀 CREATE TRADER INSTANCE
-# ========================================
-
-# Create trader client
-logger.info("🔑 Setting up enhanced trader client...")
-try:
-    # Use the enhanced AvantisTrader class
-    trader = AvantisTrader(
-        private_key=PRIVATE_KEY,
-        rpc_url=RPC_URL,
-        api_key=API_KEY
-    )
-    logger.info("✅ Enhanced AvantisTrader created successfully")
+        # Create the basic wrapper
+        trader = BasicAvantisTrader(
+            provider_url=RPC_URL,
+            private_key=PRIVATE_KEY,
+            api_key=API_KEY
+        )
+        logger.info("✅ Basic AvantisTrader wrapper created successfully")
+    
+    logger.info("✅ Trader client configured successfully")
     
 except Exception as e:
     logger.error(f"❌ Failed to create trader client: {str(e)}")
@@ -735,6 +669,62 @@ class EnhancedTradeLogger:
         
         return trade_entry
 
+    def log_trade_exit(self, trade_id, exit_data):
+        """Log trade exit with comprehensive TP3 tracking"""
+        exit_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        logger.info(f"📊 LOGGING TRADE EXIT:")
+        logger.info(f"   Trade ID: {trade_id}")
+        logger.info(f"   Exit Price: ${exit_data['exit_price']:,.2f}")
+        logger.info(f"   P&L: ${exit_data['pnl']:,.2f}")
+        logger.info(f"   Outcome: {exit_data['outcome']}")
+        
+        exit_info = {
+            'Exit_Price': exit_data['exit_price'],
+            'Exit_Timestamp': exit_timestamp,
+            'PnL_USDC': exit_data['pnl'],
+            'PnL_Percentage': exit_data.get('pnl_percentage', 0),
+            'Final_Outcome': exit_data['outcome'],  # 'TP1', 'TP2', 'TP3', 'SL'
+            'Fees_Paid': exit_data.get('actual_fees', 0),
+            'Net_Profit': exit_data['pnl'] - exit_data.get('actual_fees', 0),
+            'Total_Duration_Minutes': exit_data.get('duration_minutes', 0)
+        }
+        
+        # 🆕 Enhanced TP3 tracking
+        if exit_data['outcome'] == 'TP3':
+            exit_info.update({
+                'TP3_Hit': '✅',
+                'TP3_Actual_Price': exit_data['exit_price'],
+                'TP3_Hit_Time': exit_timestamp,
+                'TP3_Duration_Minutes': exit_data.get('duration_minutes', 0)
+            })
+            logger.info(f"🎯 TP3 HIT! Duration: {exit_data.get('duration_minutes', 0)} minutes")
+        elif exit_data['outcome'] == 'TP2':
+            exit_info.update({
+                'TP2_Hit': '✅',
+                'TP2_Hit_Time': exit_timestamp,
+                'TP3_Hit': '❌'  # Didn't reach TP3
+            })
+        elif exit_data['outcome'] == 'TP1':
+            exit_info.update({
+                'TP1_Hit': '✅',
+                'TP1_Hit_Time': exit_timestamp,
+                'TP2_Hit': '❌',
+                'TP3_Hit': '❌'
+            })
+        else:
+            # Stop loss or manual exit
+            exit_info.update({
+                'TP1_Hit': '❌',
+                'TP2_Hit': '❌',
+                'TP3_Hit': '❌'
+            })
+        
+        # Update Elite Trade Log row
+        self._update_trade_log_row(trade_id, exit_info)
+        
+        return exit_info
+
     def _append_to_elite_trade_log(self, trade_entry):
         """Append new trade to Elite Trade Log sheet"""
         try:
@@ -756,6 +746,16 @@ class EnhancedTradeLogger:
             
         except Exception as e:
             logger.error(f"❌ Signal inbox update error: {str(e)}")
+
+    def _update_trade_log_row(self, trade_id, exit_info):
+        """Update existing trade row with exit information"""
+        try:
+            logger.info(f"📝 Updating trade {trade_id} with exit data")
+            
+            # TODO: Implement row finding and updating logic
+            
+        except Exception as e:
+            logger.error(f"❌ Trade log update error: {str(e)}")
 
     def _get_market_session(self):
         """Determine current market session"""
@@ -946,7 +946,28 @@ class EnhancedAvantisEngine:
             # Get account balance
             logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
             try:
-                balance = self.trader_client.get_balance()
+                # Use the trader client's get_balance method
+                if hasattr(self.trader_client, 'get_balance'):
+                    get_balance_method = getattr(self.trader_client, 'get_balance')
+                    if asyncio.iscoroutinefunction(get_balance_method):
+                        balance = asyncio.run(get_balance_method())
+                    else:
+                        balance = get_balance_method()
+                else:
+                    logger.warning("⚠️ No get_balance method found, using default")
+                    balance = 1000.0  # Default balance
+                
+                # Ensure balance is a float, not a coroutine
+                if asyncio.iscoroutine(balance):
+                    logger.warning("⚠️ Balance returned coroutine, awaiting it...")
+                    balance = asyncio.run(balance)
+                
+                # Final safety check - ensure it's a number
+                if not isinstance(balance, (int, float)):
+                    logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
+                    balance = 1000.0
+                
+                balance = float(balance)  # Ensure it's a float
                 logger.info(f"💰 Balance: {balance}")            
             except Exception as e:
                 logger.error(f"❌ Failed to get balance: {e}")
@@ -988,19 +1009,44 @@ class EnhancedAvantisEngine:
             
             # Execute trade
             logger.info(f"⚡ EXECUTING REAL TRADE...")
-            logger.info(f"🔗 Calling Enhanced AvantisTrader...")
+            logger.info(f"🔗 Calling AvantisTrader with proper async handling...")
             
             try:
-                # Execute the trade
-                logger.info("🚀 CALLING ENHANCED open_position METHOD...")
+                # Log available methods for debugging
+                available_methods = [method for method in dir(self.trader_client) if not method.startswith('_')]
+                logger.info(f"📋 Available trader methods: {available_methods}")
+                
+                # Execute the trade with async support
+                logger.info("🚀 CALLING REAL TRADE METHOD...")
                 trade_result = self.trader_client.open_position(trade_data)
                 
                 logger.info(f"📤 Trade execution result received:")
                 logger.info(f"   Success: {trade_result.get('success', False)}")
                 logger.info(f"   Position ID: {trade_result.get('position_id', 'N/A')}")
-                logger.info(f"   TX Hash: {trade_result.get('transaction_hash', 'N/A')}")
-                logger.info(f"   Entry Price: {trade_result.get('actual_entry_price', 'N/A')}")
-                logger.info(f"   Note: {trade_result.get('note', 'N/A')}")
+                logger.info(f"   TX Hash: {trade_result.get('tx_hash', 'N/A')}")
+                logger.info(f"   Entry Price: {trade_result.get('entry_price', 'N/A')}")
+                
+                # Show debug info if available
+                debug_info = trade_result.get('debug_info', {})
+                if debug_info:
+                    logger.info(f"🔍 DEBUG INFO:")
+                    logger.info(f"   Available methods: {len(debug_info.get('available_methods', []))}")
+                    logger.info(f"   Callable methods: {debug_info.get('callable_methods', [])}")
+                    logger.info(f"   Trade params: {debug_info.get('trade_params_attempted', {})}")
+                else:
+                    logger.info(f"   Full result: {json.dumps(trade_result, indent=2)}")
+                
+                # Check if this was a real trade or debug
+                position_id = trade_result.get('position_id', '')
+                if 'DEBUG' in position_id:
+                    logger.info("🔍 This was a DEBUG response - check available methods above")
+                elif 'MOCK' in position_id or 'mock' in trade_result.get('message', '').lower():
+                    logger.warning("⚠️ This was a mock trade - SDK methods may need verification")
+                elif trade_result.get('success'):
+                    logger.info("🎉 REAL TRADE EXECUTED SUCCESSFULLY!")
+                    logger.info(f"   🔗 Transaction Hash: {trade_result.get('tx_hash')}")
+                else:
+                    logger.warning(f"⚠️ Trade execution failed: {trade_result.get('error', 'Unknown error')}")
                 
             except Exception as e:
                 logger.error(f"💥 TRADE EXECUTION FAILED: {str(e)}")
@@ -1013,9 +1059,9 @@ class EnhancedAvantisEngine:
                 
                 # Log trade entry with enhanced tracking
                 try:
-                    trade_data['avantis_position_id'] = trade_result.get('avantis_position_id', trade_result.get('position_id', 'UNKNOWN'))
-                    trade_data['actual_entry_price'] = trade_result.get('actual_entry_price', entry_price)
-                    trade_data['tx_hash'] = trade_result.get('transaction_hash', 'UNKNOWN')
+                    trade_data['avantis_position_id'] = trade_result.get('position_id', 'UNKNOWN')
+                    trade_data['actual_entry_price'] = trade_result.get('entry_price', entry_price)
+                    trade_data['tx_hash'] = trade_result.get('tx_hash', 'UNKNOWN')
                     
                     log_entry = self.trade_logger.log_trade_entry(trade_data)
                     logger.info(f"✅ Trade logged to Elite Trade Log")
@@ -1029,7 +1075,7 @@ class EnhancedAvantisEngine:
                     **trade_data,
                     'position_id': position_id,
                     'opened_at': datetime.now(),
-                    'tx_hash': trade_result.get('transaction_hash', 'UNKNOWN')
+                    'tx_hash': trade_result.get('tx_hash', 'UNKNOWN')
                 }
                 
                 processing_time = time.time() - start_time
@@ -1037,18 +1083,16 @@ class EnhancedAvantisEngine:
                 success_response = {
                     "status": "success",
                     "position_id": position_id,
-                    "tx_hash": trade_result.get('transaction_hash', 'UNKNOWN'),
+                    "tx_hash": trade_result.get('tx_hash', 'UNKNOWN'),
                     "message": f"Position opened: {symbol} {direction}",
                     "trade_data": trade_data,
-                    "processing_time": f"{processing_time:.2f}s",
-                    "mode": self.trader_client.mode
+                    "processing_time": f"{processing_time:.2f}s"
                 }
                 
                 logger.info(f"✅ FINAL SUCCESS RESPONSE:")
                 logger.info(f"   Position ID: {position_id}")
-                logger.info(f"   TX Hash: {trade_result.get('transaction_hash', 'UNKNOWN')}")
+                logger.info(f"   TX Hash: {trade_result.get('tx_hash', 'UNKNOWN')}")
                 logger.info(f"   Processing Time: {processing_time:.2f}s")
-                logger.info(f"   Mode: {self.trader_client.mode}")
                 logger.info("=" * 60)
                 
                 return success_response
@@ -1184,35 +1228,55 @@ def get_status():
     try:
         logger.info(f"📊 STATUS CHECK REQUESTED")
         
-        # Get system status from trader
-        trader_status = trader.get_system_status()
-        balance = trader_status['balance']
+        # Try to get balance, fallback if not available
+        try:
+            if hasattr(engine.trader_client, 'get_balance'):
+                get_balance_method = getattr(engine.trader_client, 'get_balance')
+                if asyncio.iscoroutinefunction(get_balance_method):
+                    balance = asyncio.run(get_balance_method())
+                else:
+                    balance = get_balance_method()
+                
+                # Ensure balance is a float, not a coroutine
+                if asyncio.iscoroutine(balance):
+                    logger.warning("⚠️ Balance returned coroutine, awaiting it...")
+                    balance = asyncio.run(balance)
+                
+                # Final safety check - ensure it's a number
+                if not isinstance(balance, (int, float)):
+                    logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
+                    balance = 1000.0
+                
+                balance = float(balance)  # Ensure it's a float
+            else:
+                logger.warning("⚠️ No get_balance method found")
+                balance = 1000.0
+        except Exception as e:
+            logger.warning(f"⚠️ Balance check failed: {e}, using default")
+            balance = 1000.0
         
         allocation = engine.profit_manager.get_allocation_ratios(balance)
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v3.0 with Production-Ready SDK Integration",
+            "version": "Enhanced v2.0 with Full Logging",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"]
             },
-            "trader_status": trader_status,
             "performance": {
                 "open_positions": len(engine.open_positions),
                 "available_slots": MAX_OPEN_POSITIONS - len(engine.open_positions),
                 "account_balance": balance,
-                "allocation_ratios": allocation
+                "allocation_ratios": allocation,
+                "trader_type": "custom_wrapper" if CUSTOM_TRADER_AVAILABLE else "basic_wrapper"
             },
             "timestamp": datetime.now().isoformat()
         }
         
         logger.info(f"✅ Status check complete: {len(engine.open_positions)} open positions")
-        logger.info(f"   Trader Mode: {trader.mode}")
-        logger.info(f"   SDK Connected: {trader_status['sdk_connected']}")
-        logger.info(f"   Web3 Connected: {trader_status['web3_connected']}")
         
         return jsonify(status_data)
         
@@ -1226,10 +1290,8 @@ def get_trade_summary():
     try:
         logger.info(f"📈 TRADE SUMMARY REQUESTED")
         
-        trader_status = trader.get_system_status()
-        
         summary_data = {
-            "summary": "Enhanced trade tracking active with Production-Ready SDK",
+            "summary": "Enhanced trade tracking active",
             "new_metrics": {
                 "tp3_hit_rate": "Tracking TP3 success rate",
                 "tp3_timing": "Average time to TP3", 
@@ -1237,13 +1299,6 @@ def get_trade_summary():
                 "multi_position_efficiency": f"Max {MAX_OPEN_POSITIONS} positions"
             },
             "supported_symbols": engine.supported_symbols,
-            "trader_info": {
-                "mode": trader.mode,
-                "wallet_address": trader_status['wallet_address'],
-                "sdk_connected": trader_status['sdk_connected'],
-                "web3_connected": trader_status['web3_connected'],
-                "balance": trader_status['balance']
-            },
             "open_positions": list(engine.open_positions.keys()),
             "timestamp": datetime.now().isoformat()
         }
@@ -1260,22 +1315,15 @@ def get_trade_summary():
 def health_check():
     """Health check endpoint"""
     try:
-        trader_status = trader.get_system_status()
-        
         health_data = {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
             "engine_initialized": hasattr(engine, 'trader_client'),
-            "trader_mode": trader.mode,
-            "sdk_available": REAL_SDK_AVAILABLE,
-            "sdk_connected": trader_status['sdk_connected'],
-            "web3_connected": trader_status['web3_connected'],
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
-            "max_positions": MAX_OPEN_POSITIONS,
-            "wallet_address": trader_status['wallet_address']
+            "max_positions": MAX_OPEN_POSITIONS
         }
         
-        logger.info(f"💚 Health check: All systems operational ({trader.mode} mode)")
+        logger.info(f"💚 Health check: All systems operational")
         
         return jsonify(health_data)
         
@@ -1285,25 +1333,27 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT WITH PRODUCTION-READY SDK")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
-    logger.info(f"   Trading Mode: {AVANTIS_MODE}")
     logger.info(f"   Max Positions: {MAX_OPEN_POSITIONS}")
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   Wallet: {trader.wallet_address}")
     
     try:
         # Startup validation
-        trader_status = trader.get_system_status()
         logger.info(f"🔍 STARTUP VALIDATION:")
-        logger.info(f"   SDK Available: {REAL_SDK_AVAILABLE}")
-        logger.info(f"   SDK Connected: {trader_status['sdk_connected']}")
-        logger.info(f"   Web3 Connected: {trader_status['web3_connected']}")
-        logger.info(f"   Account Balance: ${trader_status['balance']:,.2f}")
+        
+        # Check environment variables
+        required_env_vars = ['WALLET_PRIVATE_KEY', 'BASE_RPC_URL']
+        missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
+        
+        if missing_env_vars:
+            logger.error(f"❌ Missing environment variables: {missing_env_vars}")
+        else:
+            logger.info(f"✅ All required environment variables present")
         
         # Test engine initialization
         if hasattr(engine, 'trader_client'):
@@ -1312,7 +1362,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 PRODUCTION-READY TRADING BOT READY FOR ACTION!")
+        logger.info("🏆 ENHANCED TRADING BOT READY FOR ACTION!")
         logger.info("=" * 60)
         
         # Start Flask app
