@@ -8,6 +8,7 @@ import traceback
 import time
 import inspect
 
+# SDK Import with error handling
 try:
     from avantis_trader_sdk.client import TraderClient as SDKTraderClient
     from avantis_trader_sdk.signers.local_signer import LocalSigner
@@ -34,7 +35,6 @@ try:
     from profit_management import EnhancedProfitManager as ProfitManager
 except ImportError as e:
     logging.warning(f"⚠️ profit_management module not found: {e}")
-    # Create a fallback class
     class ProfitManager:
         def __init__(self):
             pass
@@ -92,6 +92,716 @@ else:
 
 # Create trader client
 logger.info("🔑 Setting up trader client...")
+
+class BasicAvantisTrader:
+    def __init__(self, provider_url, private_key, api_key=None):
+        # IMMEDIATE DEBUG LOGGING
+        print("🚨 BASICAVANTIS INITIALIZATION STARTING...")
+        logger.info("🚨 BASICAVANTIS INITIALIZATION STARTING...")
+        
+        self.provider_url = provider_url
+        self.private_key = private_key
+        self.api_key = api_key
+        self.signer = None
+        self.sdk_client = None
+        self.trading_mode = AVANTIS_MODE
+        self.available_methods = []
+        self.available_properties = []
+        self.working_methods = {}
+        
+        print(f"🔍 BASIC DEBUG INFO:")
+        print(f"   Provider URL: {provider_url}")
+        print(f"   Private Key Length: {len(private_key) if private_key else 0}")
+        print(f"   API Key Available: {api_key is not None}")
+        print(f"   Trading Mode: {self.trading_mode}")
+        print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+        print(f"   SDKTraderClient: {SDKTraderClient}")
+        
+        logger.info(f"🔍 BASIC DEBUG INFO:")
+        logger.info(f"   Provider URL: {provider_url}")
+        logger.info(f"   Private Key Length: {len(private_key) if private_key else 0}")
+        logger.info(f"   API Key Available: {api_key is not None}")
+        logger.info(f"   Trading Mode: {self.trading_mode}")
+        logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+        logger.info(f"   SDKTraderClient: {SDKTraderClient}")
+        
+        logger.info(f"🚦 Initializing trader in {self.trading_mode} mode")
+        
+        # Initialize based on trading mode
+        if self.trading_mode == 'LIVE':
+            print("🔥 LIVE MODE - Initializing real SDK client")
+            logger.info("🔥 LIVE MODE - Initializing real SDK client")
+            self._initialize_real_sdk()
+        else:
+            print("🧪 TEST MODE - Using mock client")
+            logger.info("🧪 TEST MODE - Using mock client")
+            self._initialize_mock_client()
+        
+        print(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
+        logger.info(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
+
+    def _initialize_real_sdk(self):
+        print("🛠 _initialize_real_sdk() CALLED")
+        logger.info("🛠 _initialize_real_sdk() CALLED")
+        
+        try:
+            print("🛠 Creating real SDK client...")
+            logger.info("🛠 Creating real SDK client...")
+            
+            print(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
+            logger.info(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
+            
+            if not SDKTraderClient:
+                print("❌ SDKTraderClient is None - SDK not imported properly")
+                logger.error("❌ SDKTraderClient is None - SDK not imported properly")
+                raise ImportError("SDK not available")
+            
+            # Log what we're working with
+            print(f"🔧 Initialization parameters:")
+            print(f"   Provider URL: {self.provider_url}")
+            print(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
+            print(f"   API Key Available: {self.api_key is not None}")
+            
+            logger.info(f"🔧 Initialization parameters:")
+            logger.info(f"   Provider URL: {self.provider_url}")
+            logger.info(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
+            logger.info(f"   API Key Available: {self.api_key is not None}")
+            
+            # Try different initialization approaches with better error handling
+            initialization_attempts = [
+                {
+                    'name': 'Provider URL Only',
+                    'func': lambda: SDKTraderClient(provider_url=self.provider_url),
+                    'description': 'Basic initialization with RPC URL'
+                },
+                {
+                    'name': 'Empty Constructor',
+                    'func': lambda: SDKTraderClient(),
+                    'description': 'Default constructor'
+                },
+                {
+                    'name': 'With Private Key',
+                    'func': lambda: SDKTraderClient(private_key=self.private_key),
+                    'description': 'Initialize with wallet'
+                },
+                {
+                    'name': 'Full Parameters',
+                    'func': lambda: SDKTraderClient(
+                        provider_url=self.provider_url,
+                        private_key=self.private_key
+                    ),
+                    'description': 'All available parameters'
+                }
+            ]
+            
+            for i, attempt in enumerate(initialization_attempts, 1):
+                try:
+                    print(f"🔧 SDK Attempt {i}: {attempt['name']}")
+                    print(f"   Description: {attempt['description']}")
+                    logger.info(f"🔧 SDK Attempt {i}: {attempt['name']}")
+                    logger.info(f"   Description: {attempt['description']}")
+                    
+                    self.sdk_client = attempt['func']()
+                    
+                    if self.sdk_client:
+                        print(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
+                        print(f"   SDK Client Type: {type(self.sdk_client)}")
+                        logger.info(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
+                        logger.info(f"   SDK Client Type: {type(self.sdk_client)}")
+                        
+                        # CRITICAL: Always run method discovery
+                        print("🔍 Running method discovery...")
+                        logger.info("🔍 Running method discovery...")
+                        self._discover_available_methods()
+                        
+                        # Set up signer after successful SDK creation
+                        print("🔑 Setting up signer...")
+                        logger.info("🔑 Setting up signer...")
+                        self._setup_signer()
+                        return  # Exit successfully
+                    else:
+                        print(f"⚠️ {attempt['name']} returned None")
+                        logger.warning(f"⚠️ {attempt['name']} returned None")
+                        
+                except Exception as e:
+                    print(f"❌ {attempt['name']} failed: {str(e)}")
+                    print(f"   Error type: {type(e).__name__}")
+                    logger.warning(f"❌ {attempt['name']} failed: {str(e)}")
+                    logger.warning(f"   Error type: {type(e).__name__}")
+                    continue
+            
+            # If we get here, all attempts failed
+            print("❌ All SDK initialization attempts failed")
+            print("🔄 Creating mock SDK client for method discovery")
+            logger.error("❌ All SDK initialization attempts failed")
+            logger.warning("🔄 Creating mock SDK client for method discovery")
+            
+            # Create a mock SDK client but still try to discover methods
+            print("🎭 Creating mock client...")
+            logger.info("🎭 Creating mock client...")
+            self.sdk_client = self._create_mock_sdk_client()
+            
+            print("✅ Mock SDK client created for testing")
+            logger.info("✅ Mock SDK client created for testing")
+            self._discover_available_methods()
+            
+        except Exception as e:
+            print(f"❌ Complete SDK initialization failure: {e}")
+            print(f"   Traceback: {traceback.format_exc()}")
+            logger.error(f"❌ Complete SDK initialization failure: {e}")
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            self.sdk_client = None
+            self.trading_mode = 'MOCK'
+
+    def _setup_signer(self):
+        try:
+            if not self.private_key or len(self.private_key) < 60:
+                logger.warning(f"⚠️ Invalid private key length: {len(self.private_key) if self.private_key else 0}")
+                return
+            
+            logger.info("🔑 Setting up signer...")
+            
+            from web3 import Web3
+            from web3.providers.async_rpc import AsyncHTTPProvider
+            
+            async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
+            self.signer = LocalSigner(private_key=self.private_key, async_web3=async_web3)
+            logger.info("✅ Real signer created for LIVE trading")
+            
+            # Test signer connection
+            if hasattr(self.signer, 'get_ethereum_address'):
+                try:
+                    address = self.signer.get_ethereum_address()
+                    logger.info(f"✅ Connected to wallet: {address}")
+                except Exception as addr_error:
+                    logger.warning(f"⚠️ Could not get wallet address: {addr_error}")
+            
+        except Exception as signer_error:
+            logger.error(f"❌ Signer setup failed: {signer_error}")
+            self.signer = None
+
+    def _discover_available_methods(self):
+        print("🔍 _discover_available_methods() CALLED")
+        logger.info("🔍 _discover_available_methods() CALLED")
+        
+        try:
+            print("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
+            logger.info("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
+            
+            if not self.sdk_client:
+                print("❌ No SDK client to discover methods on")
+                logger.error("❌ No SDK client to discover methods on")
+                self.available_methods = []
+                self.available_properties = []
+                self.working_methods = {}
+                return
+            
+            print(f"✅ SDK Client available: {type(self.sdk_client)}")
+            logger.info(f"✅ SDK Client available: {type(self.sdk_client)}")
+            
+            # Get all attributes
+            try:
+                all_attributes = dir(self.sdk_client)
+                print(f"📋 Total attributes found: {len(all_attributes)}")
+                logger.info(f"📋 Total attributes found: {len(all_attributes)}")
+            except Exception as e:
+                print(f"❌ Could not get SDK attributes: {e}")
+                logger.error(f"❌ Could not get SDK attributes: {e}")
+                return
+            
+            methods = []
+            properties = []
+            
+            for attr in all_attributes:
+                if not attr.startswith('_'):  # Skip private attributes
+                    try:
+                        attr_obj = getattr(self.sdk_client, attr)
+                        if callable(attr_obj):
+                            methods.append(attr)
+                            print(f"   📞 Method: {attr}")
+                            logger.debug(f"   📞 Method: {attr}")
+                        else:
+                            properties.append(attr)
+                            print(f"   📋 Property: {attr}")
+                            logger.debug(f"   📋 Property: {attr}")
+                    except Exception as attr_error:
+                        print(f"   ⚠️ Could not access {attr}: {attr_error}")
+                        logger.debug(f"   ⚠️ Could not access {attr}: {attr_error}")
+                        pass
+            
+            print(f"📋 SDK Client Type: {type(self.sdk_client)}")
+            print(f"📋 Available Methods ({len(methods)}): {methods}")
+            print(f"📋 Available Properties ({len(properties)}): {properties}")
+            
+            logger.info(f"📋 SDK Client Type: {type(self.sdk_client)}")
+            logger.info(f"📋 Available Methods ({len(methods)}): {methods}")
+            logger.info(f"📋 Available Properties ({len(properties)}): {properties}")
+            
+            # Store working methods for later use
+            self.available_methods = methods
+            self.available_properties = properties
+            
+            # Test specific methods we need
+            print("🧪 Testing required methods...")
+            logger.info("🧪 Testing required methods...")
+            self._test_required_methods()
+            
+            print("🔍 ========== END METHOD DISCOVERY ==========")
+            logger.info("🔍 ========== END METHOD DISCOVERY ==========")
+            
+        except Exception as e:
+            print(f"❌ Method discovery failed: {e}")
+            print(f"   Traceback: {traceback.format_exc()}")
+            logger.error(f"❌ Method discovery failed: {e}")
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            self.available_methods = []
+            self.available_properties = []
+            self.working_methods = {}
+
+    def _test_required_methods(self):
+        print("🧪 _test_required_methods() CALLED")
+        logger.info("🧪 _test_required_methods() CALLED")
+        
+        required_methods = {
+            'balance_methods': ['get_balance', 'get_account_balance', 'balance', 'account_balance'],
+            'address_methods': ['get_ethereum_address', 'get_address', 'address', 'wallet_address'],
+            'trading_methods': ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade', 'submit_order', 'new_position']
+        }
+        
+        self.working_methods = {}
+        
+        for category, method_list in required_methods.items():
+            print(f"🧪 Testing {category}...")
+            logger.info(f"🧪 Testing {category}...")
+            working_in_category = []
+            
+            for method_name in method_list:
+                if method_name in self.available_methods:
+                    print(f"   ✅ {method_name} is available")
+                    logger.info(f"   ✅ {method_name} is available")
+                    working_in_category.append(method_name)
+                    
+                    # Try to get more info about the method
+                    try:
+                        method_obj = getattr(self.sdk_client, method_name)
+                        if hasattr(method_obj, '__doc__') and method_obj.__doc__:
+                            print(f"      📝 Doc: {method_obj.__doc__[:100]}...")
+                            logger.debug(f"      📝 Doc: {method_obj.__doc__[:100]}...")
+                        
+                        # Check if it's async
+                        if asyncio.iscoroutinefunction(method_obj):
+                            print(f"      ⚡ {method_name} is async")
+                            logger.debug(f"      ⚡ {method_name} is async")
+                        else:
+                            print(f"      🔄 {method_name} is sync")
+                            logger.debug(f"      🔄 {method_name} is sync")
+                            
+                    except Exception as inspect_error:
+                        print(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
+                        logger.debug(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
+                else:
+                    print(f"   ❌ {method_name} not found")
+                    logger.debug(f"   ❌ {method_name} not found")
+            
+            self.working_methods[category] = working_in_category
+            print(f"   📋 Working {category}: {working_in_category}")
+            logger.info(f"   📋 Working {category}: {working_in_category}")
+            
+            if not working_in_category:
+                print(f"   ⚠️ NO WORKING METHODS found for {category}!")
+                logger.warning(f"   ⚠️ NO WORKING METHODS found for {category}!")
+        
+        # Log summary
+        total_working = sum(len(methods) for methods in self.working_methods.values())
+        print(f"🎯 METHOD DISCOVERY SUMMARY:")
+        print(f"   Total working methods: {total_working}")
+        print(f"   Working methods by category: {self.working_methods}")
+        
+        logger.info(f"🎯 METHOD DISCOVERY SUMMARY:")
+        logger.info(f"   Total working methods: {total_working}")
+        logger.info(f"   Working methods by category: {self.working_methods}")
+
+    def _initialize_mock_client(self):
+        print("🧪 _initialize_mock_client() CALLED")
+        logger.info("🧪 _initialize_mock_client() CALLED")
+        
+        print("🧪 Creating mock SDK client")
+        print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+        print(f"   SDKTraderClient: {SDKTraderClient}")
+        logger.info("🧪 Creating mock SDK client")
+        logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+        logger.info(f"   SDKTraderClient: {SDKTraderClient}")
+        
+        try:
+            if SDKTraderClient:
+                # Try to create a real SDK client even in mock mode for method discovery
+                print("🔍 Attempting to create real SDK client for method discovery...")
+                logger.info("🔍 Attempting to create real SDK client for method discovery...")
+                try:
+                    self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
+                    print("✅ Real SDK client created for method discovery")
+                    logger.info("✅ Real SDK client created for method discovery")
+                    self._discover_available_methods()
+                except Exception as e:
+                    print(f"⚠️ Could not create real SDK client: {e}")
+                    logger.warning(f"⚠️ Could not create real SDK client: {e}")
+                    print("🎭 Creating mock client instead...")
+                    logger.info("🎭 Creating mock client instead...")
+                    self.sdk_client = self._create_mock_sdk_client()
+            else:
+                print("⚠️ SDKTraderClient not available, creating complete mock")
+                logger.warning("⚠️ SDKTraderClient not available, creating complete mock")
+                self.sdk_client = self._create_mock_sdk_client()
+                
+        except Exception as e:
+            print(f"❌ Mock client creation failed: {e}")
+            logger.error(f"❌ Mock client creation failed: {e}")
+            self.sdk_client = self._create_mock_sdk_client()
+        
+        self.signer = None
+        print("✅ Mock client ready - no real trades will execute")
+        logger.info("✅ Mock client ready - no real trades will execute")
+
+    def _create_mock_sdk_client(self):
+        print("🎭 Creating mock SDK client with common methods")
+        logger.info("🎭 Creating mock SDK client with common methods")
+        
+        class MockSDKClient:
+            def __init__(self):
+                self.mock_balance = 1000.0
+                print("🎭 MockSDKClient initialized")
+                
+            def get_balance(self, token='USDC'):
+                print(f"🎭 MockSDKClient.get_balance({token}) called")
+                return self.mock_balance
+                
+            def get_account_balance(self):
+                print("🎭 MockSDKClient.get_account_balance() called")
+                return self.mock_balance
+                
+            def balance(self):
+                print("🎭 MockSDKClient.balance() called")
+                return self.mock_balance
+                
+            def open_position(self, **kwargs):
+                print(f"🎭 MockSDKClient.open_position({kwargs}) called")
+                return {
+                    'success': True,
+                    'position_id': f'mock_{int(time.time())}',
+                    'tx_hash': f'0x{"mock"}{"0"*36}',
+                    'entry_price': kwargs.get('price', 50000),
+                    'note': 'Mock trade - no real execution'
+                }
+                
+            def place_order(self, **kwargs):
+                print(f"🎭 MockSDKClient.place_order({kwargs}) called")
+                return self.open_position(**kwargs)
+                
+            def create_position(self, **kwargs):
+                print(f"🎭 MockSDKClient.create_position({kwargs}) called")
+                return self.open_position(**kwargs)
+                
+            def execute_trade(self, **kwargs):
+                print(f"🎭 MockSDKClient.execute_trade({kwargs}) called")
+                return self.open_position(**kwargs)
+                
+            def trade(self, **kwargs):
+                print(f"🎭 MockSDKClient.trade({kwargs}) called")
+                return self.open_position(**kwargs)
+        
+        mock_client = MockSDKClient()
+        print("✅ Mock SDK client created with standard methods")
+        logger.info("✅ Mock SDK client created with standard methods")
+        return mock_client
+
+    def get_balance(self):
+        try:
+            logger.info("💰 Getting balance with discovered methods...")
+            logger.info(f"   SDK Client available: {self.sdk_client is not None}")
+            logger.info(f"   Signer available: {self.signer is not None}")
+            logger.info(f"   Trading mode: {self.trading_mode}")
+            
+            # If no SDK client, use fallback
+            if not self.sdk_client:
+                logger.warning("⚠️ No SDK client, using fallback balance")
+                return 1000.0
+            
+            # Get balance methods we discovered
+            balance_methods = getattr(self, 'working_methods', {}).get('balance_methods', [])
+            
+            logger.info(f"🔍 Discovered balance methods: {balance_methods}")
+            
+            if not balance_methods:
+                logger.warning("⚠️ No balance methods discovered, trying common ones...")
+                balance_methods = ['get_balance', 'get_account_balance', 'balance', 'account_balance']
+            
+            # Try each balance method
+            for method_name in balance_methods:
+                if hasattr(self.sdk_client, method_name):
+                    try:
+                        method = getattr(self.sdk_client, method_name)
+                        logger.info(f"🔧 Trying {method_name}...")
+                        logger.info(f"   Method type: {type(method)}")
+                        logger.info(f"   Is async: {asyncio.iscoroutinefunction(method)}")
+                        
+                        # Try different parameter combinations
+                        param_attempts = [
+                            {'params': ('USDC',), 'name': 'USDC token'},
+                            {'params': ('usdc',), 'name': 'lowercase usdc'},
+                            {'params': (), 'name': 'no parameters'}
+                        ]
+                        
+                        for attempt in param_attempts:
+                            try:
+                                logger.info(f"   🎯 Trying {attempt['name']}...")
+                                
+                                if asyncio.iscoroutinefunction(method):
+                                    if attempt['params']:
+                                        balance = asyncio.run(method(*attempt['params']))
+                                    else:
+                                        balance = asyncio.run(method())
+                                else:
+                                    if attempt['params']:
+                                        balance = method(*attempt['params'])
+                                    else:
+                                        balance = method()
+                                
+                                logger.info(f"   📤 Raw result: {balance} (type: {type(balance)})")
+                                
+                                if balance is not None:
+                                    # Try to convert to float
+                                    try:
+                                        balance_float = float(balance)
+                                        logger.info(f"✅ Balance from {method_name}({attempt['name']}): ${balance_float}")
+                                        return balance_float
+                                    except (ValueError, TypeError) as convert_error:
+                                        logger.warning(f"⚠️ Could not convert balance to float: {convert_error}")
+                                        continue
+                                else:
+                                    logger.warning(f"   ⚠️ {method_name}({attempt['name']}) returned None")
+                                    
+                            except Exception as param_error:
+                                logger.warning(f"   ❌ {method_name}({attempt['name']}) failed: {param_error}")
+                                continue
+                        
+                    except Exception as method_error:
+                        logger.error(f"❌ {method_name} method completely failed: {method_error}")
+                        continue
+                else:
+                    logger.debug(f"   ❌ {method_name} not available on SDK client")
+            
+            logger.warning("⚠️ No working balance methods succeeded, using fallback")
+            return 1000.0
+            
+        except Exception as e:
+            logger.error(f"❌ Balance check error: {e}")
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            return 1000.0
+
+    def open_position(self, trade_data):
+        if self.trading_mode == 'LIVE':
+            logger.info("🔥 EXECUTING REAL LIVE TRADE")
+            return self._execute_live_trade(trade_data)
+        else:
+            logger.info("🧪 EXECUTING TEST TRADE (Mock)")
+            return self._execute_test_trade(trade_data)
+
+    def _execute_live_trade(self, trade_data):
+        logger.info("💰 LIVE TRADE EXECUTION - REAL MONEY AT RISK!")
+        
+        try:
+            result = asyncio.run(self._execute_live_trade_async(trade_data))
+            return result
+        except Exception as e:
+            logger.error(f"❌ LIVE trade execution failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': 'LIVE trade failed'
+            }
+
+    async def _execute_live_trade_async(self, trade_data):
+        logger.info("🚀 Executing async LIVE trade...")
+        logger.info(f"   SDK Client available: {self.sdk_client is not None}")
+        
+        if not self.sdk_client:
+            logger.error("❌ No SDK client available")
+            return {
+                'success': False,
+                'error': "SDK client not initialized",
+                'message': 'No SDK client available for LIVE trading',
+                'debug_info': {
+                    'sdk_available': REAL_SDK_AVAILABLE,
+                    'trading_mode': self.trading_mode,
+                    'initialization_failed': True
+                }
+            }
+        
+        # Get trading methods we discovered
+        trading_methods = getattr(self, 'working_methods', {}).get('trading_methods', [])
+        
+        logger.info(f"🔍 Discovered trading methods: {trading_methods}")
+        
+        if not trading_methods:
+            logger.warning("⚠️ No trading methods discovered, trying common ones...")
+            trading_methods = ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade', 'submit_order']
+        
+        # Prepare trade parameters
+        symbol = trade_data.get('symbol', 'BTC/USDT')
+        direction = trade_data.get('direction', 'LONG').upper()
+        asset = symbol.split('/')[0]
+        is_long = direction == 'LONG'
+        position_size = trade_data.get('position_size', 100)
+        leverage = trade_data.get('leverage', 10)
+        
+        logger.info(f"📋 Trade Parameters:")
+        logger.info(f"   Symbol: {symbol}")
+        logger.info(f"   Asset: {asset}")
+        logger.info(f"   Direction: {direction} (is_long: {is_long})")
+        logger.info(f"   Position Size: ${position_size}")
+        logger.info(f"   Leverage: {leverage}x")
+        
+        # Try each discovered trading method
+        methods_tried = []
+        last_error = None
+        
+        for method_name in trading_methods:
+            if hasattr(self.sdk_client, method_name):
+                logger.info(f"✅ Found LIVE method: {method_name}")
+                method = getattr(self.sdk_client, method_name)
+                
+                # Different parameter formats to try - FIXED SYNTAX
+                param_sets = [
+                    {
+                        'name': 'Standard Format',
+                        'params': {
+                            'symbol': symbol,
+                            'side': direction,
+                            'size': position_size,
+                            'leverage': leverage
+                        }
+                    },
+                    {
+                        'name': 'Asset Format',
+                        'params': {
+                            'asset': asset,
+                            'is_long': is_long,
+                            'margin': position_size,
+                            'leverage': leverage
+                        }
+                    },
+                    {
+                        'name': 'Pair Format',
+                        'params': {
+                            'pair': symbol,
+                            'direction': direction.lower(),
+                            'amount': position_size,
+                            'leverage': leverage
+                        }
+                    },
+                    {
+                        'name': 'Market Format',
+                        'params': {
+                            'market': asset,
+                            'long': is_long,
+                            'size': position_size
+                        }
+                    },
+                    {
+                        'name': 'Simple Format',
+                        'params': {
+                            'symbol': asset,
+                            'side': 'BUY' if is_long else 'SELL',
+                            'quantity': position_size
+                        }
+                    }
+                ]
+                
+                for param_set in param_sets:
+                    try:
+                        logger.info(f"🔥 CALLING LIVE {method_name} with {param_set['name']}...")
+                        logger.info(f"   Parameters: {param_set['params']}")
+                        
+                        if asyncio.iscoroutinefunction(method):
+                            result = await method(**param_set['params'])
+                        else:
+                            result = method(**param_set['params'])
+                        
+                        logger.info(f"📤 {method_name} returned: {result}")
+                        logger.info(f"   Result type: {type(result)}")
+                        
+                        # Check if result indicates success
+                        if result:
+                            success = True
+                            if isinstance(result, dict):
+                                success = result.get('success', True)
+                                if 'error' in result and result['error']:
+                                    success = False
+                            
+                            if success:
+                                logger.info(f"🎉 LIVE TRADE SUCCESS via {method_name} with {param_set['name']}!")
+                                
+                                return {
+                                    'success': True,
+                                    'position_id': str(result.get('position_id', f'live_{int(time.time())}') if isinstance(result, dict) else f'live_{int(time.time())}'),
+                                    'avantis_position_id': str(result.get('position_id', result.get('id', 'unknown')) if isinstance(result, dict) else result),
+                                    'transaction_hash': str(result.get('tx_hash', result.get('transactionHash', result.get('hash', f'tx_{int(time.time())}')) if isinstance(result, dict) else f'tx_{int(time.time())}'),
+                                    'actual_entry_price': result.get('entry_price', result.get('price', trade_data.get('entry_price', 0))) if isinstance(result, dict) else trade_data.get('entry_price', 0),
+                                    'collateral_used': position_size,
+                                    'leverage': leverage,
+                                    'gas_used': result.get('gas_used', 0) if isinstance(result, dict) else 0,
+                                    'note': f'Real trade executed via {method_name} SDK method with {param_set["name"]}',
+                                    'method_used': method_name,
+                                    'param_format': param_set['name']
+                                }
+                            else:
+                                logger.warning(f"⚠️ {method_name} returned unsuccessful result: {result}")
+                        else:
+                            logger.warning(f"⚠️ {method_name} returned empty result")
+                        
+                        methods_tried.append(f"{method_name}({param_set['name']})")
+                        
+                    except Exception as param_error:
+                        logger.warning(f"⚠️ LIVE {method_name} with {param_set['name']} failed: {param_error}")
+                        methods_tried.append(f"{method_name}({param_set['name']}) - {str(param_error)}")
+                        last_error = param_error
+                        continue
+            else:
+                logger.warning(f"❌ {method_name} not available on SDK client")
+                methods_tried.append(f"{method_name} - not available")
+        
+        # If we get here, no trading methods worked
+        logger.error("❌ No LIVE trading methods worked")
+        error_message = f'Tried {len(methods_tried)} method combinations. Last error: {last_error}'
+        
+        return {
+            'success': False,
+            'error': 'No working LIVE trading methods found',
+            'message': error_message,
+            'available_methods': self.available_methods,
+            'tried_methods': methods_tried,
+            'working_methods': self.working_methods,
+            'debug_info': {
+                'sdk_type': str(type(self.sdk_client)),
+                'methods_discovered': len(self.available_methods),
+                'trading_methods_found': len(trading_methods),
+                'attempts_made': len(methods_tried)
+            }
+        }
+
+    def _execute_test_trade(self, trade_data):
+        logger.info("🧪 TEST TRADE - No real money involved")
+        
+        return {
+            'success': True,
+            'position_id': f'TEST_{int(time.time())}',
+            'entry_price': trade_data.get('entry_price', 0),
+            'tx_hash': f'0x{"TEST"}{"0"*36}',
+            'message': f'TEST trade executed in {self.trading_mode} mode',
+            'test_mode': True
+        }
+
+# Create trader client
 try:
     if not REAL_SDK_AVAILABLE:
         raise RuntimeError("❌ Real Avantis SDK is not available")
@@ -106,718 +816,8 @@ try:
         )
         logger.info("✅ Custom AvantisTrader wrapper created successfully")
     else:
-        # Create a basic wrapper around the SDK client
+        # Create the basic wrapper around the SDK client
         logger.info("⚠️ Custom wrapper not found, creating basic wrapper")
-        
-        class BasicAvantisTrader:
-            def __init__(self, provider_url, private_key, api_key=None):
-                # IMMEDIATE DEBUG LOGGING
-                print("🚨 BASICAVANTIS INITIALIZATION STARTING...")
-                logger.info("🚨 BASICAVANTIS INITIALIZATION STARTING...")
-                
-                self.provider_url = provider_url
-                self.private_key = private_key
-                self.api_key = api_key
-                self.signer = None
-                self.sdk_client = None
-                self.trading_mode = AVANTIS_MODE
-                self.available_methods = []
-                self.available_properties = []
-                self.working_methods = {}
-                
-                print(f"🔍 BASIC DEBUG INFO:")
-                print(f"   Provider URL: {provider_url}")
-                print(f"   Private Key Length: {len(private_key) if private_key else 0}")
-                print(f"   API Key Available: {api_key is not None}")
-                print(f"   Trading Mode: {self.trading_mode}")
-                print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-                print(f"   SDKTraderClient: {SDKTraderClient}")
-                
-                logger.info(f"🔍 BASIC DEBUG INFO:")
-                logger.info(f"   Provider URL: {provider_url}")
-                logger.info(f"   Private Key Length: {len(private_key) if private_key else 0}")
-                logger.info(f"   API Key Available: {api_key is not None}")
-                logger.info(f"   Trading Mode: {self.trading_mode}")
-                logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-                logger.info(f"   SDKTraderClient: {SDKTraderClient}")
-                
-                logger.info(f"🚦 Initializing trader in {self.trading_mode} mode")
-                
-                # Initialize based on trading mode
-                if self.trading_mode == 'LIVE':
-                    print("🔥 LIVE MODE - Initializing real SDK client")
-                    logger.info("🔥 LIVE MODE - Initializing real SDK client")
-                    self._initialize_real_sdk()
-                else:
-                    print("🧪 TEST MODE - Using mock client")
-                    logger.info("🧪 TEST MODE - Using mock client")
-                    self._initialize_mock_client()
-                
-                print(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
-                logger.info(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
-                
-            def _initialize_real_sdk(self):
-                print("🛠 _initialize_real_sdk() CALLED")
-                logger.info("🛠 _initialize_real_sdk() CALLED")
-                
-                try:
-                    print("🛠 Creating real SDK client...")
-                    logger.info("🛠 Creating real SDK client...")
-                    
-                    print(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
-                    logger.info(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
-                    
-                    if not SDKTraderClient:
-                        print("❌ SDKTraderClient is None - SDK not imported properly")
-                        logger.error("❌ SDKTraderClient is None - SDK not imported properly")
-                        raise ImportError("SDK not available")
-                    
-                    # Log what we're working with
-                    print(f"🔧 Initialization parameters:")
-                    print(f"   Provider URL: {self.provider_url}")
-                    print(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
-                    print(f"   API Key Available: {self.api_key is not None}")
-                    
-                    logger.info(f"🔧 Initialization parameters:")
-                    logger.info(f"   Provider URL: {self.provider_url}")
-                    logger.info(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
-                    logger.info(f"   API Key Available: {self.api_key is not None}")
-                    
-                    # Try different initialization approaches with better error handling
-                    initialization_attempts = [
-                        {
-                            'name': 'Provider URL Only',
-                            'func': lambda: SDKTraderClient(provider_url=self.provider_url),
-                            'description': 'Basic initialization with RPC URL'
-                        },
-                        {
-                            'name': 'Empty Constructor',
-                            'func': lambda: SDKTraderClient(),
-                            'description': 'Default constructor'
-                        },
-                        {
-                            'name': 'With Private Key',
-                            'func': lambda: SDKTraderClient(private_key=self.private_key),
-                            'description': 'Initialize with wallet'
-                        },
-                        {
-                            'name': 'Full Parameters',
-                            'func': lambda: SDKTraderClient(
-                                provider_url=self.provider_url,
-                                private_key=self.private_key
-                            ),
-                            'description': 'All available parameters'
-                        }
-                    ]
-                    
-                    for i, attempt in enumerate(initialization_attempts, 1):
-                        try:
-                            print(f"🔧 SDK Attempt {i}: {attempt['name']}")
-                            print(f"   Description: {attempt['description']}")
-                            logger.info(f"🔧 SDK Attempt {i}: {attempt['name']}")
-                            logger.info(f"   Description: {attempt['description']}")
-                            
-                            self.sdk_client = attempt['func']()
-                            
-                            if self.sdk_client:
-                                print(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
-                                print(f"   SDK Client Type: {type(self.sdk_client)}")
-                                logger.info(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
-                                logger.info(f"   SDK Client Type: {type(self.sdk_client)}")
-                                
-                                # CRITICAL: Always run method discovery
-                                print("🔍 Running method discovery...")
-                                logger.info("🔍 Running method discovery...")
-                                self._discover_available_methods()
-                                
-                                # Set up signer after successful SDK creation
-                                print("🔑 Setting up signer...")
-                                logger.info("🔑 Setting up signer...")
-                                self._setup_signer()
-                                return  # Exit successfully
-                            else:
-                                print(f"⚠️ {attempt['name']} returned None")
-                                logger.warning(f"⚠️ {attempt['name']} returned None")
-                                
-                        except Exception as e:
-                            print(f"❌ {attempt['name']} failed: {str(e)}")
-                            print(f"   Error type: {type(e).__name__}")
-                            logger.warning(f"❌ {attempt['name']} failed: {str(e)}")
-                            logger.warning(f"   Error type: {type(e).__name__}")
-                            continue
-                    
-                    # If we get here, all attempts failed
-                    print("❌ All SDK initialization attempts failed")
-                    print("🔄 Creating mock SDK client for method discovery")
-                    logger.error("❌ All SDK initialization attempts failed")
-                    logger.warning("🔄 Creating mock SDK client for method discovery")
-                    
-                    # Create a mock SDK client but still try to discover methods
-                    print("🎭 Creating mock client...")
-                    logger.info("🎭 Creating mock client...")
-                    self.sdk_client = self._create_mock_sdk_client()
-                    
-                    print("✅ Mock SDK client created for testing")
-                    logger.info("✅ Mock SDK client created for testing")
-                    self._discover_available_methods()
-                    
-                except Exception as e:
-                    print(f"❌ Complete SDK initialization failure: {e}")
-                    print(f"   Traceback: {traceback.format_exc()}")
-                    logger.error(f"❌ Complete SDK initialization failure: {e}")
-                    logger.error(f"   Traceback: {traceback.format_exc()}")
-                    self.sdk_client = None
-                    self.trading_mode = 'MOCK'
-                    
-            def _setup_signer(self):
-                try:
-                    if not self.private_key or len(self.private_key) < 60:
-                        logger.warning(f"⚠️ Invalid private key length: {len(self.private_key) if self.private_key else 0}")
-                        return
-                    
-                    logger.info("🔑 Setting up signer...")
-                    
-                    from web3 import Web3
-                    from web3.providers.async_rpc import AsyncHTTPProvider
-                    
-                    async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
-                    self.signer = LocalSigner(private_key=self.private_key, async_web3=async_web3)
-                    logger.info("✅ Real signer created for LIVE trading")
-                    
-                    # Test signer connection
-                    if hasattr(self.signer, 'get_ethereum_address'):
-                        try:
-                            address = self.signer.get_ethereum_address()
-                            logger.info(f"✅ Connected to wallet: {address}")
-                        except Exception as addr_error:
-                            logger.warning(f"⚠️ Could not get wallet address: {addr_error}")
-                    
-                except Exception as signer_error:
-                    logger.error(f"❌ Signer setup failed: {signer_error}")
-                    self.signer = None
-
-            def _discover_available_methods(self):
-                print("🔍 _discover_available_methods() CALLED")
-                logger.info("🔍 _discover_available_methods() CALLED")
-                
-                try:
-                    print("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
-                    logger.info("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
-                    
-                    if not self.sdk_client:
-                        print("❌ No SDK client to discover methods on")
-                        logger.error("❌ No SDK client to discover methods on")
-                        self.available_methods = []
-                        self.available_properties = []
-                        self.working_methods = {}
-                        return
-                    
-                    print(f"✅ SDK Client available: {type(self.sdk_client)}")
-                    logger.info(f"✅ SDK Client available: {type(self.sdk_client)}")
-                    
-                    # Get all attributes
-                    try:
-                        all_attributes = dir(self.sdk_client)
-                        print(f"📋 Total attributes found: {len(all_attributes)}")
-                        logger.info(f"📋 Total attributes found: {len(all_attributes)}")
-                    except Exception as e:
-                        print(f"❌ Could not get SDK attributes: {e}")
-                        logger.error(f"❌ Could not get SDK attributes: {e}")
-                        return
-                    
-                    methods = []
-                    properties = []
-                    
-                    for attr in all_attributes:
-                        if not attr.startswith('_'):  # Skip private attributes
-                            try:
-                                attr_obj = getattr(self.sdk_client, attr)
-                                if callable(attr_obj):
-                                    methods.append(attr)
-                                    print(f"   📞 Method: {attr}")
-                                    logger.debug(f"   📞 Method: {attr}")
-                                else:
-                                    properties.append(attr)
-                                    print(f"   📋 Property: {attr}")
-                                    logger.debug(f"   📋 Property: {attr}")
-                            except Exception as attr_error:
-                                print(f"   ⚠️ Could not access {attr}: {attr_error}")
-                                logger.debug(f"   ⚠️ Could not access {attr}: {attr_error}")
-                                pass
-                    
-                    print(f"📋 SDK Client Type: {type(self.sdk_client)}")
-                    print(f"📋 Available Methods ({len(methods)}): {methods}")
-                    print(f"📋 Available Properties ({len(properties)}): {properties}")
-                    
-                    logger.info(f"📋 SDK Client Type: {type(self.sdk_client)}")
-                    logger.info(f"📋 Available Methods ({len(methods)}): {methods}")
-                    logger.info(f"📋 Available Properties ({len(properties)}): {properties}")
-                    
-                    # Store working methods for later use
-                    self.available_methods = methods
-                    self.available_properties = properties
-                    
-                    # Test specific methods we need
-                    print("🧪 Testing required methods...")
-                    logger.info("🧪 Testing required methods...")
-                    self._test_required_methods()
-                    
-                    print("🔍 ========== END METHOD DISCOVERY ==========")
-                    logger.info("🔍 ========== END METHOD DISCOVERY ==========")
-                    
-                except Exception as e:
-                    print(f"❌ Method discovery failed: {e}")
-                    print(f"   Traceback: {traceback.format_exc()}")
-                    logger.error(f"❌ Method discovery failed: {e}")
-                    logger.error(f"   Traceback: {traceback.format_exc()}")
-                    self.available_methods = []
-                    self.available_properties = []
-                    self.working_methods = {}
-
-            def _test_required_methods(self):
-                print("🧪 _test_required_methods() CALLED")
-                logger.info("🧪 _test_required_methods() CALLED")
-                
-                required_methods = {
-                    'balance_methods': ['get_balance', 'get_account_balance', 'balance', 'account_balance'],
-                    'address_methods': ['get_ethereum_address', 'get_address', 'address', 'wallet_address'],
-                    'trading_methods': ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade', 'submit_order', 'new_position']
-                }
-                
-                self.working_methods = {}
-                
-                for category, method_list in required_methods.items():
-                    print(f"🧪 Testing {category}...")
-                    logger.info(f"🧪 Testing {category}...")
-                    working_in_category = []
-                    
-                    for method_name in method_list:
-                        if method_name in self.available_methods:
-                            print(f"   ✅ {method_name} is available")
-                            logger.info(f"   ✅ {method_name} is available")
-                            working_in_category.append(method_name)
-                            
-                            # Try to get more info about the method
-                            try:
-                                method_obj = getattr(self.sdk_client, method_name)
-                                if hasattr(method_obj, '__doc__') and method_obj.__doc__:
-                                    print(f"      📝 Doc: {method_obj.__doc__[:100]}...")
-                                    logger.debug(f"      📝 Doc: {method_obj.__doc__[:100]}...")
-                                
-                                # Check if it's async
-                                if asyncio.iscoroutinefunction(method_obj):
-                                    print(f"      ⚡ {method_name} is async")
-                                    logger.debug(f"      ⚡ {method_name} is async")
-                                else:
-                                    print(f"      🔄 {method_name} is sync")
-                                    logger.debug(f"      🔄 {method_name} is sync")
-                                    
-                            except Exception as inspect_error:
-                                print(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
-                                logger.debug(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
-                        else:
-                            print(f"   ❌ {method_name} not found")
-                            logger.debug(f"   ❌ {method_name} not found")
-                    
-                    self.working_methods[category] = working_in_category
-                    print(f"   📋 Working {category}: {working_in_category}")
-                    logger.info(f"   📋 Working {category}: {working_in_category}")
-                    
-                    if not working_in_category:
-                        print(f"   ⚠️ NO WORKING METHODS found for {category}!")
-                        logger.warning(f"   ⚠️ NO WORKING METHODS found for {category}!")
-                
-                # Log summary
-                total_working = sum(len(methods) for methods in self.working_methods.values())
-                print(f"🎯 METHOD DISCOVERY SUMMARY:")
-                print(f"   Total working methods: {total_working}")
-                print(f"   Working methods by category: {self.working_methods}")
-                
-                logger.info(f"🎯 METHOD DISCOVERY SUMMARY:")
-                logger.info(f"   Total working methods: {total_working}")
-                logger.info(f"   Working methods by category: {self.working_methods}")
-            
-            def _initialize_mock_client(self):
-                print("🧪 _initialize_mock_client() CALLED")
-                logger.info("🧪 _initialize_mock_client() CALLED")
-                
-                print("🧪 Creating mock SDK client")
-                print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-                print(f"   SDKTraderClient: {SDKTraderClient}")
-                logger.info("🧪 Creating mock SDK client")
-                logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-                logger.info(f"   SDKTraderClient: {SDKTraderClient}")
-                
-                try:
-                    if SDKTraderClient:
-                        # Try to create a real SDK client even in mock mode for method discovery
-                        print("🔍 Attempting to create real SDK client for method discovery...")
-                        logger.info("🔍 Attempting to create real SDK client for method discovery...")
-                        try:
-                            self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
-                            print("✅ Real SDK client created for method discovery")
-                            logger.info("✅ Real SDK client created for method discovery")
-                            self._discover_available_methods()
-                        except Exception as e:
-                            print(f"⚠️ Could not create real SDK client: {e}")
-                            logger.warning(f"⚠️ Could not create real SDK client: {e}")
-                            print("🎭 Creating mock client instead...")
-                            logger.info("🎭 Creating mock client instead...")
-                            self.sdk_client = self._create_mock_sdk_client()
-                    else:
-                        print("⚠️ SDKTraderClient not available, creating complete mock")
-                        logger.warning("⚠️ SDKTraderClient not available, creating complete mock")
-                        self.sdk_client = self._create_mock_sdk_client()
-                        
-                except Exception as e:
-                    print(f"❌ Mock client creation failed: {e}")
-                    logger.error(f"❌ Mock client creation failed: {e}")
-                    self.sdk_client = self._create_mock_sdk_client()
-                
-                self.signer = None
-                print("✅ Mock client ready - no real trades will execute")
-                logger.info("✅ Mock client ready - no real trades will execute")
-
-            def _create_mock_sdk_client(self):
-                print("🎭 Creating mock SDK client with common methods")
-                logger.info("🎭 Creating mock SDK client with common methods")
-                
-                class MockSDKClient:
-                    def __init__(self):
-                        self.mock_balance = 1000.0
-                        print("🎭 MockSDKClient initialized")
-                        
-                    def get_balance(self, token='USDC'):
-                        print(f"🎭 MockSDKClient.get_balance({token}) called")
-                        return self.mock_balance
-                        
-                    def get_account_balance(self):
-                        print("🎭 MockSDKClient.get_account_balance() called")
-                        return self.mock_balance
-                        
-                    def balance(self):
-                        print("🎭 MockSDKClient.balance() called")
-                        return self.mock_balance
-                        
-                    def open_position(self, **kwargs):
-                        print(f"🎭 MockSDKClient.open_position({kwargs}) called")
-                        return {
-                            'success': True,
-                            'position_id': f'mock_{int(time.time())}',
-                            'tx_hash': f'0x{"mock"}{"0"*36}',
-                            'entry_price': kwargs.get('price', 50000),
-                            'note': 'Mock trade - no real execution'
-                        }
-                        
-                    def place_order(self, **kwargs):
-                        print(f"🎭 MockSDKClient.place_order({kwargs}) called")
-                        return self.open_position(**kwargs)
-                        
-                    def create_position(self, **kwargs):
-                        print(f"🎭 MockSDKClient.create_position({kwargs}) called")
-                        return self.open_position(**kwargs)
-                        
-                    def execute_trade(self, **kwargs):
-                        print(f"🎭 MockSDKClient.execute_trade({kwargs}) called")
-                        return self.open_position(**kwargs)
-                        
-                    def trade(self, **kwargs):
-                        print(f"🎭 MockSDKClient.trade({kwargs}) called")
-                        return self.open_position(**kwargs)
-                
-                mock_client = MockSDKClient()
-                print("✅ Mock SDK client created with standard methods")
-                logger.info("✅ Mock SDK client created with standard methods")
-                return mock_client
-            
-            def get_balance(self):
-                try:
-                    logger.info("💰 Getting balance with discovered methods...")
-                    logger.info(f"   SDK Client available: {self.sdk_client is not None}")
-                    logger.info(f"   Signer available: {self.signer is not None}")
-                    logger.info(f"   Trading mode: {self.trading_mode}")
-                    
-                    # If no SDK client, use fallback
-                    if not self.sdk_client:
-                        logger.warning("⚠️ No SDK client, using fallback balance")
-                        return 1000.0
-                    
-                    # Get balance methods we discovered
-                    balance_methods = getattr(self, 'working_methods', {}).get('balance_methods', [])
-                    
-                    logger.info(f"🔍 Discovered balance methods: {balance_methods}")
-                    
-                    if not balance_methods:
-                        logger.warning("⚠️ No balance methods discovered, trying common ones...")
-                        balance_methods = ['get_balance', 'get_account_balance', 'balance', 'account_balance']
-                    
-                    # Try each balance method
-                    for method_name in balance_methods:
-                        if hasattr(self.sdk_client, method_name):
-                            try:
-                                method = getattr(self.sdk_client, method_name)
-                                logger.info(f"🔧 Trying {method_name}...")
-                                logger.info(f"   Method type: {type(method)}")
-                                logger.info(f"   Is async: {asyncio.iscoroutinefunction(method)}")
-                                
-                                # Try different parameter combinations
-                                param_attempts = [
-                                    {'params': ('USDC',), 'name': 'USDC token'},
-                                    {'params': ('usdc',), 'name': 'lowercase usdc'},
-                                    {'params': (), 'name': 'no parameters'}
-                                ]
-                                
-                                for attempt in param_attempts:
-                                    try:
-                                        logger.info(f"   🎯 Trying {attempt['name']}...")
-                                        
-                                        if asyncio.iscoroutinefunction(method):
-                                            if attempt['params']:
-                                                balance = asyncio.run(method(*attempt['params']))
-                                            else:
-                                                balance = asyncio.run(method())
-                                        else:
-                                            if attempt['params']:
-                                                balance = method(*attempt['params'])
-                                            else:
-                                                balance = method()
-                                        
-                                        logger.info(f"   📤 Raw result: {balance} (type: {type(balance)})")
-                                        
-                                        if balance is not None:
-                                            # Try to convert to float
-                                            try:
-                                                balance_float = float(balance)
-                                                logger.info(f"✅ Balance from {method_name}({attempt['name']}): ${balance_float}")
-                                                return balance_float
-                                            except (ValueError, TypeError) as convert_error:
-                                                logger.warning(f"⚠️ Could not convert balance to float: {convert_error}")
-                                                continue
-                                        else:
-                                            logger.warning(f"   ⚠️ {method_name}({attempt['name']}) returned None")
-                                            
-                                    except Exception as param_error:
-                                        logger.warning(f"   ❌ {method_name}({attempt['name']}) failed: {param_error}")
-                                        continue
-                                
-                            except Exception as method_error:
-                                logger.error(f"❌ {method_name} method completely failed: {method_error}")
-                                continue
-                        else:
-                            logger.debug(f"   ❌ {method_name} not available on SDK client")
-                    
-                    logger.warning("⚠️ No working balance methods succeeded, using fallback")
-                    return 1000.0
-                    
-                except Exception as e:
-                    logger.error(f"❌ Balance check error: {e}")
-                    logger.error(f"   Traceback: {traceback.format_exc()}")
-                    return 1000.0
-            
-            def open_position(self, trade_data):
-                if self.trading_mode == 'LIVE':
-                    logger.info("🔥 EXECUTING REAL LIVE TRADE")
-                    return self._execute_live_trade(trade_data)
-                else:
-                    logger.info("🧪 EXECUTING TEST TRADE (Mock)")
-                    return self._execute_test_trade(trade_data)
-            
-            def _execute_live_trade(self, trade_data):
-                logger.info("💰 LIVE TRADE EXECUTION - REAL MONEY AT RISK!")
-                
-                try:
-                    result = asyncio.run(self._execute_live_trade_async(trade_data))
-                    return result
-                except Exception as e:
-                    logger.error(f"❌ LIVE trade execution failed: {e}")
-                    return {
-                        'success': False,
-                        'error': str(e),
-                        'message': 'LIVE trade failed'
-                    }
-            
-            async def _execute_live_trade_async(self, trade_data):
-                logger.info("🚀 Executing async LIVE trade...")
-                logger.info(f"   SDK Client available: {self.sdk_client is not None}")
-                
-                if not self.sdk_client:
-                    logger.error("❌ No SDK client available")
-                    return {
-                        'success': False,
-                        'error': "SDK client not initialized",
-                        'message': 'No SDK client available for LIVE trading',
-                        'debug_info': {
-                            'sdk_available': REAL_SDK_AVAILABLE,
-                            'trading_mode': self.trading_mode,
-                            'initialization_failed': True
-                        }
-                    }
-                
-                # Get trading methods we discovered
-                trading_methods = getattr(self, 'working_methods', {}).get('trading_methods', [])
-                
-                logger.info(f"🔍 Discovered trading methods: {trading_methods}")
-                
-                if not trading_methods:
-                    logger.warning("⚠️ No trading methods discovered, trying common ones...")
-                    trading_methods = ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade', 'submit_order']
-                
-                # Prepare trade parameters
-                symbol = trade_data.get('symbol', 'BTC/USDT')
-                direction = trade_data.get('direction', 'LONG').upper()
-                asset = symbol.split('/')[0]
-                is_long = direction == 'LONG'
-                position_size = trade_data.get('position_size', 100)
-                leverage = trade_data.get('leverage', 10)
-                
-                logger.info(f"📋 Trade Parameters:")
-                logger.info(f"   Symbol: {symbol}")
-                logger.info(f"   Asset: {asset}")
-                logger.info(f"   Direction: {direction} (is_long: {is_long})")
-                logger.info(f"   Position Size: ${position_size}")
-                logger.info(f"   Leverage: {leverage}x")
-                
-                # Try each discovered trading method
-                methods_tried = []
-                last_error = None
-                
-                for method_name in trading_methods:
-                    if hasattr(self.sdk_client, method_name):
-                        logger.info(f"✅ Found LIVE method: {method_name}")
-                        method = getattr(self.sdk_client, method_name)
-                        
-                        # Different parameter formats to try
-                        param_sets = [
-                            {
-                                'name': 'Standard Format',
-                                'params': {
-                                    'symbol': symbol,
-                                    'side': direction,
-                                    'size': position_size,
-                                    'leverage': leverage
-                                }
-                            },
-                            {
-                                'name': 'Asset Format',
-                                'params': {
-                                    'asset': asset,
-                                    'is_long': is_long,
-                                    'margin': position_size,
-                                    'leverage': leverage
-                                }
-                            },
-                            {
-                                'name': 'Pair Format',
-                                'params': {
-                                    'pair': symbol,
-                                    'direction': direction.lower(),
-                                    'amount': position_size,
-                                    'leverage': leverage
-                                }
-                            },
-                            {
-                                'name': 'Market Format',
-                                'params': {
-                                    'market': asset,
-                                    'long': is_long,
-                                    'size': position_size
-                                }
-                            },
-                            {
-                                'name': 'Simple Format',
-                                'params': {
-                                    'symbol': asset,
-                                    'side': 'BUY' if is_long else 'SELL',
-                                    'quantity': position_size
-                                }
-                            }
-                        ]
-                        
-                        for param_set in param_sets:
-                            try:
-                                logger.info(f"🔥 CALLING LIVE {method_name} with {param_set['name']}...")
-                                logger.info(f"   Parameters: {param_set['params']}")
-                                
-                                if asyncio.iscoroutinefunction(method):
-                                    result = await method(**param_set['params'])
-                                else:
-                                    result = method(**param_set['params'])
-                                
-                                logger.info(f"📤 {method_name} returned: {result}")
-                                logger.info(f"   Result type: {type(result)}")
-                                
-                                # Check if result indicates success
-                                if result:
-                                    success = True
-                                    if isinstance(result, dict):
-                                        success = result.get('success', True)
-                                        if 'error' in result and result['error']:
-                                            success = False
-                                    
-                                    if success:
-                                        logger.info(f"🎉 LIVE TRADE SUCCESS via {method_name} with {param_set['name']}!")
-                                        
-                                        return {
-                                            'success': True,
-                                            'position_id': str(result.get('position_id', f'live_{int(time.time())}') if isinstance(result, dict) else f'live_{int(time.time())}'),
-                                            'avantis_position_id': str(result.get('position_id', result.get('id', 'unknown')) if isinstance(result, dict) else result),
-                                            'transaction_hash': str(result.get('tx_hash', result.get('transactionHash', result.get('hash', f'tx_{int(time.time())}')) if isinstance(result, dict) else f'tx_{int(time.time())}'),
-                                            'actual_entry_price': result.get('entry_price', result.get('price', trade_data.get('entry_price', 0))) if isinstance(result, dict) else trade_data.get('entry_price', 0),
-                                            'collateral_used': position_size,
-                                            'leverage': leverage,
-                                            'gas_used': result.get('gas_used', 0) if isinstance(result, dict) else 0,
-                                            'note': f'Real trade executed via {method_name} SDK method with {param_set["name"]}',
-                                            'method_used': method_name,
-                                            'param_format': param_set['name']
-                                        }
-                                    else:
-                                        logger.warning(f"⚠️ {method_name} returned unsuccessful result: {result}")
-                                else:
-                                    logger.warning(f"⚠️ {method_name} returned empty result")
-                                
-                                methods_tried.append(f"{method_name}({param_set['name']})")
-                                
-                            except Exception as param_error:
-                                logger.warning(f"⚠️ LIVE {method_name} with {param_set['name']} failed: {param_error}")
-                                methods_tried.append(f"{method_name}({param_set['name']}) - {str(param_error)}")
-                                last_error = param_error
-                                continue
-                    else:
-                        logger.warning(f"❌ {method_name} not available on SDK client")
-                        methods_tried.append(f"{method_name} - not available")
-                
-                # If we get here, no trading methods worked
-                logger.error("❌ No LIVE trading methods worked")
-                error_message = f'Tried {len(methods_tried)} method combinations. Last error: {last_error}'
-                
-                return {
-                    'success': False,
-                    'error': 'No working LIVE trading methods found',
-                    'message': error_message,
-                    'available_methods': self.available_methods,
-                    'tried_methods': methods_tried,
-                    'working_methods': self.working_methods,
-                    'debug_info': {
-                        'sdk_type': str(type(self.sdk_client)),
-                        'methods_discovered': len(self.available_methods),
-                        'trading_methods_found': len(trading_methods),
-                        'attempts_made': len(methods_tried)
-                    }
-                }
-            
-            def _execute_test_trade(self, trade_data):
-                logger.info("🧪 TEST TRADE - No real money involved")
-                
-                return {
-                    'success': True,
-                    'position_id': f'TEST_{int(time.time())}',
-                    'entry_price': trade_data.get('entry_price', 0),
-                    'tx_hash': f'0x{"TEST"}{"0"*36}',
-                    'message': f'TEST trade executed in {self.trading_mode} mode',
-                    'test_mode': True
-                }
-        
-        # Create the basic wrapper
         trader = BasicAvantisTrader(
             provider_url=RPC_URL,
             private_key=PRIVATE_KEY,
