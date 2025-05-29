@@ -291,10 +291,10 @@ def _initialize_real_sdk(self):
             if not self.private_key or len(self.private_key) < 60:
                 logger.warning(f"⚠️ Invalid private key length: {len(self.private_key) if self.private_key else 0}")
                 return
-            
-            logger.info("🔑 Setting up signer...")
-            
+
+            logger.info("🔐 Setting up signer...")
             from web3 import Web3
+            ...
             from web3.providers.async_rpc import AsyncHTTPProvider
             
             async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
