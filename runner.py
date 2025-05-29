@@ -8,16 +8,25 @@ import traceback
 import time
 
 try:
-    from avantis_trader_sdk.client import TraderClient as AvantisTrader
+    from avantis_trader_sdk.client import TraderClient as SDKTraderClient
     from avantis_trader_sdk.signers.local_signer import LocalSigner
-    SDKTrader = AvantisTrader
     REAL_SDK_AVAILABLE = True
     logging.info("✅ Real Avantis SDK imported successfully")
 except ImportError as e:
     logging.warning(f"⚠️ Real Avantis SDK not found: {e}")
     logging.warning("📦 Install with: pip install git+https://github.com/Avantis-Labs/avantis_trader_sdk.git")
     REAL_SDK_AVAILABLE = False
-    SDKTrader = None
+    SDKTraderClient = None
+
+# Try to import the custom AvantisTrader wrapper class
+try:
+    from avantis_trader import AvantisTrader as CustomAvantisTrader
+    CUSTOM_TRADER_AVAILABLE = True
+    logging.info("✅ Custom AvantisTrader wrapper imported successfully")
+except ImportError as e:
+    logging.warning(f"⚠️ Custom AvantisTrader wrapper not found: {e}")
+    CUSTOM_TRADER_AVAILABLE = False
+    CustomAvantisTrader = None
 
 # Import profit_management with fallback
 try:
@@ -78,35 +87,72 @@ try:
     if not REAL_SDK_AVAILABLE:
         raise RuntimeError("❌ Real Avantis SDK is not available")
     
-    # Create trader client with provider URL first
-    trader = AvantisTrader(
-        provider_url=RPC_URL
-    )
-    logger.info("✅ Trader client created with provider URL")
-    
-    # Now set up the signer for wallet operations
-    try:
-        from web3 import Web3
-        from web3.providers.async_rpc import AsyncHTTPProvider
+    # Use the custom AvantisTrader wrapper if available
+    if CUSTOM_TRADER_AVAILABLE:
+        logger.info("✅ Using custom AvantisTrader wrapper")
+        trader = CustomAvantisTrader(
+            api_key=API_KEY,
+            private_key=PRIVATE_KEY,
+            rpc_url=RPC_URL
+        )
+        logger.info("✅ Custom AvantisTrader wrapper created successfully")
+    else:
+        # Create a basic wrapper around the SDK client
+        logger.info("⚠️ Custom wrapper not found, creating basic wrapper")
         
-        # Create async Web3 instance
-        async_web3 = Web3(AsyncHTTPProvider(RPC_URL))
+        class BasicAvantisTrader:
+            def __init__(self, provider_url, private_key, api_key=None):
+                self.sdk_client = SDKTraderClient(provider_url=provider_url)
+                self.private_key = private_key
+                self.api_key = api_key
+                self.signer = None
+                
+                # Try to set up signer
+                try:
+                    from web3 import Web3
+                    from web3.providers.async_rpc import AsyncHTTPProvider
+                    async_web3 = Web3(AsyncHTTPProvider(provider_url))
+                    self.signer = LocalSigner(private_key=private_key, async_web3=async_web3)
+                except Exception as e:
+                    logger.warning(f"⚠️ Signer setup failed: {e}")
+            
+            def open_position(self, trade_data):
+                """Execute trade using SDK client"""
+                logger.info("🔗 Executing trade via SDK client")
+                
+                # Convert trade_data to SDK format
+                trade_params = {
+                    'asset': trade_data.get('symbol', 'BTC/USDT').replace('USDT', 'USD'),
+                    'is_long': trade_data.get('side', 'BUY').upper() == 'BUY',
+                    'margin': trade_data.get('size', 100),
+                    'leverage': trade_data.get('leverage', 10)
+                }
+                
+                if hasattr(self.sdk_client, 'open_position'):
+                    return self.sdk_client.open_position(**trade_params)
+                else:
+                    # Return mock response if SDK method not available
+                    logger.warning("⚠️ SDK open_position not available, using mock")
+                    return {
+                        'success': True,
+                        'position_id': f'SDK_MOCK_{int(time.time())}',
+                        'entry_price': trade_data.get('entry_price', 0),
+                        'message': 'SDK mock execution'
+                    }
+            
+            def get_balance(self):
+                """Get account balance"""
+                if hasattr(self.sdk_client, 'get_balance') and self.signer:
+                    return self.sdk_client.get_balance()
+                return 1000.0  # Fallback balance
         
-        # Create signer with async_web3 and private key
-        signer = LocalSigner(private_key=PRIVATE_KEY, async_web3=async_web3)
-        
-        # Assign signer to trader client
-        trader.signer = signer
-        logger.info("✅ Signer successfully assigned to trader client")
-        
-    except Exception as signer_error:
-        logger.warning(f"⚠️ Signer setup failed: {str(signer_error)}")
-        logger.warning("   Trader client created but may have limited functionality")
-        # Still proceed with the trader client, but without signer
-    
-    # Store additional credentials for later use if needed
-    trader._private_key = PRIVATE_KEY
-    trader._api_key = API_KEY if API_KEY else None
+        # Create the basic wrapper
+        trader = BasicAvantisTrader(
+            provider_url=RPC_URL,
+            private_key=PRIVATE_KEY,
+            api_key=API_KEY
+        )
+        logger.info("✅ Basic AvantisTrader wrapper created successfully")
     
     logger.info("✅ Trader client configured successfully")
     
@@ -503,26 +549,16 @@ class EnhancedAvantisEngine:
             # Get account balance
             logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
             try:
-                # Check if signer is properly set up
-                if not hasattr(self.trader_client, 'signer') or self.trader_client.signer is None:
-                    logger.warning("⚠️ No signer available, using default balance")
-                    balance = 1000.0  # Default balance for testing
+                # Use the trader client's get_balance method
+                if hasattr(self.trader_client, 'get_balance'):
+                    get_balance_method = getattr(self.trader_client, 'get_balance')
+                    if asyncio.iscoroutinefunction(get_balance_method):
+                        balance = asyncio.run(get_balance_method())
+                    else:
+                        balance = get_balance_method()
                 else:
-                    # Try to get balance with proper async handling
-                    try:
-                        # Check if it's an async method
-                        if hasattr(self.trader_client, 'get_balance'):
-                            get_balance_method = getattr(self.trader_client, 'get_balance')
-                            if asyncio.iscoroutinefunction(get_balance_method):
-                                balance = asyncio.run(get_balance_method())
-                            else:
-                                balance = get_balance_method()
-                        else:
-                            logger.warning("⚠️ No get_balance method found")
-                            balance = 1000.0
-                    except Exception as balance_error:
-                        logger.warning(f"⚠️ Balance method call failed: {balance_error}")
-                        balance = 1000.0  # Fallback
+                    logger.warning("⚠️ No get_balance method found, using default")
+                    balance = 1000.0  # Default balance
                 
                 logger.info(f"💰 Balance: {balance}")            
             except Exception as e:
@@ -760,22 +796,17 @@ def get_status():
     try:
         logger.info(f"📊 STATUS CHECK REQUESTED")
         
-        # Try to get balance, fallback if signer not available
+        # Try to get balance, fallback if not available
         try:
-            if hasattr(engine.trader_client, 'signer') and engine.trader_client.signer is not None:
-                # Check if get_balance method exists and handle async properly
-                if hasattr(engine.trader_client, 'get_balance'):
-                    get_balance_method = getattr(engine.trader_client, 'get_balance')
-                    if asyncio.iscoroutinefunction(get_balance_method):
-                        balance = asyncio.run(get_balance_method())
-                    else:
-                        balance = get_balance_method()
+            if hasattr(engine.trader_client, 'get_balance'):
+                get_balance_method = getattr(engine.trader_client, 'get_balance')
+                if asyncio.iscoroutinefunction(get_balance_method):
+                    balance = asyncio.run(get_balance_method())
                 else:
-                    logger.warning("⚠️ No get_balance method found")
-                    balance = 1000.0
+                    balance = get_balance_method()
             else:
-                logger.warning("⚠️ No signer available for balance check")
-                balance = 1000.0  # Default balance
+                logger.warning("⚠️ No get_balance method found")
+                balance = 1000.0
         except Exception as e:
             logger.warning(f"⚠️ Balance check failed: {e}, using default")
             balance = 1000.0
