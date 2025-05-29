@@ -427,6 +427,7 @@ class EnhancedAvantisEngine:
             logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
             try:
                 balance = asyncio.run(self.trader_client.get_balance())
+                logger.info(f"💰 Balance: {balance}")            
             except Exception as e:
                 logger.error(f"❌ Failed to get balance: {e}")
                 return {"status": "error", "reason": f"Balance check failed: {e}"}
