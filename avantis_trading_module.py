@@ -111,6 +111,10 @@ try:
         
         class BasicAvantisTrader:
             def __init__(self, provider_url, private_key, api_key=None):
+                # IMMEDIATE DEBUG LOGGING
+                print("🚨 BASICAVANTIS INITIALIZATION STARTING...")
+                logger.info("🚨 BASICAVANTIS INITIALIZATION STARTING...")
+                
                 self.provider_url = provider_url
                 self.private_key = private_key
                 self.api_key = api_key
@@ -121,18 +125,38 @@ try:
                 self.available_properties = []
                 self.working_methods = {}
                 
+                print(f"🔍 BASIC DEBUG INFO:")
+                print(f"   Provider URL: {provider_url}")
+                print(f"   Private Key Length: {len(private_key) if private_key else 0}")
+                print(f"   API Key Available: {api_key is not None}")
+                print(f"   Trading Mode: {self.trading_mode}")
+                print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+                print(f"   SDKTraderClient: {SDKTraderClient}")
+                
+                logger.info(f"🔍 BASIC DEBUG INFO:")
+                logger.info(f"   Provider URL: {provider_url}")
+                logger.info(f"   Private Key Length: {len(private_key) if private_key else 0}")
+                logger.info(f"   API Key Available: {api_key is not None}")
+                logger.info(f"   Trading Mode: {self.trading_mode}")
+                logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+                logger.info(f"   SDKTraderClient: {SDKTraderClient}")
+                
                 logger.info(f"🚦 Initializing trader in {self.trading_mode} mode")
                 
                 # Initialize based on trading mode
                 if self.trading_mode == 'LIVE':
+                    print("🔥 LIVE MODE - Initializing real SDK client")
                     logger.info("🔥 LIVE MODE - Initializing real SDK client")
                     self._initialize_real_sdk()
                 else:
+                    print("🧪 TEST MODE - Using mock client")
                     logger.info("🧪 TEST MODE - Using mock client")
                     self._initialize_mock_client()
                 
+                print(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
+                logger.info(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
+                
             def _initialize_real_sdk(self):
-                """Initialize real Avantis SDK with comprehensive method discovery"""
                 print("🛠 _initialize_real_sdk() CALLED")
                 logger.info("🛠 _initialize_real_sdk() CALLED")
                 
@@ -161,25 +185,21 @@ try:
                     
                     # Try different initialization approaches with better error handling
                     initialization_attempts = [
-                        # Attempt 1: Just the provider URL (most basic)
                         {
                             'name': 'Provider URL Only',
                             'func': lambda: SDKTraderClient(provider_url=self.provider_url),
                             'description': 'Basic initialization with RPC URL'
                         },
-                        # Attempt 2: Empty constructor
                         {
                             'name': 'Empty Constructor',
                             'func': lambda: SDKTraderClient(),
                             'description': 'Default constructor'
                         },
-                        # Attempt 3: With private key
                         {
                             'name': 'With Private Key',
                             'func': lambda: SDKTraderClient(private_key=self.private_key),
                             'description': 'Initialize with wallet'
                         },
-                        # Attempt 4: Full parameters
                         {
                             'name': 'Full Parameters',
                             'func': lambda: SDKTraderClient(
@@ -187,7 +207,7 @@ try:
                                 private_key=self.private_key
                             ),
                             'description': 'All available parameters'
-                        },
+                        }
                     ]
                     
                     for i, attempt in enumerate(initialization_attempts, 1):
@@ -250,7 +270,6 @@ try:
                     self.trading_mode = 'MOCK'
                     
             def _setup_signer(self):
-                """Set up the signer after successful SDK initialization"""
                 try:
                     if not self.private_key or len(self.private_key) < 60:
                         logger.warning(f"⚠️ Invalid private key length: {len(self.private_key) if self.private_key else 0}")
@@ -278,7 +297,6 @@ try:
                     self.signer = None
 
             def _discover_available_methods(self):
-                """🔍 Discover and log exactly what methods are available on the SDK"""
                 print("🔍 _discover_available_methods() CALLED")
                 logger.info("🔍 _discover_available_methods() CALLED")
                 
@@ -357,7 +375,6 @@ try:
                     self.working_methods = {}
 
             def _test_required_methods(self):
-                """Test if the methods we need actually work"""
                 print("🧪 _test_required_methods() CALLED")
                 logger.info("🧪 _test_required_methods() CALLED")
                 
@@ -421,7 +438,6 @@ try:
                 logger.info(f"   Working methods by category: {self.working_methods}")
             
             def _initialize_mock_client(self):
-                """Initialize mock client for testing with enhanced logging"""
                 print("🧪 _initialize_mock_client() CALLED")
                 logger.info("🧪 _initialize_mock_client() CALLED")
                 
@@ -461,9 +477,8 @@ try:
                 self.signer = None
                 print("✅ Mock client ready - no real trades will execute")
                 logger.info("✅ Mock client ready - no real trades will execute")
-                
+
             def _create_mock_sdk_client(self):
-                """Create a mock SDK client with common methods"""
                 print("🎭 Creating mock SDK client with common methods")
                 logger.info("🎭 Creating mock SDK client with common methods")
                 
@@ -516,7 +531,6 @@ try:
                 return mock_client
             
             async def open_position_async(self, trade_data):
-                """Execute trade using async SDK client"""
                 logger.info("🔗 Executing REAL trade via async SDK client")
                 
                 # Convert trade_data to SDK format
@@ -600,7 +614,6 @@ try:
                     }
             
             def open_position(self, trade_data):
-                """Execute trade - LIVE or TEST mode based on AVANTIS_MODE"""
                 if self.trading_mode == 'LIVE':
                     logger.info("🔥 EXECUTING REAL LIVE TRADE")
                     return self._execute_live_trade(trade_data)
@@ -609,11 +622,9 @@ try:
                     return self._execute_test_trade(trade_data)
             
             def _execute_live_trade(self, trade_data):
-                """Execute real trade with real money using discovered methods"""
                 logger.info("💰 LIVE TRADE EXECUTION - REAL MONEY AT RISK!")
                 
                 try:
-                    # Run the async live trade with discovered methods
                     result = asyncio.run(self._execute_live_trade_async(trade_data))
                     return result
                 except Exception as e:
@@ -625,7 +636,6 @@ try:
                     }
             
             async def _execute_live_trade_async(self, trade_data):
-                """Async live trade execution with discovered methods"""
                 logger.info("🚀 Executing async LIVE trade...")
                 logger.info(f"   SDK Client available: {self.sdk_client is not None}")
                 
@@ -795,7 +805,6 @@ try:
                 }
             
             def _execute_test_trade(self, trade_data):
-                """Execute test trade (mock)"""
                 logger.info("🧪 TEST TRADE - No real money involved")
                 
                 return {
@@ -808,7 +817,6 @@ try:
                 }
             
             def get_balance(self):
-                """Get account balance using discovered methods"""
                 try:
                     logger.info("💰 Getting balance with discovered methods...")
                     logger.info(f"   SDK Client available: {self.sdk_client is not None}")
@@ -907,54 +915,40 @@ except Exception as e:
     logger.error(f"   Error details: {traceback.format_exc()}")
     raise
 
-# ========================================
-# 🚀 PERFORMANCE OPTIMIZATIONS IMPLEMENTED
-# ========================================
-
 # Enhanced Trading Parameters
-MAX_OPEN_POSITIONS = 4  # ⬆️ Increased from 2
-POSITION_COOLDOWN = 2   # ⬇️ Reduced from 3 minutes for faster deployment
-MIN_SIGNAL_QUALITY = 0  # 🔓 Allow all signals for now
+MAX_OPEN_POSITIONS = 4
+POSITION_COOLDOWN = 2
+MIN_SIGNAL_QUALITY = 0
 
-# Enhanced Position Sizing
-TIER_1_POSITION_SIZE = 0.25  # ✅ 25% allocation maintained
-TIER_2_POSITION_SIZE = 0.18  # ✅ 18% allocation maintained
+TIER_1_POSITION_SIZE = 0.25
+TIER_2_POSITION_SIZE = 0.18
 
-# Optimized Take Profit Levels by Market Regime
 TP_LEVELS = {
     'BULL': {
-        'TP1': 0.025,  # 2.5%
-        'TP2': 0.055,  # 5.5%
-        'TP3': 0.12    # 12%
+        'TP1': 0.025,
+        'TP2': 0.055,
+        'TP3': 0.12
     },
     'BEAR': {
-        'TP1': 0.015,  # 1.5%
-        'TP2': 0.035,  # 3.5%
-        'TP3': 0.05    # 🎯 Optimized: 5% instead of 12-15%
+        'TP1': 0.015,
+        'TP2': 0.035,
+        'TP3': 0.05
     },
     'NEUTRAL': {
-        'TP1': 0.02,   # 2%
-        'TP2': 0.045,  # 4.5%
-        'TP3': 0.08    # 8%
+        'TP1': 0.02,
+        'TP2': 0.045,
+        'TP3': 0.08
     }
 }
 
-# ========================================
-# 📊 ENHANCED TRADE LOGGING SYSTEM (ELITE TRADE LOG SHEET)
-# ========================================
-
 class EnhancedTradeLogger:
     def __init__(self):
-        # Elite Trade Log Sheet (separate from Signal Inbox)
         self.trade_log_sheet_id = os.getenv('ELITE_TRADE_LOG_SHEET_ID')
         self.trade_log_tab_name = os.getenv('ELITE_TRADE_LOG_TAB_NAME', 'Elite Trade Log')
-        
-        # Signal Inbox Sheet (for updating processed status)
         self.signal_inbox_sheet_id = os.getenv('SIGNAL_INBOX_SHEET_ID')
         self.signal_inbox_tab_name = os.getenv('SIGNAL_INBOX_TAB_NAME', 'Signal Inbox')
 
     def log_trade_entry(self, trade_data):
-        """Log actual executed trade to Elite Trade Log sheet"""
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         logger.info(f"📊 LOGGING TRADE ENTRY:")
@@ -963,7 +957,6 @@ class EnhancedTradeLogger:
         logger.info(f"   Direction: {trade_data['direction']}")
         logger.info(f"   Size: ${trade_data['position_size']:,.2f}")
         
-        # Elite Trade Log entry (45 columns for actual trade tracking)
         trade_entry = {
             'Trade_ID': trade_data.get('avantis_position_id', 'PENDING'),
             'Timestamp': timestamp,
@@ -977,24 +970,18 @@ class EnhancedTradeLogger:
             'Signal_Quality': trade_data.get('signal_quality', 0),
             'Market_Regime': trade_data.get('market_regime', 'UNKNOWN'),
             'Entry_Timestamp': timestamp,
-            
-            # Take Profit Levels (planned)
             'TP1_Price': trade_data.get('tp1_price', 0),
             'TP2_Price': trade_data.get('tp2_price', 0),
             'TP3_Price': trade_data.get('tp3_price', 0),
             'Stop_Loss_Price': trade_data.get('stop_loss', 0),
-            
-            # TP Tracking (initialized as pending)
             'TP1_Hit': 'Pending',
             'TP1_Hit_Time': 'N/A',
             'TP2_Hit': 'Pending',
             'TP2_Hit_Time': 'N/A',
-            'TP3_Hit': 'Pending',           # 🆕 Enhanced TP3 tracking
-            'TP3_Actual_Price': 'N/A',      # 🆕 Actual TP3 price
-            'TP3_Hit_Time': 'N/A',          # 🆕 TP3 timestamp
-            'TP3_Duration_Minutes': 'N/A',  # 🆕 Time to TP3
-            
-            # Performance metrics (to be updated on exit)
+            'TP3_Hit': 'Pending',
+            'TP3_Actual_Price': 'N/A',
+            'TP3_Hit_Time': 'N/A',
+            'TP3_Duration_Minutes': 'N/A',
             'Exit_Price': 'OPEN',
             'Exit_Timestamp': 'OPEN',
             'Total_Duration_Minutes': 'OPEN',
@@ -1003,111 +990,30 @@ class EnhancedTradeLogger:
             'Final_Outcome': 'OPEN',
             'Fees_Paid': trade_data.get('estimated_fees', 0),
             'Net_Profit': 'OPEN',
-            
-            # Context
             'Market_Session': self._get_market_session(),
             'Day_of_Week': datetime.now().weekday(),
             'Manual_Notes': f'Tier {trade_data["tier"]} signal, Quality: {trade_data.get("signal_quality", "N/A")}'
         }
         
-        # Log to Elite Trade Log sheet (not Signal Inbox)
         self._append_to_elite_trade_log(trade_entry)
-        
-        # Update Signal Inbox to mark signal as processed
         self._mark_signal_processed(trade_data.get('signal_timestamp'))
         
         return trade_entry
 
-    def log_trade_exit(self, trade_id, exit_data):
-        """Log trade exit with comprehensive TP3 tracking"""
-        exit_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        logger.info(f"📊 LOGGING TRADE EXIT:")
-        logger.info(f"   Trade ID: {trade_id}")
-        logger.info(f"   Exit Price: ${exit_data['exit_price']:,.2f}")
-        logger.info(f"   P&L: ${exit_data['pnl']:,.2f}")
-        logger.info(f"   Outcome: {exit_data['outcome']}")
-        
-        exit_info = {
-            'Exit_Price': exit_data['exit_price'],
-            'Exit_Timestamp': exit_timestamp,
-            'PnL_USDC': exit_data['pnl'],
-            'PnL_Percentage': exit_data.get('pnl_percentage', 0),
-            'Final_Outcome': exit_data['outcome'],  # 'TP1', 'TP2', 'TP3', 'SL'
-            'Fees_Paid': exit_data.get('actual_fees', 0),
-            'Net_Profit': exit_data['pnl'] - exit_data.get('actual_fees', 0),
-            'Total_Duration_Minutes': exit_data.get('duration_minutes', 0)
-        }
-        
-        # 🆕 Enhanced TP3 tracking
-        if exit_data['outcome'] == 'TP3':
-            exit_info.update({
-                'TP3_Hit': '✅',
-                'TP3_Actual_Price': exit_data['exit_price'],
-                'TP3_Hit_Time': exit_timestamp,
-                'TP3_Duration_Minutes': exit_data.get('duration_minutes', 0)
-            })
-            logger.info(f"🎯 TP3 HIT! Duration: {exit_data.get('duration_minutes', 0)} minutes")
-        elif exit_data['outcome'] == 'TP2':
-            exit_info.update({
-                'TP2_Hit': '✅',
-                'TP2_Hit_Time': exit_timestamp,
-                'TP3_Hit': '❌'  # Didn't reach TP3
-            })
-        elif exit_data['outcome'] == 'TP1':
-            exit_info.update({
-                'TP1_Hit': '✅',
-                'TP1_Hit_Time': exit_timestamp,
-                'TP2_Hit': '❌',
-                'TP3_Hit': '❌'
-            })
-        else:
-            # Stop loss or manual exit
-            exit_info.update({
-                'TP1_Hit': '❌',
-                'TP2_Hit': '❌',
-                'TP3_Hit': '❌'
-            })
-        
-        # Update Elite Trade Log row
-        self._update_trade_log_row(trade_id, exit_info)
-        
-        return exit_info
-
     def _append_to_elite_trade_log(self, trade_entry):
-        """Append new trade to Elite Trade Log sheet"""
         try:
             logger.info(f"📝 Elite Trade Log Entry: {trade_entry['Symbol']} {trade_entry['Direction']}")
-            
-            # TODO: Implement actual Google Sheets API call
-            # For now, just logging the structure
             logger.info(f"📊 Trade Entry Data: {json.dumps(trade_entry, indent=2)}")
-            
         except Exception as e:
             logger.error(f"❌ Elite Trade Log append error: {str(e)}")
 
     def _mark_signal_processed(self, signal_timestamp):
-        """Mark signal in Signal Inbox as processed"""
         try:
             logger.info(f"✅ Marking signal processed: {signal_timestamp}")
-            
-            # TODO: Find row by timestamp and update Processed column to 'Yes'
-            
         except Exception as e:
             logger.error(f"❌ Signal inbox update error: {str(e)}")
 
-    def _update_trade_log_row(self, trade_id, exit_info):
-        """Update existing trade row with exit information"""
-        try:
-            logger.info(f"📝 Updating trade {trade_id} with exit data")
-            
-            # TODO: Implement row finding and updating logic
-            
-        except Exception as e:
-            logger.error(f"❌ Trade log update error: {str(e)}")
-
     def _get_market_session(self):
-        """Determine current market session"""
         hour = datetime.now().hour
         if 0 <= hour < 8:
             return 'Asian'
@@ -1116,25 +1022,18 @@ class EnhancedTradeLogger:
         else:
             return 'American'
 
-# ========================================
-# 🎯 DYNAMIC PROFIT ALLOCATION SYSTEM
-# ========================================
-
 class DynamicProfitManager(ProfitManager):
     def __init__(self):
         super().__init__()
         self.system_start_date = datetime.now()
 
     def get_months_running(self):
-        """Calculate how many months the system has been running"""
         delta = datetime.now() - self.system_start_date
         return delta.days // 30
 
     def get_allocation_ratios(self, account_balance):
-        """Dynamic allocation based on system maturity and balance"""
         months = self.get_months_running()
         
-        # Phase 1: Aggressive Growth (Months 1-6)
         if months <= 6:
             return {
                 "reinvest": 0.80,
@@ -1142,8 +1041,6 @@ class DynamicProfitManager(ProfitManager):
                 "reserve": 0.05,
                 "phase": "Growth Focus"
             }
-        
-        # Phase 2: Balanced Approach (Months 7-12)
         elif months <= 12:
             return {
                 "reinvest": 0.70,
@@ -1151,8 +1048,6 @@ class DynamicProfitManager(ProfitManager):
                 "reserve": 0.10,
                 "phase": "Balanced Growth"
             }
-        
-        # Phase 3: Wealth Protection (Months 13+)
         else:
             return {
                 "reinvest": 0.60,
@@ -1161,19 +1056,13 @@ class DynamicProfitManager(ProfitManager):
                 "phase": "Wealth Protection"
             }
 
-# ========================================
-# 🤖 ENHANCED TRADING ENGINE WITH FULL LOGGING
-# ========================================
-
 class EnhancedAvantisEngine:
     def __init__(self, trader_client):
         logger.info("🚀 INITIALIZING ENHANCED AVANTIS ENGINE...")
         
-        # Use the provided trader client instead of creating a new one
         self.trader_client = trader_client
         logger.info("✅ Trader client assigned successfully")
         
-        # Debug: Log trader client structure
         try:
             trader_methods = [method for method in dir(self.trader_client) if not method.startswith('_')]
             logger.info(f"📋 Trader client methods: {trader_methods}")
@@ -1185,27 +1074,23 @@ class EnhancedAvantisEngine:
         self.trade_logger = EnhancedTradeLogger()
         self.open_positions = {}
         
-        # Enhanced tracking
         self.supported_symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT']
         
         logger.info(f"✅ Engine initialized with {len(self.supported_symbols)} supported symbols")
         logger.info(f"📊 Max positions: {MAX_OPEN_POSITIONS}")
 
     def can_open_position(self):
-        """Check if we can open a new position"""
         can_open = len(self.open_positions) < MAX_OPEN_POSITIONS
         logger.info(f"📊 Position check: {len(self.open_positions)}/{MAX_OPEN_POSITIONS} - Can open: {can_open}")
         return can_open
 
     def calculate_position_size(self, balance, tier, market_regime):
-        """Calculate position size with market regime adjustments"""
         base_size = TIER_1_POSITION_SIZE if tier == 1 else TIER_2_POSITION_SIZE
         
-        # Market regime adjustments
         if market_regime == 'BEAR':
-            multiplier = 0.8  # Reduce size in bear markets
+            multiplier = 0.8
         elif market_regime == 'BULL':
-            multiplier = 1.1  # Slightly increase in bull markets
+            multiplier = 1.1
         else:
             multiplier = 1.0
         
@@ -1220,7 +1105,6 @@ class EnhancedAvantisEngine:
         return final_size
 
     def get_tp_levels(self, entry_price, direction, market_regime):
-        """Get optimized TP levels based on market regime"""
         levels = TP_LEVELS.get(market_regime, TP_LEVELS['NEUTRAL'])
         
         logger.info(f"🎯 Calculating TP levels for {market_regime} market:")
@@ -1234,7 +1118,7 @@ class EnhancedAvantisEngine:
                 'TP2': entry_price * (1 + levels['TP2']),
                 'TP3': entry_price * (1 + levels['TP3'])
             }
-        else:  # SHORT
+        else:
             tp_prices = {
                 'TP1': entry_price * (1 - levels['TP1']),
                 'TP2': entry_price * (1 - levels['TP2']),
@@ -1248,8 +1132,6 @@ class EnhancedAvantisEngine:
         return tp_prices
 
     def process_signal(self, signal_data):
-        """Process trading signal with enhanced logic and FULL LOGGING"""
-        
         logger.info("=" * 60)
         logger.info("🎯 PROCESSING NEW TRADING SIGNAL")
         logger.info("=" * 60)
@@ -1257,7 +1139,6 @@ class EnhancedAvantisEngine:
         start_time = time.time()
         
         try:
-            # Log incoming signal data
             logger.info(f"📊 SIGNAL DATA RECEIVED:")
             logger.info(f"   Symbol: {signal_data.get('symbol', 'N/A')}")
             logger.info(f"   Direction: {signal_data.get('direction', 'N/A')}")
@@ -1266,7 +1147,6 @@ class EnhancedAvantisEngine:
             logger.info(f"   Signal Quality: {signal_data.get('signal_quality', 'N/A')}")
             logger.info(f"   Market Regime: {signal_data.get('market_regime', 'N/A')}")
             
-            # Validate signal quality
             signal_quality = signal_data.get('signal_quality', 0)
             if signal_quality < MIN_SIGNAL_QUALITY:
                 reason = f"Signal quality {signal_quality} below threshold {MIN_SIGNAL_QUALITY}"
@@ -1275,7 +1155,6 @@ class EnhancedAvantisEngine:
             
             logger.info(f"✅ Signal quality check passed: {signal_quality}")
             
-            # Check position limits
             if not self.can_open_position():
                 reason = f"Maximum positions reached ({len(self.open_positions)}/{MAX_OPEN_POSITIONS})"
                 logger.warning(f"❌ SIGNAL REJECTED: {reason}")
@@ -1283,7 +1162,6 @@ class EnhancedAvantisEngine:
             
             logger.info(f"✅ Position limit check passed")
             
-            # Validate symbol
             symbol = signal_data.get('symbol', '')
             if symbol not in self.supported_symbols:
                 reason = f"Unsupported symbol: {symbol}"
@@ -1292,10 +1170,8 @@ class EnhancedAvantisEngine:
             
             logger.info(f"✅ Symbol validation passed: {symbol}")
             
-            # Get account balance
             logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
             try:
-                # Use the trader client's get_balance method
                 if hasattr(self.trader_client, 'get_balance'):
                     get_balance_method = getattr(self.trader_client, 'get_balance')
                     if asyncio.iscoroutinefunction(get_balance_method):
@@ -1304,36 +1180,31 @@ class EnhancedAvantisEngine:
                         balance = get_balance_method()
                 else:
                     logger.warning("⚠️ No get_balance method found, using default")
-                    balance = 1000.0  # Default balance
+                    balance = 1000.0
                 
-                # Ensure balance is a float, not a coroutine
                 if asyncio.iscoroutine(balance):
                     logger.warning("⚠️ Balance returned coroutine, awaiting it...")
                     balance = asyncio.run(balance)
                 
-                # Final safety check - ensure it's a number
                 if not isinstance(balance, (int, float)):
                     logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
                     balance = 1000.0
                 
-                balance = float(balance)  # Ensure it's a float
+                balance = float(balance)
                 logger.info(f"💰 Balance: {balance}")            
             except Exception as e:
                 logger.error(f"❌ Failed to get balance: {e}")
                 logger.warning("⚠️ Using default balance due to balance check failure")
-                balance = 1000.0  # Fallback balance
+                balance = 1000.0
             
-            # Calculate position parameters
             tier = signal_data.get('tier', 2)
             market_regime = signal_data.get('market_regime', 'NEUTRAL')
             position_size = self.calculate_position_size(balance, tier, market_regime)
             
-            # Get TP levels
             entry_price = signal_data.get('entry', signal_data.get('entry_price', 0))
             direction = signal_data.get('direction', '')
             tp_levels = self.get_tp_levels(entry_price, direction, market_regime)
             
-            # Prepare trade data
             trade_data = {
                 'symbol': symbol,
                 'direction': direction,
@@ -1348,7 +1219,7 @@ class EnhancedAvantisEngine:
                 'tier': tier,
                 'signal_quality': signal_quality,
                 'timestamp': datetime.now().isoformat(),
-                **signal_data  # Include all original signal data
+                **signal_data
             }
             
             logger.info(f"📋 PREPARED TRADE DATA:")
@@ -1356,16 +1227,13 @@ class EnhancedAvantisEngine:
             logger.info(f"   Leverage: {trade_data['leverage']}x")
             logger.info(f"   Stop Loss: ${trade_data['stop_loss']:,.2f}")
             
-            # Execute trade
             logger.info(f"⚡ EXECUTING REAL TRADE...")
             logger.info(f"🔗 Calling AvantisTrader with proper async handling...")
             
             try:
-                # Log available methods for debugging
                 available_methods = [method for method in dir(self.trader_client) if not method.startswith('_')]
                 logger.info(f"📋 Available trader methods: {available_methods}")
                 
-                # Execute the trade with async support
                 logger.info("🚀 CALLING REAL TRADE METHOD...")
                 trade_result = self.trader_client.open_position(trade_data)
                 
@@ -1375,7 +1243,6 @@ class EnhancedAvantisEngine:
                 logger.info(f"   TX Hash: {trade_result.get('tx_hash', 'N/A')}")
                 logger.info(f"   Entry Price: {trade_result.get('entry_price', 'N/A')}")
                 
-                # Show debug info if available
                 debug_info = trade_result.get('debug_info', {})
                 if debug_info:
                     logger.info(f"🔍 DEBUG INFO:")
@@ -1385,7 +1252,6 @@ class EnhancedAvantisEngine:
                 else:
                     logger.info(f"   Full result: {json.dumps(trade_result, indent=2)}")
                 
-                # Check if this was a real trade or debug
                 position_id = trade_result.get('position_id', '')
                 if 'DEBUG' in position_id:
                     logger.info("🔍 This was a DEBUG response - check available methods above")
@@ -1406,7 +1272,6 @@ class EnhancedAvantisEngine:
             if trade_result.get('success', False):
                 logger.info(f"🎉 TRADE EXECUTION SUCCESSFUL!")
                 
-                # Log trade entry with enhanced tracking
                 try:
                     trade_data['avantis_position_id'] = trade_result.get('position_id', 'UNKNOWN')
                     trade_data['actual_entry_price'] = trade_result.get('entry_price', entry_price)
@@ -1418,7 +1283,6 @@ class EnhancedAvantisEngine:
                 except Exception as e:
                     logger.error(f"❌ Failed to log trade: {str(e)}")
                 
-                # Store position
                 position_id = trade_result.get('position_id', f"temp_{int(time.time())}")
                 self.open_positions[position_id] = {
                     **trade_data,
@@ -1466,11 +1330,6 @@ class EnhancedAvantisEngine:
             
             return {"status": "error", "reason": error_msg}
 
-# ========================================
-# 📡 ENHANCED FLASK ENDPOINTS WITH FULL LOGGING
-# ========================================
-
-# Initialize enhanced engine with trader client
 logger.info("🚀 INITIALIZING FLASK APPLICATION...")
 
 try:
@@ -1482,16 +1341,13 @@ except Exception as e:
 
 @app.route('/webhook', methods=['POST'])
 def process_webhook():
-    """🔥 ENHANCED WEBHOOK WITH COMPLETE LOGGING"""
-    
     webhook_start_time = time.time()
-    request_id = int(time.time() * 1000)  # Unique request ID
+    request_id = int(time.time() * 1000)
     
     logger.info(f"🌟 ========== WEBHOOK REQUEST #{request_id} ==========")
     logger.info(f"⏰ Request received at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     try:
-        # Step 1: Parse incoming data
         logger.info(f"📥 PARSING INCOMING WEBHOOK DATA...")
         
         try:
@@ -1508,7 +1364,6 @@ def process_webhook():
             logger.error(f"❌ Failed to parse JSON: {str(e)}")
             return jsonify({"status": "error", "message": f"Invalid JSON: {str(e)}"}), 400
         
-        # Step 2: Validate required fields
         logger.info(f"🔍 VALIDATING SIGNAL DATA...")
         
         required_fields = ['symbol', 'direction', 'tier']
@@ -1521,7 +1376,6 @@ def process_webhook():
         
         logger.info(f"✅ All required fields present")
         
-        # Step 3: Process with enhanced engine
         logger.info(f"⚡ PROCESSING SIGNAL WITH ENHANCED ENGINE...")
         
         try:
@@ -1540,7 +1394,6 @@ def process_webhook():
                 logger.warning(f"   Status: {result.get('status')}")
                 logger.warning(f"   Reason: {result.get('reason', 'No reason provided')}")
             
-            # Add metadata to response
             result['request_id'] = request_id
             result['processing_time'] = f"{processing_time:.2f}s"
             result['timestamp'] = datetime.now().isoformat()
@@ -1573,11 +1426,9 @@ def process_webhook():
 
 @app.route('/status', methods=['GET'])
 def get_status():
-    """Enhanced status endpoint with optimization info"""
     try:
         logger.info(f"📊 STATUS CHECK REQUESTED")
         
-        # Try to get balance, fallback if not available
         try:
             if hasattr(engine.trader_client, 'get_balance'):
                 get_balance_method = getattr(engine.trader_client, 'get_balance')
@@ -1586,17 +1437,15 @@ def get_status():
                 else:
                     balance = get_balance_method()
                 
-                # Ensure balance is a float, not a coroutine
                 if asyncio.iscoroutine(balance):
                     logger.warning("⚠️ Balance returned coroutine, awaiting it...")
                     balance = asyncio.run(balance)
                 
-                # Final safety check - ensure it's a number
                 if not isinstance(balance, (int, float)):
                     logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
                     balance = 1000.0
                 
-                balance = float(balance)  # Ensure it's a float
+                balance = float(balance)
             else:
                 logger.warning("⚠️ No get_balance method found")
                 balance = 1000.0
@@ -1633,36 +1482,8 @@ def get_status():
         logger.error(f"❌ Status check failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/trade-summary', methods=['GET'])
-def get_trade_summary():
-    """Enhanced trade summary with TP3 performance metrics"""
-    try:
-        logger.info(f"📈 TRADE SUMMARY REQUESTED")
-        
-        summary_data = {
-            "summary": "Enhanced trade tracking active",
-            "new_metrics": {
-                "tp3_hit_rate": "Tracking TP3 success rate",
-                "tp3_timing": "Average time to TP3", 
-                "bear_market_performance": "Optimized TP3 levels active",
-                "multi_position_efficiency": f"Max {MAX_OPEN_POSITIONS} positions"
-            },
-            "supported_symbols": engine.supported_symbols,
-            "open_positions": list(engine.open_positions.keys()),
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        logger.info(f"✅ Trade summary complete")
-        
-        return jsonify(summary_data)
-        
-    except Exception as e:
-        logger.error(f"❌ Trade summary failed: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
     try:
         health_data = {
             "status": "healthy",
@@ -1692,10 +1513,8 @@ if __name__ == '__main__':
     logger.info(f"   Bear Market TP3: 5% (optimized)")
     
     try:
-        # Startup validation
         logger.info(f"🔍 STARTUP VALIDATION:")
         
-        # Check environment variables
         required_env_vars = ['WALLET_PRIVATE_KEY', 'BASE_RPC_URL']
         missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
         
@@ -1704,7 +1523,6 @@ if __name__ == '__main__':
         else:
             logger.info(f"✅ All required environment variables present")
         
-        # Test engine initialization
         if hasattr(engine, 'trader_client'):
             logger.info(f"✅ Trading engine initialized successfully")
         else:
@@ -1714,7 +1532,6 @@ if __name__ == '__main__':
         logger.info("🏆 ENHANCED TRADING BOT READY FOR ACTION!")
         logger.info("=" * 60)
         
-        # Start Flask app
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
         
     except Exception as e:
