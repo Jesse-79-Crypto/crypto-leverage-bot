@@ -133,15 +133,27 @@ try:
                 
             def _initialize_real_sdk(self):
                 """Initialize real Avantis SDK with comprehensive method discovery"""
+                print("🛠 _initialize_real_sdk() CALLED")
+                logger.info("🛠 _initialize_real_sdk() CALLED")
+                
                 try:
+                    print("🛠 Creating real SDK client...")
                     logger.info("🛠 Creating real SDK client...")
+                    
+                    print(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
                     logger.info(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
                     
                     if not SDKTraderClient:
+                        print("❌ SDKTraderClient is None - SDK not imported properly")
                         logger.error("❌ SDKTraderClient is None - SDK not imported properly")
                         raise ImportError("SDK not available")
                     
                     # Log what we're working with
+                    print(f"🔧 Initialization parameters:")
+                    print(f"   Provider URL: {self.provider_url}")
+                    print(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
+                    print(f"   API Key Available: {self.api_key is not None}")
+                    
                     logger.info(f"🔧 Initialization parameters:")
                     logger.info(f"   Provider URL: {self.provider_url}")
                     logger.info(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
@@ -180,44 +192,58 @@ try:
                     
                     for i, attempt in enumerate(initialization_attempts, 1):
                         try:
+                            print(f"🔧 SDK Attempt {i}: {attempt['name']}")
+                            print(f"   Description: {attempt['description']}")
                             logger.info(f"🔧 SDK Attempt {i}: {attempt['name']}")
                             logger.info(f"   Description: {attempt['description']}")
                             
                             self.sdk_client = attempt['func']()
                             
                             if self.sdk_client:
+                                print(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
+                                print(f"   SDK Client Type: {type(self.sdk_client)}")
                                 logger.info(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
                                 logger.info(f"   SDK Client Type: {type(self.sdk_client)}")
                                 
                                 # CRITICAL: Always run method discovery
+                                print("🔍 Running method discovery...")
+                                logger.info("🔍 Running method discovery...")
                                 self._discover_available_methods()
                                 
                                 # Set up signer after successful SDK creation
+                                print("🔑 Setting up signer...")
+                                logger.info("🔑 Setting up signer...")
                                 self._setup_signer()
                                 return  # Exit successfully
                             else:
+                                print(f"⚠️ {attempt['name']} returned None")
                                 logger.warning(f"⚠️ {attempt['name']} returned None")
                                 
                         except Exception as e:
+                            print(f"❌ {attempt['name']} failed: {str(e)}")
+                            print(f"   Error type: {type(e).__name__}")
                             logger.warning(f"❌ {attempt['name']} failed: {str(e)}")
                             logger.warning(f"   Error type: {type(e).__name__}")
                             continue
                     
                     # If we get here, all attempts failed
+                    print("❌ All SDK initialization attempts failed")
+                    print("🔄 Creating mock SDK client for method discovery")
                     logger.error("❌ All SDK initialization attempts failed")
                     logger.warning("🔄 Creating mock SDK client for method discovery")
                     
                     # Create a mock SDK client but still try to discover methods
-                    self.sdk_client = type('MockSDKClient', (), {
-                        'open_position': lambda **kwargs: {'success': False, 'error': 'Mock client'},
-                        'get_balance': lambda token='USDC': 1000.0,
-                        'get_account_balance': lambda: 1000.0
-                    })()
+                    print("🎭 Creating mock client...")
+                    logger.info("🎭 Creating mock client...")
+                    self.sdk_client = self._create_mock_sdk_client()
                     
+                    print("✅ Mock SDK client created for testing")
                     logger.info("✅ Mock SDK client created for testing")
                     self._discover_available_methods()
                     
                 except Exception as e:
+                    print(f"❌ Complete SDK initialization failure: {e}")
+                    print(f"   Traceback: {traceback.format_exc()}")
                     logger.error(f"❌ Complete SDK initialization failure: {e}")
                     logger.error(f"   Traceback: {traceback.format_exc()}")
                     self.sdk_client = None
@@ -253,21 +279,31 @@ try:
 
             def _discover_available_methods(self):
                 """🔍 Discover and log exactly what methods are available on the SDK"""
+                print("🔍 _discover_available_methods() CALLED")
+                logger.info("🔍 _discover_available_methods() CALLED")
+                
                 try:
+                    print("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
                     logger.info("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
                     
                     if not self.sdk_client:
+                        print("❌ No SDK client to discover methods on")
                         logger.error("❌ No SDK client to discover methods on")
                         self.available_methods = []
                         self.available_properties = []
                         self.working_methods = {}
                         return
                     
+                    print(f"✅ SDK Client available: {type(self.sdk_client)}")
+                    logger.info(f"✅ SDK Client available: {type(self.sdk_client)}")
+                    
                     # Get all attributes
                     try:
                         all_attributes = dir(self.sdk_client)
+                        print(f"📋 Total attributes found: {len(all_attributes)}")
                         logger.info(f"📋 Total attributes found: {len(all_attributes)}")
                     except Exception as e:
+                        print(f"❌ Could not get SDK attributes: {e}")
                         logger.error(f"❌ Could not get SDK attributes: {e}")
                         return
                     
@@ -280,13 +316,20 @@ try:
                                 attr_obj = getattr(self.sdk_client, attr)
                                 if callable(attr_obj):
                                     methods.append(attr)
+                                    print(f"   📞 Method: {attr}")
                                     logger.debug(f"   📞 Method: {attr}")
                                 else:
                                     properties.append(attr)
+                                    print(f"   📋 Property: {attr}")
                                     logger.debug(f"   📋 Property: {attr}")
                             except Exception as attr_error:
+                                print(f"   ⚠️ Could not access {attr}: {attr_error}")
                                 logger.debug(f"   ⚠️ Could not access {attr}: {attr_error}")
                                 pass
+                    
+                    print(f"📋 SDK Client Type: {type(self.sdk_client)}")
+                    print(f"📋 Available Methods ({len(methods)}): {methods}")
+                    print(f"📋 Available Properties ({len(properties)}): {properties}")
                     
                     logger.info(f"📋 SDK Client Type: {type(self.sdk_client)}")
                     logger.info(f"📋 Available Methods ({len(methods)}): {methods}")
@@ -297,11 +340,16 @@ try:
                     self.available_properties = properties
                     
                     # Test specific methods we need
+                    print("🧪 Testing required methods...")
+                    logger.info("🧪 Testing required methods...")
                     self._test_required_methods()
                     
+                    print("🔍 ========== END METHOD DISCOVERY ==========")
                     logger.info("🔍 ========== END METHOD DISCOVERY ==========")
                     
                 except Exception as e:
+                    print(f"❌ Method discovery failed: {e}")
+                    print(f"   Traceback: {traceback.format_exc()}")
                     logger.error(f"❌ Method discovery failed: {e}")
                     logger.error(f"   Traceback: {traceback.format_exc()}")
                     self.available_methods = []
@@ -310,6 +358,9 @@ try:
 
             def _test_required_methods(self):
                 """Test if the methods we need actually work"""
+                print("🧪 _test_required_methods() CALLED")
+                logger.info("🧪 _test_required_methods() CALLED")
+                
                 required_methods = {
                     'balance_methods': ['get_balance', 'get_account_balance', 'balance', 'account_balance'],
                     'address_methods': ['get_ethereum_address', 'get_address', 'address', 'wallet_address'],
@@ -319,11 +370,13 @@ try:
                 self.working_methods = {}
                 
                 for category, method_list in required_methods.items():
+                    print(f"🧪 Testing {category}...")
                     logger.info(f"🧪 Testing {category}...")
                     working_in_category = []
                     
                     for method_name in method_list:
                         if method_name in self.available_methods:
+                            print(f"   ✅ {method_name} is available")
                             logger.info(f"   ✅ {method_name} is available")
                             working_in_category.append(method_name)
                             
@@ -331,33 +384,50 @@ try:
                             try:
                                 method_obj = getattr(self.sdk_client, method_name)
                                 if hasattr(method_obj, '__doc__') and method_obj.__doc__:
+                                    print(f"      📝 Doc: {method_obj.__doc__[:100]}...")
                                     logger.debug(f"      📝 Doc: {method_obj.__doc__[:100]}...")
                                 
                                 # Check if it's async
                                 if asyncio.iscoroutinefunction(method_obj):
+                                    print(f"      ⚡ {method_name} is async")
                                     logger.debug(f"      ⚡ {method_name} is async")
                                 else:
+                                    print(f"      🔄 {method_name} is sync")
                                     logger.debug(f"      🔄 {method_name} is sync")
                                     
                             except Exception as inspect_error:
+                                print(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
                                 logger.debug(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
                         else:
+                            print(f"   ❌ {method_name} not found")
                             logger.debug(f"   ❌ {method_name} not found")
                     
                     self.working_methods[category] = working_in_category
+                    print(f"   📋 Working {category}: {working_in_category}")
                     logger.info(f"   📋 Working {category}: {working_in_category}")
                     
                     if not working_in_category:
+                        print(f"   ⚠️ NO WORKING METHODS found for {category}!")
                         logger.warning(f"   ⚠️ NO WORKING METHODS found for {category}!")
                 
                 # Log summary
                 total_working = sum(len(methods) for methods in self.working_methods.values())
+                print(f"🎯 METHOD DISCOVERY SUMMARY:")
+                print(f"   Total working methods: {total_working}")
+                print(f"   Working methods by category: {self.working_methods}")
+                
                 logger.info(f"🎯 METHOD DISCOVERY SUMMARY:")
                 logger.info(f"   Total working methods: {total_working}")
                 logger.info(f"   Working methods by category: {self.working_methods}")
             
             def _initialize_mock_client(self):
                 """Initialize mock client for testing with enhanced logging"""
+                print("🧪 _initialize_mock_client() CALLED")
+                logger.info("🧪 _initialize_mock_client() CALLED")
+                
+                print("🧪 Creating mock SDK client")
+                print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
+                print(f"   SDKTraderClient: {SDKTraderClient}")
                 logger.info("🧪 Creating mock SDK client")
                 logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
                 logger.info(f"   SDKTraderClient: {SDKTraderClient}")
@@ -365,43 +435,57 @@ try:
                 try:
                     if SDKTraderClient:
                         # Try to create a real SDK client even in mock mode for method discovery
+                        print("🔍 Attempting to create real SDK client for method discovery...")
                         logger.info("🔍 Attempting to create real SDK client for method discovery...")
                         try:
                             self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
+                            print("✅ Real SDK client created for method discovery")
                             logger.info("✅ Real SDK client created for method discovery")
                             self._discover_available_methods()
                         except Exception as e:
+                            print(f"⚠️ Could not create real SDK client: {e}")
                             logger.warning(f"⚠️ Could not create real SDK client: {e}")
+                            print("🎭 Creating mock client instead...")
+                            logger.info("🎭 Creating mock client instead...")
                             self.sdk_client = self._create_mock_sdk_client()
                     else:
+                        print("⚠️ SDKTraderClient not available, creating complete mock")
                         logger.warning("⚠️ SDKTraderClient not available, creating complete mock")
                         self.sdk_client = self._create_mock_sdk_client()
                         
                 except Exception as e:
+                    print(f"❌ Mock client creation failed: {e}")
                     logger.error(f"❌ Mock client creation failed: {e}")
                     self.sdk_client = self._create_mock_sdk_client()
                 
                 self.signer = None
+                print("✅ Mock client ready - no real trades will execute")
                 logger.info("✅ Mock client ready - no real trades will execute")
                 
             def _create_mock_sdk_client(self):
                 """Create a mock SDK client with common methods"""
+                print("🎭 Creating mock SDK client with common methods")
                 logger.info("🎭 Creating mock SDK client with common methods")
                 
                 class MockSDKClient:
                     def __init__(self):
                         self.mock_balance = 1000.0
+                        print("🎭 MockSDKClient initialized")
                         
                     def get_balance(self, token='USDC'):
+                        print(f"🎭 MockSDKClient.get_balance({token}) called")
                         return self.mock_balance
                         
                     def get_account_balance(self):
+                        print("🎭 MockSDKClient.get_account_balance() called")
                         return self.mock_balance
                         
                     def balance(self):
+                        print("🎭 MockSDKClient.balance() called")
                         return self.mock_balance
                         
                     def open_position(self, **kwargs):
+                        print(f"🎭 MockSDKClient.open_position({kwargs}) called")
                         return {
                             'success': True,
                             'position_id': f'mock_{int(time.time())}',
@@ -411,18 +495,23 @@ try:
                         }
                         
                     def place_order(self, **kwargs):
+                        print(f"🎭 MockSDKClient.place_order({kwargs}) called")
                         return self.open_position(**kwargs)
                         
                     def create_position(self, **kwargs):
+                        print(f"🎭 MockSDKClient.create_position({kwargs}) called")
                         return self.open_position(**kwargs)
                         
                     def execute_trade(self, **kwargs):
+                        print(f"🎭 MockSDKClient.execute_trade({kwargs}) called")
                         return self.open_position(**kwargs)
                         
                     def trade(self, **kwargs):
+                        print(f"🎭 MockSDKClient.trade({kwargs}) called")
                         return self.open_position(**kwargs)
                 
                 mock_client = MockSDKClient()
+                print("✅ Mock SDK client created with standard methods")
                 logger.info("✅ Mock SDK client created with standard methods")
                 return mock_client
             
