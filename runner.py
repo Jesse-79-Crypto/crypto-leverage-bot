@@ -63,25 +63,18 @@ try:
     if not REAL_SDK_AVAILABLE:
         raise RuntimeError("❌ Real Avantis SDK is not available")
     
-    # Import Web3 for async setup
-    from web3 import Web3
-    from web3.providers.async_rpc import AsyncHTTPProvider
-    
-    # Create async Web3 instance
-    async_web3 = Web3(AsyncHTTPProvider(RPC_URL))
-    logger.info("✅ Async Web3 instance created")
-    
-    # Create signer with async_web3
-    signer = LocalSigner(private_key=PRIVATE_KEY, async_web3=async_web3)
-    logger.info("✅ LocalSigner created successfully")
-    
-    # Create trader client
+    # Create trader client (based on original initialization pattern)
     trader = AvantisTrader(
-        api_key=API_KEY,
-        signer=signer,
-        rpc_url=RPC_URL,
+        provider_url=RPC_URL
     )
     logger.info("✅ Trader client created successfully")
+    
+    # Store additional credentials for later use if needed
+    trader._private_key = PRIVATE_KEY
+    trader._api_key = API_KEY if API_KEY else None
+    
+    logger.info("✅ Trader client configured with credentials")
+    
 except Exception as e:
     logger.error(f"❌ Failed to create trader client: {str(e)}")
     logger.error(f"   Error details: {traceback.format_exc()}")
