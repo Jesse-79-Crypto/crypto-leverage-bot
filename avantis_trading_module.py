@@ -670,7 +670,7 @@ class BasicAvantisTrader:
                 logger.info(f"✅ Found LIVE method: {method_name}")
                 method = getattr(self.sdk_client, method_name)
                 
-                # Different parameter formats to try - FIXED SYNTAX
+                # Different parameter formats to try - SYNTAX VERIFIED
                 param_sets = [
                     {
                         'name': 'Standard Format',
@@ -682,7 +682,7 @@ class BasicAvantisTrader:
                         }
                     },
                     {
-                        'name': 'Asset Format',
+                        'name': 'Asset Format', 
                         'params': {
                             'asset': asset,
                             'is_long': is_long,
