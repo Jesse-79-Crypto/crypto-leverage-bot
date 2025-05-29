@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import json
 import os
-import asyncio 
 import logging  # ⬅️ MOVE THIS UP
 import traceback
 import time
@@ -604,7 +603,7 @@ def process_webhook():
         logger.info(f"⚡ PROCESSING SIGNAL WITH ENHANCED ENGINE...")
         
         try:
-            result = asyncio.run(engine.process_signal(signal_data))
+            result = engine.process_signal(signal_data)
             processing_time = time.time() - webhook_start_time
             logger.info(f" ENGINE PROCESSING COMPLETE:")
             logger.info(f" Status: {result.get('status', 'unknown')}")
