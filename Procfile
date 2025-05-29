@@ -1,1 +1,1 @@
-web: gunicorn -c gunicorn.conf.py runner:app
+web: gunicorn avantis_trading_module:app
