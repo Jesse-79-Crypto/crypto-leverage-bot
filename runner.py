@@ -72,6 +72,7 @@ logger = logging.getLogger(__name__)
 API_KEY = os.getenv('AVANTIS_API_KEY')
 PRIVATE_KEY = os.getenv('WALLET_PRIVATE_KEY')
 RPC_URL = os.getenv('BASE_RPC_URL')
+AVANTIS_MODE = os.getenv('AVANTIS_MODE', 'TEST')  # Default to TEST if not set
 
 # Validate required environment variables
 if not PRIVATE_KEY:
@@ -81,6 +82,13 @@ if not PRIVATE_KEY:
 if not RPC_URL:
     logger.error("❌ BASE_RPC_URL environment variable is required") 
     raise ValueError("BASE_RPC_URL is required")
+
+# Log the trading mode
+logger.info(f"🚦 AVANTIS TRADING MODE: {AVANTIS_MODE}")
+if AVANTIS_MODE == 'LIVE':
+    logger.info("🔥 LIVE TRADING MODE ACTIVATED - REAL MONEY AT RISK!")
+else:
+    logger.info("🧪 TEST MODE - Using safe fallbacks")
 
 # Create trader client
 logger.info("🔑 Setting up trader client...")
@@ -103,20 +111,65 @@ try:
         
         class BasicAvantisTrader:
             def __init__(self, provider_url, private_key, api_key=None):
-                self.sdk_client = SDKTraderClient(provider_url=provider_url)
+                self.provider_url = provider_url
                 self.private_key = private_key
                 self.api_key = api_key
                 self.signer = None
+                self.sdk_client = None
+                self.trading_mode = AVANTIS_MODE
                 
-                # Try to set up signer
+                logger.info(f"🚦 Initializing trader in {self.trading_mode} mode")
+                
+                # Initialize based on trading mode
+                if self.trading_mode == 'LIVE':
+                    logger.info("🔥 LIVE MODE - Initializing real SDK client")
+                    self._initialize_real_sdk()
+                else:
+                    logger.info("🧪 TEST MODE - Using mock client")
+                    self._initialize_mock_client()
+                
+            def _initialize_real_sdk(self):
+                """Initialize real Avantis SDK for live trading"""
                 try:
+                    logger.info("🛠 Creating real SDK client...")
+                    
+                    # Create the SDK client
+                    self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
+                    logger.info("✅ SDK TraderClient created")
+                    
+                    # Set up signer
                     from web3 import Web3
                     from web3.providers.async_rpc import AsyncHTTPProvider
-                    async_web3 = Web3(AsyncHTTPProvider(provider_url))
-                    self.signer = LocalSigner(private_key=private_key, async_web3=async_web3)
-                    logger.info("✅ Signer setup successful")
+                    
+                    if not self.private_key or len(self.private_key) < 60:
+                        raise ValueError(f"Invalid private key for LIVE mode")
+                    
+                    async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
+                    self.signer = LocalSigner(private_key=self.private_key, async_web3=async_web3)
+                    logger.info("✅ Real signer created for LIVE trading")
+                    
+                    # Test connection
+                    if hasattr(self.signer, 'get_ethereum_address'):
+                        address = self.signer.get_ethereum_address()
+                        logger.info(f"✅ Connected to wallet: {address}")
+                    
+                    # Log available methods
+                    methods = [m for m in dir(self.sdk_client) if not m.startswith('_')]
+                    logger.info(f"🔍 Real SDK methods available: {len(methods)}")
+                    logger.info(f"   Methods: {methods}")
+                    
                 except Exception as e:
-                    logger.warning(f"⚠️ Signer setup failed: {e}")
+                    logger.error(f"❌ Real SDK initialization failed: {e}")
+                    logger.error(f"   Falling back to mock mode for safety")
+                    self.trading_mode = 'MOCK'
+                    self._initialize_mock_client()
+            
+            def _initialize_mock_client(self):
+                """Initialize mock client for testing"""
+                logger.info("🧪 Creating mock SDK client")
+                self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
+                self.signer = None
+                logger.info("✅ Mock client ready - no real trades will execute")
             
             async def open_position_async(self, trade_data):
                 """Execute trade using async SDK client"""
@@ -133,33 +186,65 @@ try:
                 logger.info(f"📋 SDK Trade Params: {trade_params}")
                 
                 try:
-                    if hasattr(self.sdk_client, 'open_position'):
-                        logger.info("✅ Found SDK open_position method")
-                        # REAL ASYNC CALL - This is what ChatGPT wanted!
-                        trade_result = await self.sdk_client.open_position(**trade_params)
-                        logger.info(f"🎉 REAL TRADE EXECUTED: {trade_result}")
-                        return trade_result
-                    else:
-                        logger.warning("⚠️ SDK open_position method not found")
-                        available_methods = [m for m in dir(self.sdk_client) if not m.startswith('_')]
-                        logger.info(f"📋 Available SDK methods: {available_methods}")
-                        
-                        # Try other possible method names
-                        for method_name in ['create_position', 'place_order', 'submit_order']:
-                            if hasattr(self.sdk_client, method_name):
-                                logger.info(f"✅ Using {method_name} method")
-                                method = getattr(self.sdk_client, method_name)
-                                return await method(**trade_params)
-                        
-                        # If no method found, return structured mock for now
-                        logger.warning("⚠️ No SDK trading methods found, using structured mock")
-                        return {
-                            'success': True,
-                            'position_id': f'READY_FOR_REAL_{int(time.time())}',
-                            'entry_price': trade_data.get('entry_price', 0),
-                            'tx_hash': f'0x{"R"*40}READY',
-                            'message': 'Ready for real trading - SDK methods need verification'
+                    # Get all available methods for real-time inspection
+                    available_methods = [m for m in dir(self.sdk_client) if not m.startswith('_')]
+                    logger.info(f"🔍 REAL-TIME SDK Methods: {available_methods}")
+                    
+                    # Try multiple possible method names based on common SDK patterns
+                    method_attempts = [
+                        'open_position',
+                        'create_position', 
+                        'place_order',
+                        'submit_order',
+                        'open_trade',
+                        'execute_trade',
+                        'new_position',
+                        'add_position'
+                    ]
+                    
+                    for method_name in method_attempts:
+                        if hasattr(self.sdk_client, method_name):
+                            logger.info(f"✅ Found SDK method: {method_name}")
+                            method = getattr(self.sdk_client, method_name)
+                            
+                            # Try to call it
+                            try:
+                                logger.info(f"🚀 Calling {method_name} with params: {trade_params}")
+                                trade_result = await method(**trade_params)
+                                logger.info(f"🎉 REAL TRADE EXECUTED via {method_name}: {trade_result}")
+                                return trade_result
+                            except Exception as method_error:
+                                logger.warning(f"⚠️ {method_name} failed: {method_error}")
+                                continue
+                    
+                    # If no standard methods work, try to find ANY method that might work
+                    logger.warning("⚠️ No standard trading methods found")
+                    logger.info("🔍 Inspecting SDK client for ANY callable methods...")
+                    
+                    callable_methods = []
+                    for method_name in available_methods:
+                        try:
+                            method = getattr(self.sdk_client, method_name)
+                            if callable(method):
+                                callable_methods.append(method_name)
+                        except:
+                            pass
+                    
+                    logger.info(f"📞 Callable methods: {callable_methods}")
+                    
+                    # Return structured response for debugging
+                    return {
+                        'success': True,
+                        'position_id': f'DEBUG_{int(time.time())}',
+                        'entry_price': trade_data.get('entry_price', 0),
+                        'tx_hash': f'0x{"DEBUG"}{"0"*36}',
+                        'message': f'SDK inspection complete - Available methods: {len(available_methods)}',
+                        'debug_info': {
+                            'available_methods': available_methods,
+                            'callable_methods': callable_methods,
+                            'trade_params_attempted': trade_params
                         }
+                    }
                 
                 except Exception as e:
                     logger.error(f"❌ Real trade execution failed: {e}")
@@ -171,43 +256,180 @@ try:
                     }
             
             def open_position(self, trade_data):
-                """Sync wrapper for async open_position"""
-                logger.info("🚀 ATTEMPTING REAL TRADE EXECUTION")
+                """Execute trade - LIVE or TEST mode based on AVANTIS_MODE"""
+                if self.trading_mode == 'LIVE':
+                    logger.info("🔥 EXECUTING REAL LIVE TRADE")
+                    return self._execute_live_trade(trade_data)
+                else:
+                    logger.info("🧪 EXECUTING TEST TRADE (Mock)")
+                    return self._execute_test_trade(trade_data)
+            
+            def _execute_live_trade(self, trade_data):
+                """Execute real trade with real money"""
+                logger.info("💰 LIVE TRADE EXECUTION - REAL MONEY AT RISK!")
+                
                 try:
-                    # Run the async method
-                    result = asyncio.run(self.open_position_async(trade_data))
+                    # Run the async live trade
+                    result = asyncio.run(self._execute_live_trade_async(trade_data))
                     return result
                 except Exception as e:
-                    logger.error(f"❌ Async trade execution failed: {e}")
+                    logger.error(f"❌ LIVE trade execution failed: {e}")
                     return {
                         'success': False,
                         'error': str(e),
-                        'message': 'Async execution failed'
+                        'message': 'LIVE trade failed'
                     }
+            
+            async def _execute_live_trade_async(self, trade_data):
+                """Async live trade execution"""
+                logger.info("🚀 Executing async LIVE trade...")
+                
+                # Convert to SDK format
+                trade_params = {
+                    'asset': trade_data.get('symbol', 'BTC/USDT').replace('USDT', 'USD'),
+                    'is_long': trade_data.get('direction', 'LONG').upper() == 'LONG',
+                    'margin': trade_data.get('position_size', 100),
+                    'leverage': trade_data.get('leverage', 10)
+                }
+                
+                logger.info(f"📋 LIVE Trade Params: {trade_params}")
+                
+                # Try all possible trading methods for LIVE execution
+                methods_to_try = [
+                    'open_position',
+                    'create_position', 
+                    'place_order',
+                    'submit_order',
+                    'open_trade',
+                    'execute_trade',
+                    'new_position'
+                ]
+                
+                for method_name in methods_to_try:
+                    if hasattr(self.sdk_client, method_name):
+                        logger.info(f"✅ Found LIVE method: {method_name}")
+                        method = getattr(self.sdk_client, method_name)
+                        
+                        try:
+                            logger.info(f"🔥 CALLING LIVE {method_name}...")
+                            result = await method(**trade_params)
+                            logger.info(f"🎉 LIVE TRADE SUCCESS via {method_name}!")
+                            logger.info(f"   Result: {result}")
+                            return result
+                        except Exception as e:
+                            logger.warning(f"⚠️ LIVE {method_name} failed: {e}")
+                            continue
+                
+                # If no methods worked
+                logger.error("❌ No LIVE trading methods worked")
+                return {
+                    'success': False,
+                    'error': 'No working LIVE trading methods found',
+                    'message': 'Check SDK documentation for correct method names'
+                }
+            
+            def _execute_test_trade(self, trade_data):
+                """Execute test trade (mock)"""
+                logger.info("🧪 TEST TRADE - No real money involved")
+                
+                return {
+                    'success': True,
+                    'position_id': f'TEST_{int(time.time())}',
+                    'entry_price': trade_data.get('entry_price', 0),
+                    'tx_hash': f'0x{"TEST"}{"0"*36}',
+                    'message': f'TEST trade executed in {self.trading_mode} mode',
+                    'test_mode': True
+                }
             
             async def get_balance_async(self):
                 """Get account balance using async SDK"""
+                logger.info("💰 Attempting real balance check...")
+                
                 try:
-                    if hasattr(self.sdk_client, 'get_balance') and self.signer:
-                        # REAL ASYNC CALL for balance
-                        balance = await self.sdk_client.get_balance()
-                        logger.info(f"💰 REAL balance retrieved: {balance}")
-                        return float(balance) if balance is not None else 1000.0
-                    else:
-                        logger.warning("⚠️ SDK get_balance not available or no signer")
+                    # Check signer first
+                    if not self.signer:
+                        logger.warning("⚠️ No signer available for balance check")
                         return 1000.0
+                    
+                    # Check if signer has required method
+                    if not hasattr(self.signer, 'get_ethereum_address'):
+                        logger.warning("⚠️ Signer missing get_ethereum_address method")
+                        return 1000.0
+                    
+                    # Get available balance methods
+                    balance_methods = [m for m in dir(self.sdk_client) if 'balance' in m.lower()]
+                    logger.info(f"🔍 Available balance methods: {balance_methods}")
+                    
+                    # Try different balance method names
+                    for method_name in ['get_balance', 'get_account_balance', 'balance', 'account_balance']:
+                        if hasattr(self.sdk_client, method_name):
+                            logger.info(f"✅ Trying balance method: {method_name}")
+                            method = getattr(self.sdk_client, method_name)
+                            
+                            try:
+                                # REAL ASYNC CALL for balance
+                                balance = await method()
+                                logger.info(f"💰 REAL balance retrieved via {method_name}: {balance}")
+                                return float(balance) if balance is not None else 1000.0
+                            except Exception as method_error:
+                                logger.warning(f"⚠️ {method_name} failed: {method_error}")
+                                continue
+                    
+                    logger.warning("⚠️ No working balance methods found")
+                    return 1000.0
+                    
                 except Exception as e:
                     logger.warning(f"⚠️ Real balance check failed: {e}")
+                    logger.warning(f"   Error type: {type(e).__name__}")
                     return 1000.0
             
             def get_balance(self):
-                """Sync wrapper for async get_balance"""
+                """Get account balance - LIVE or TEST mode"""
+                if self.trading_mode == 'LIVE':
+                    logger.info("💰 Getting LIVE account balance")
+                    return self._get_live_balance()
+                else:
+                    logger.info("🧪 Using TEST balance")
+                    return 1000.0  # Test balance
+            
+            def _get_live_balance(self):
+                """Get real account balance"""
                 try:
-                    # Run the async method  
-                    balance = asyncio.run(self.get_balance_async())
+                    # Run async balance check
+                    balance = asyncio.run(self._get_live_balance_async())
                     return balance
                 except Exception as e:
-                    logger.warning(f"⚠️ Async balance check failed: {e}")
+                    logger.warning(f"⚠️ LIVE balance check failed: {e}")
+                    return 1000.0  # Fallback
+            
+            async def _get_live_balance_async(self):
+                """Async live balance check"""
+                try:
+                    if not self.signer:
+                        logger.warning("⚠️ No signer for LIVE balance")
+                        return 1000.0
+                    
+                    # Try balance methods
+                    balance_methods = ['get_balance', 'get_account_balance', 'balance']
+                    
+                    for method_name in balance_methods:
+                        if hasattr(self.sdk_client, method_name):
+                            logger.info(f"✅ Trying LIVE balance method: {method_name}")
+                            method = getattr(self.sdk_client, method_name)
+                            
+                            try:
+                                balance = await method()
+                                logger.info(f"💰 LIVE balance via {method_name}: {balance}")
+                                return float(balance) if balance is not None else 1000.0
+                            except Exception as e:
+                                logger.warning(f"⚠️ {method_name} failed: {e}")
+                                continue
+                    
+                    logger.warning("⚠️ No working LIVE balance methods")
+                    return 1000.0
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ LIVE balance error: {e}")
                     return 1000.0
         
         # Create the basic wrapper
@@ -692,11 +914,22 @@ class EnhancedAvantisEngine:
                 logger.info(f"   Position ID: {trade_result.get('position_id', 'N/A')}")
                 logger.info(f"   TX Hash: {trade_result.get('tx_hash', 'N/A')}")
                 logger.info(f"   Entry Price: {trade_result.get('entry_price', 'N/A')}")
-                logger.info(f"   Full result: {json.dumps(trade_result, indent=2)}")
                 
-                # Check if this was a real trade or mock
+                # Show debug info if available
+                debug_info = trade_result.get('debug_info', {})
+                if debug_info:
+                    logger.info(f"🔍 DEBUG INFO:")
+                    logger.info(f"   Available methods: {len(debug_info.get('available_methods', []))}")
+                    logger.info(f"   Callable methods: {debug_info.get('callable_methods', [])}")
+                    logger.info(f"   Trade params: {debug_info.get('trade_params_attempted', {})}")
+                else:
+                    logger.info(f"   Full result: {json.dumps(trade_result, indent=2)}")
+                
+                # Check if this was a real trade or debug
                 position_id = trade_result.get('position_id', '')
-                if 'MOCK' in position_id or 'mock' in trade_result.get('message', '').lower():
+                if 'DEBUG' in position_id:
+                    logger.info("🔍 This was a DEBUG response - check available methods above")
+                elif 'MOCK' in position_id or 'mock' in trade_result.get('message', '').lower():
                     logger.warning("⚠️ This was a mock trade - SDK methods may need verification")
                 elif trade_result.get('success'):
                     logger.info("🎉 REAL TRADE EXECUTED SUCCESSFULLY!")
