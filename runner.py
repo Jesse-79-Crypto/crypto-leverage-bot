@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # Enhanced Trading Parameters
 MAX_OPEN_POSITIONS = 4  # ⬆️ Increased from 2
 POSITION_COOLDOWN = 2   # ⬇️ Reduced from 3 minutes for faster deployment
-MIN_SIGNAL_QUALITY = 75 # ✅ Maintained high quality threshold
+MIN_SIGNAL_QUALITY = 0  # 🔓 Allow all signals for now
 
 # Enhanced Position Sizing
 TIER_1_POSITION_SIZE = 0.25  # ✅ 25% allocation maintained
