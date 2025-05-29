@@ -283,8 +283,8 @@ def _initialize_real_sdk(self):
             print(f"   Traceback: {traceback.format_exc()}")
             logger.error(f"❌ Complete SDK initialization failure: {e}")
             logger.error(f"   Traceback: {traceback.format_exc()}")
-                self.sdk_client = None
-    self.trading_mode = 'MOCK'
+            self.sdk_client = None
+            self.trading_mode = 'MOCK'
 
     def _setup_signer(self):
         try:
