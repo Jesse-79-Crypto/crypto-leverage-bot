@@ -425,7 +425,7 @@ class EnhancedAvantisEngine:
             # Get account balance
             logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
             try:
-                balance = self.trader.get_balance()
+                balance = await self.trader_get_balance()
                 logger.info(f"✅ Account balance: ${balance:,.2f}")
             except Exception as e:
                 logger.error(f"❌ Failed to get balance: {str(e)}")
