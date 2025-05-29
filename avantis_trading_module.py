@@ -6,7 +6,7 @@ import asyncio
 import logging
 import traceback
 import time
-import inspect  # Add this for checking coroutines
+import inspect
 
 try:
     from avantis_trader_sdk.client import TraderClient as SDKTraderClient
@@ -530,88 +530,89 @@ try:
                 logger.info("✅ Mock SDK client created with standard methods")
                 return mock_client
             
-            async def open_position_async(self, trade_data):
-                logger.info("🔗 Executing REAL trade via async SDK client")
-                
-                # Convert trade_data to SDK format
-                trade_params = {
-                    'asset': trade_data.get('symbol', 'BTC/USDT').replace('USDT', 'USD'),
-                    'is_long': trade_data.get('direction', 'LONG').upper() == 'LONG',
-                    'margin': trade_data.get('position_size', 100),
-                    'leverage': trade_data.get('leverage', 10)
-                }
-                
-                logger.info(f"📋 SDK Trade Params: {trade_params}")
-                
+            def get_balance(self):
                 try:
-                    # Get all available methods for real-time inspection
-                    available_methods = [m for m in dir(self.sdk_client) if not m.startswith('_')]
-                    logger.info(f"🔍 REAL-TIME SDK Methods: {available_methods}")
+                    logger.info("💰 Getting balance with discovered methods...")
+                    logger.info(f"   SDK Client available: {self.sdk_client is not None}")
+                    logger.info(f"   Signer available: {self.signer is not None}")
+                    logger.info(f"   Trading mode: {self.trading_mode}")
                     
-                    # Try multiple possible method names based on common SDK patterns
-                    method_attempts = [
-                        'open_position',
-                        'create_position', 
-                        'place_order',
-                        'submit_order',
-                        'open_trade',
-                        'execute_trade',
-                        'new_position',
-                        'add_position'
-                    ]
+                    # If no SDK client, use fallback
+                    if not self.sdk_client:
+                        logger.warning("⚠️ No SDK client, using fallback balance")
+                        return 1000.0
                     
-                    for method_name in method_attempts:
+                    # Get balance methods we discovered
+                    balance_methods = getattr(self, 'working_methods', {}).get('balance_methods', [])
+                    
+                    logger.info(f"🔍 Discovered balance methods: {balance_methods}")
+                    
+                    if not balance_methods:
+                        logger.warning("⚠️ No balance methods discovered, trying common ones...")
+                        balance_methods = ['get_balance', 'get_account_balance', 'balance', 'account_balance']
+                    
+                    # Try each balance method
+                    for method_name in balance_methods:
                         if hasattr(self.sdk_client, method_name):
-                            logger.info(f"✅ Found SDK method: {method_name}")
-                            method = getattr(self.sdk_client, method_name)
-                            
-                            # Try to call it
                             try:
-                                logger.info(f"🚀 Calling {method_name} with params: {trade_params}")
-                                trade_result = await method(**trade_params)
-                                logger.info(f"🎉 REAL TRADE EXECUTED via {method_name}: {trade_result}")
-                                return trade_result
+                                method = getattr(self.sdk_client, method_name)
+                                logger.info(f"🔧 Trying {method_name}...")
+                                logger.info(f"   Method type: {type(method)}")
+                                logger.info(f"   Is async: {asyncio.iscoroutinefunction(method)}")
+                                
+                                # Try different parameter combinations
+                                param_attempts = [
+                                    {'params': ('USDC',), 'name': 'USDC token'},
+                                    {'params': ('usdc',), 'name': 'lowercase usdc'},
+                                    {'params': (), 'name': 'no parameters'}
+                                ]
+                                
+                                for attempt in param_attempts:
+                                    try:
+                                        logger.info(f"   🎯 Trying {attempt['name']}...")
+                                        
+                                        if asyncio.iscoroutinefunction(method):
+                                            if attempt['params']:
+                                                balance = asyncio.run(method(*attempt['params']))
+                                            else:
+                                                balance = asyncio.run(method())
+                                        else:
+                                            if attempt['params']:
+                                                balance = method(*attempt['params'])
+                                            else:
+                                                balance = method()
+                                        
+                                        logger.info(f"   📤 Raw result: {balance} (type: {type(balance)})")
+                                        
+                                        if balance is not None:
+                                            # Try to convert to float
+                                            try:
+                                                balance_float = float(balance)
+                                                logger.info(f"✅ Balance from {method_name}({attempt['name']}): ${balance_float}")
+                                                return balance_float
+                                            except (ValueError, TypeError) as convert_error:
+                                                logger.warning(f"⚠️ Could not convert balance to float: {convert_error}")
+                                                continue
+                                        else:
+                                            logger.warning(f"   ⚠️ {method_name}({attempt['name']}) returned None")
+                                            
+                                    except Exception as param_error:
+                                        logger.warning(f"   ❌ {method_name}({attempt['name']}) failed: {param_error}")
+                                        continue
+                                
                             except Exception as method_error:
-                                logger.warning(f"⚠️ {method_name} failed: {method_error}")
+                                logger.error(f"❌ {method_name} method completely failed: {method_error}")
                                 continue
+                        else:
+                            logger.debug(f"   ❌ {method_name} not available on SDK client")
                     
-                    # If no standard methods work, try to find ANY method that might work
-                    logger.warning("⚠️ No standard trading methods found")
-                    logger.info("🔍 Inspecting SDK client for ANY callable methods...")
+                    logger.warning("⚠️ No working balance methods succeeded, using fallback")
+                    return 1000.0
                     
-                    callable_methods = []
-                    for method_name in available_methods:
-                        try:
-                            method = getattr(self.sdk_client, method_name)
-                            if callable(method):
-                                callable_methods.append(method_name)
-                        except:
-                            pass
-                    
-                    logger.info(f"📞 Callable methods: {callable_methods}")
-                    
-                    # Return structured response for debugging
-                    return {
-                        'success': True,
-                        'position_id': f'DEBUG_{int(time.time())}',
-                        'entry_price': trade_data.get('entry_price', 0),
-                        'tx_hash': f'0x{"DEBUG"}{"0"*36}',
-                        'message': f'SDK inspection complete - Available methods: {len(available_methods)}',
-                        'debug_info': {
-                            'available_methods': available_methods,
-                            'callable_methods': callable_methods,
-                            'trade_params_attempted': trade_params
-                        }
-                    }
-                
                 except Exception as e:
-                    logger.error(f"❌ Real trade execution failed: {e}")
+                    logger.error(f"❌ Balance check error: {e}")
                     logger.error(f"   Traceback: {traceback.format_exc()}")
-                    return {
-                        'success': False,
-                        'error': str(e),
-                        'message': 'Real trade attempt failed'
-                    }
+                    return 1000.0
             
             def open_position(self, trade_data):
                 if self.trading_mode == 'LIVE':
@@ -815,90 +816,6 @@ try:
                     'message': f'TEST trade executed in {self.trading_mode} mode',
                     'test_mode': True
                 }
-            
-            def get_balance(self):
-                try:
-                    logger.info("💰 Getting balance with discovered methods...")
-                    logger.info(f"   SDK Client available: {self.sdk_client is not None}")
-                    logger.info(f"   Signer available: {self.signer is not None}")
-                    logger.info(f"   Trading mode: {self.trading_mode}")
-                    
-                    # If no SDK client, use fallback
-                    if not self.sdk_client:
-                        logger.warning("⚠️ No SDK client, using fallback balance")
-                        return 1000.0
-                    
-                    # Get balance methods we discovered
-                    balance_methods = getattr(self, 'working_methods', {}).get('balance_methods', [])
-                    
-                    logger.info(f"🔍 Discovered balance methods: {balance_methods}")
-                    
-                    if not balance_methods:
-                        logger.warning("⚠️ No balance methods discovered, trying common ones...")
-                        balance_methods = ['get_balance', 'get_account_balance', 'balance', 'account_balance']
-                    
-                    # Try each balance method
-                    for method_name in balance_methods:
-                        if hasattr(self.sdk_client, method_name):
-                            try:
-                                method = getattr(self.sdk_client, method_name)
-                                logger.info(f"🔧 Trying {method_name}...")
-                                logger.info(f"   Method type: {type(method)}")
-                                logger.info(f"   Is async: {asyncio.iscoroutinefunction(method)}")
-                                
-                                # Try different parameter combinations
-                                param_attempts = [
-                                    {'params': ('USDC',), 'name': 'USDC token'},
-                                    {'params': ('usdc',), 'name': 'lowercase usdc'},
-                                    {'params': (), 'name': 'no parameters'},
-                                ]
-                                
-                                for attempt in param_attempts:
-                                    try:
-                                        logger.info(f"   🎯 Trying {attempt['name']}...")
-                                        
-                                        if asyncio.iscoroutinefunction(method):
-                                            if attempt['params']:
-                                                balance = asyncio.run(method(*attempt['params']))
-                                            else:
-                                                balance = asyncio.run(method())
-                                        else:
-                                            if attempt['params']:
-                                                balance = method(*attempt['params'])
-                                            else:
-                                                balance = method()
-                                        
-                                        logger.info(f"   📤 Raw result: {balance} (type: {type(balance)})")
-                                        
-                                        if balance is not None:
-                                            # Try to convert to float
-                                            try:
-                                                balance_float = float(balance)
-                                                logger.info(f"✅ Balance from {method_name}({attempt['name']}): ${balance_float}")
-                                                return balance_float
-                                            except (ValueError, TypeError) as convert_error:
-                                                logger.warning(f"⚠️ Could not convert balance to float: {convert_error}")
-                                                continue
-                                        else:
-                                            logger.warning(f"   ⚠️ {method_name}({attempt['name']}) returned None")
-                                            
-                                    except Exception as param_error:
-                                        logger.warning(f"   ❌ {method_name}({attempt['name']}) failed: {param_error}")
-                                        continue
-                                
-                            except Exception as method_error:
-                                logger.error(f"❌ {method_name} method completely failed: {method_error}")
-                                continue
-                        else:
-                            logger.debug(f"   ❌ {method_name} not available on SDK client")
-                    
-                    logger.warning("⚠️ No working balance methods succeeded, using fallback")
-                    return 1000.0
-                    
-                except Exception as e:
-                    logger.error(f"❌ Balance check error: {e}")
-                    logger.error(f"   Traceback: {traceback.format_exc()}")
-                    return 1000.0
         
         # Create the basic wrapper
         trader = BasicAvantisTrader(
