@@ -3,9 +3,10 @@ from datetime import datetime
 import json
 import os
 import asyncio
-import logging  # ⬅️ MOVE THIS UP
+import logging
 import traceback
 import time
+import inspect  # Add this for checking coroutines
 
 try:
     from avantis_trader_sdk.client import TraderClient as SDKTraderClient
@@ -142,9 +143,19 @@ try:
             
             def get_balance(self):
                 """Get account balance"""
-                if hasattr(self.sdk_client, 'get_balance') and self.signer:
-                    return self.sdk_client.get_balance()
-                return 1000.0  # Fallback balance
+                try:
+                    if hasattr(self.sdk_client, 'get_balance') and self.signer:
+                        balance_result = self.sdk_client.get_balance()
+                        # If it's a coroutine, we can't await it here in a sync method
+                        if asyncio.iscoroutine(balance_result):
+                            logger.warning("⚠️ SDK get_balance returned coroutine, using fallback")
+                            return 1000.0
+                        return float(balance_result) if balance_result is not None else 1000.0
+                    else:
+                        return 1000.0  # Fallback balance
+                except Exception as e:
+                    logger.warning(f"⚠️ get_balance error: {e}")
+                    return 1000.0
         
         # Create the basic wrapper
         trader = BasicAvantisTrader(
@@ -560,6 +571,17 @@ class EnhancedAvantisEngine:
                     logger.warning("⚠️ No get_balance method found, using default")
                     balance = 1000.0  # Default balance
                 
+                # Ensure balance is a float, not a coroutine
+                if asyncio.iscoroutine(balance):
+                    logger.warning("⚠️ Balance returned coroutine, awaiting it...")
+                    balance = asyncio.run(balance)
+                
+                # Final safety check - ensure it's a number
+                if not isinstance(balance, (int, float)):
+                    logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
+                    balance = 1000.0
+                
+                balance = float(balance)  # Ensure it's a float
                 logger.info(f"💰 Balance: {balance}")            
             except Exception as e:
                 logger.error(f"❌ Failed to get balance: {e}")
@@ -804,6 +826,18 @@ def get_status():
                     balance = asyncio.run(get_balance_method())
                 else:
                     balance = get_balance_method()
+                
+                # Ensure balance is a float, not a coroutine
+                if asyncio.iscoroutine(balance):
+                    logger.warning("⚠️ Balance returned coroutine, awaiting it...")
+                    balance = asyncio.run(balance)
+                
+                # Final safety check - ensure it's a number
+                if not isinstance(balance, (int, float)):
+                    logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
+                    balance = 1000.0
+                
+                balance = float(balance)  # Ensure it's a float
             else:
                 logger.warning("⚠️ No get_balance method found")
                 balance = 1000.0
@@ -827,7 +861,7 @@ def get_status():
                 "available_slots": MAX_OPEN_POSITIONS - len(engine.open_positions),
                 "account_balance": balance,
                 "allocation_ratios": allocation,
-                "signer_status": "connected" if hasattr(engine.trader_client, 'signer') and engine.trader_client.signer else "not_connected"
+                "trader_type": "custom_wrapper" if CUSTOM_TRADER_AVAILABLE else "basic_wrapper"
             },
             "timestamp": datetime.now().isoformat()
         }
