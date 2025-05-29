@@ -40,6 +40,41 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ========================================
+# 🔑 ENVIRONMENT VARIABLES & TRADER SETUP
+# ========================================
+
+# Load environment variables
+API_KEY = os.getenv('AVANTIS_API_KEY')
+PRIVATE_KEY = os.getenv('WALLET_PRIVATE_KEY')
+RPC_URL = os.getenv('BASE_RPC_URL')
+
+# Validate required environment variables
+if not PRIVATE_KEY:
+    logger.error("❌ WALLET_PRIVATE_KEY environment variable is required")
+    raise ValueError("WALLET_PRIVATE_KEY is required")
+
+if not RPC_URL:
+    logger.error("❌ BASE_RPC_URL environment variable is required") 
+    raise ValueError("BASE_RPC_URL is required")
+
+# Create trader client
+logger.info("🔑 Setting up trader client...")
+try:
+    if not REAL_SDK_AVAILABLE:
+        raise RuntimeError("❌ Real Avantis SDK is not available")
+    
+    signer = LocalSigner(private_key=PRIVATE_KEY)
+    trader = AvantisTrader(
+        api_key=API_KEY,
+        signer=signer,
+        rpc_url=RPC_URL,
+    )
+    logger.info("✅ Trader client created successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to create trader client: {str(e)}")
+    raise
+
+# ========================================
 # 🚀 PERFORMANCE OPTIMIZATIONS IMPLEMENTED
 # ========================================
 
@@ -298,19 +333,12 @@ class DynamicProfitManager(ProfitManager):
 # ========================================
 
 class EnhancedAvantisEngine:
-    def __init__(self):
+    def __init__(self, trader_client):
         logger.info("🚀 INITIALIZING ENHANCED AVANTIS ENGINE...")
         
-        try:
-            if SDKTrader is None:
-                raise RuntimeError("❌ SDKTrader not initialized. Real Avantis SDK is missing.")
-            self.trader = SDKTrader(
-                provider_url=os.getenv('BASE_RPC_URL')
-            )
-            logger.info("✅ AvantisTrader initialized successfully")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize AvantisTrader: {str(e)}")
-            raise
+        # Use the provided trader client instead of creating a new one
+        self.trader_client = trader_client
+        logger.info("✅ Trader client assigned successfully")
         
         self.profit_manager = DynamicProfitManager()
         self.trade_logger = EnhancedTradeLogger()
@@ -470,7 +498,7 @@ class EnhancedAvantisEngine:
             logger.info(f"🔗 Calling AvantisTrader.open_position()...")
             
             try:
-                trade_result = self.trader.open_position(trade_data)
+                trade_result = self.trader_client.open_position(trade_data)
                 
                 logger.info(f"📤 Trade execution result received:")
                 logger.info(f"   Success: {trade_result.get('success', False)}")
@@ -549,11 +577,11 @@ class EnhancedAvantisEngine:
 # 📡 ENHANCED FLASK ENDPOINTS WITH FULL LOGGING
 # ========================================
 
-# Initialize enhanced engine
+# Initialize enhanced engine with trader client
 logger.info("🚀 INITIALIZING FLASK APPLICATION...")
 
 try:
-    engine = EnhancedAvantisEngine()
+    engine = EnhancedAvantisEngine(trader)
     logger.info("✅ Enhanced engine initialized successfully")
 except Exception as e:
     logger.error(f"💥 FAILED TO INITIALIZE ENGINE: {str(e)}")
@@ -606,9 +634,9 @@ def process_webhook():
         try:
             result = engine.process_signal(signal_data)
             processing_time = time.time() - webhook_start_time
-            logger.info(f" ENGINE PROCESSING COMPLETE:")
-            logger.info(f" Status: {result.get('status', 'unknown')}")
-            logger.info(f" Processing Time: {processing_time:.2f}s")
+            logger.info(f"🏁 ENGINE PROCESSING COMPLETE:")
+            logger.info(f"   Status: {result.get('status', 'unknown')}")
+            logger.info(f"   Processing Time: {processing_time:.2f}s")
             
             if result.get('status') == 'success':
                 logger.info(f"🎉 WEBHOOK SUCCESS:")
@@ -656,7 +684,7 @@ def get_status():
     try:
         logger.info(f"📊 STATUS CHECK REQUESTED")
         
-        balance = engine.trader.get_balance()
+        balance = engine.trader_client.get_balance()
         allocation = engine.profit_manager.get_allocation_ratios(balance)
         
         status_data = {
@@ -719,7 +747,7 @@ def health_check():
         health_data = {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "engine_initialized": hasattr(engine, 'trader'),
+            "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS
         }
@@ -757,7 +785,7 @@ if __name__ == '__main__':
             logger.info(f"✅ All required environment variables present")
         
         # Test engine initialization
-        if hasattr(engine, 'trader'):
+        if hasattr(engine, 'trader_client'):
             logger.info(f"✅ Trading engine initialized successfully")
         else:
             logger.error(f"❌ Trading engine not properly initialized")
@@ -766,7 +794,10 @@ if __name__ == '__main__':
         logger.info("🏆 ENHANCED TRADING BOT READY FOR ACTION!")
         logger.info("=" * 60)
         
+        # Start Flask app
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+        
     except Exception as e:
-        logger.error(f"💥 STARTUP VALIDATION FAILED: {str(e)}")
-    
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+        logger.error(f"💥 STARTUP ERROR: {str(e)}")
+        logger.error(f"   Traceback: {traceback.format_exc()}")
+        raise
