@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import json
 import os
+import asyncio
 import logging  # ⬅️ MOVE THIS UP
 import traceback
 import time
@@ -425,10 +426,10 @@ class EnhancedAvantisEngine:
             # Get account balance
             logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
             try:
-                balance = await self.trader_client.get_balance() # Add await logger.info(f"Balance: {balance}")
+                balance = asyncio.run(self.trader_client.get_balance())
             except Exception as e:
-                logger.error(f"❌ Failed to get balance: {str(e)}")
-                return {"status": "error", "reason": f"Balance check failed: {str(e)}"}
+                logger.error(f"❌ Failed to get balance: {e}")
+                return {"status": "error", "reason": f"Balance check failed: {e}"}
             
             # Calculate position parameters
             tier = signal_data.get('tier', 2)
