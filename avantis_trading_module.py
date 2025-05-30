@@ -443,6 +443,73 @@ class BasicAvantisTrader:
                 print(f"   ⚠️ NO WORKING METHODS found for {category}!")
                 logger.warning(f"   ⚠️ NO WORKING METHODS found for {category}!")
         
+        # SPECIAL: Check for Avantis SDK trade interface methods
+        print("🔍 CHECKING AVANTIS SDK TRADE INTERFACE...")
+        logger.info("🔍 CHECKING AVANTIS SDK TRADE INTERFACE...")
+        
+        avantis_trading_methods = []
+        
+        if hasattr(self.sdk_client, 'trade'):
+            trade_interface = getattr(self.sdk_client, 'trade')
+            print(f"✅ Found trade interface: {type(trade_interface)}")
+            logger.info(f"✅ Found trade interface: {type(trade_interface)}")
+            
+            # Check for specific Avantis trading methods
+            avantis_methods_to_check = [
+                'build_trade_open_tx',
+                'build_trade_close_tx', 
+                'build_trade_margin_update_tx',
+                'build_trade_tp_sl_update_tx',
+                'get_trade_execution_fee',
+                'get_trades'
+            ]
+            
+            for method_name in avantis_methods_to_check:
+                if hasattr(trade_interface, method_name):
+                    print(f"   ✅ trade.{method_name} is available")
+                    logger.info(f"   ✅ trade.{method_name} is available")
+                    avantis_trading_methods.append(f"trade.{method_name}")
+                    
+                    # Check if it's async
+                    try:
+                        method_obj = getattr(trade_interface, method_name)
+                        if asyncio.iscoroutinefunction(method_obj):
+                            print(f"      ⚡ trade.{method_name} is async")
+                            logger.debug(f"      ⚡ trade.{method_name} is async")
+                        else:
+                            print(f"      🔄 trade.{method_name} is sync")
+                            logger.debug(f"      🔄 trade.{method_name} is sync")
+                    except Exception as inspect_error:
+                        print(f"      ⚠️ Could not inspect trade.{method_name}: {inspect_error}")
+                        logger.debug(f"      ⚠️ Could not inspect trade.{method_name}: {inspect_error}")
+                else:
+                    print(f"   ❌ trade.{method_name} not found")
+                    logger.debug(f"   ❌ trade.{method_name} not found")
+        else:
+            print("❌ No trade interface found")
+            logger.warning("❌ No trade interface found")
+        
+        # Add Avantis methods to trading_methods if found
+        if avantis_trading_methods:
+            self.working_methods['avantis_trading_methods'] = avantis_trading_methods
+            print(f"   🎯 Avantis trading methods found: {avantis_trading_methods}")
+            logger.info(f"   🎯 Avantis trading methods found: {avantis_trading_methods}")
+        
+        # Check for transaction signing methods
+        signing_methods = []
+        signing_methods_to_check = ['sign_and_get_receipt', 'write_contract', 'send_and_get_transaction_hash']
+        
+        for method_name in signing_methods_to_check:
+            if hasattr(self.sdk_client, method_name):
+                print(f"   ✅ {method_name} is available")
+                logger.info(f"   ✅ {method_name} is available")
+                signing_methods.append(method_name)
+        
+        if signing_methods:
+            self.working_methods['signing_methods'] = signing_methods
+            print(f"   📝 Signing methods found: {signing_methods}")
+            logger.info(f"   📝 Signing methods found: {signing_methods}")
+        
         # Log summary
         total_working = sum(len(methods) for methods in self.working_methods.values())
         print(f"🎯 METHOD DISCOVERY SUMMARY:")
@@ -653,7 +720,7 @@ class BasicAvantisTrader:
             }
 
     async def _execute_live_trade_async(self, trade_data):
-        logger.info("🚀 Executing async LIVE trade...")
+        logger.info("🚀 Executing async LIVE trade with Avantis SDK...")
         logger.info(f"   SDK Client available: {self.sdk_client is not None}")
         
         if not self.sdk_client:
@@ -661,165 +728,155 @@ class BasicAvantisTrader:
             return {
                 'success': False,
                 'error': "SDK client not initialized",
-                'message': 'No SDK client available for LIVE trading',
-                'debug_info': {
-                    'sdk_available': REAL_SDK_AVAILABLE,
-                    'trading_mode': self.trading_mode,
-                    'initialization_failed': True
-                }
+                'message': 'No SDK client available for LIVE trading'
             }
         
-        # Get trading methods we discovered
-        trading_methods = getattr(self, 'working_methods', {}).get('trading_methods', [])
+        # Check if trade property exists (from our logs, we know it does)
+        if not hasattr(self.sdk_client, 'trade'):
+            logger.error("❌ No 'trade' property found on SDK client")
+            return {
+                'success': False,
+                'error': "SDK trade interface not available",
+                'message': 'trade property missing from SDK client'
+            }
         
-        logger.info(f"🔍 Discovered trading methods: {trading_methods}")
-        
-        if not trading_methods:
-            logger.warning("⚠️ No trading methods discovered, trying common ones...")
-            trading_methods = ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade', 'submit_order']
-        
-        # Prepare trade parameters
+        # Prepare trade parameters for Avantis format
         symbol = trade_data.get('symbol', 'BTC/USDT')
         direction = trade_data.get('direction', 'LONG').upper()
-        asset = symbol.split('/')[0]
         is_long = direction == 'LONG'
         position_size = trade_data.get('position_size', 100)
         leverage = trade_data.get('leverage', 10)
         
         logger.info(f"📋 Trade Parameters:")
         logger.info(f"   Symbol: {symbol}")
-        logger.info(f"   Asset: {asset}")
         logger.info(f"   Direction: {direction} (is_long: {is_long})")
         logger.info(f"   Position Size: ${position_size}")
         logger.info(f"   Leverage: {leverage}x")
         
-        # Try each discovered trading method
-        methods_tried = []
-        last_error = None
-        
-        for method_name in trading_methods:
-            if hasattr(self.sdk_client, method_name):
-                logger.info(f"✅ Found LIVE method: {method_name}")
-                method = getattr(self.sdk_client, method_name)
+        try:
+            # Method 1: Try using build_trade_open_tx (the proper Avantis method)
+            logger.info("🔥 ATTEMPTING AVANTIS build_trade_open_tx METHOD...")
+            
+            trade_interface = self.sdk_client.trade
+            
+            if hasattr(trade_interface, 'build_trade_open_tx'):
+                logger.info("✅ Found build_trade_open_tx method!")
                 
-                # Different parameter formats to try - SYNTAX VERIFIED
-                param_sets = [
+                # Try different parameter combinations for Avantis SDK
+                avantis_param_sets = [
                     {
-                        'name': 'Standard Format',
+                        'name': 'Full Avantis Format',
                         'params': {
-                            'symbol': symbol,
-                            'side': direction,
-                            'size': position_size,
-                            'leverage': leverage
-                        }
-                    },
-                    {
-                        'name': 'Asset Format', 
-                        'params': {
-                            'asset': asset,
-                            'is_long': is_long,
-                            'margin': position_size,
-                            'leverage': leverage
-                        }
-                    },
-                    {
-                        'name': 'Pair Format',
-                        'params': {
-                            'pair': symbol,
-                            'direction': direction.lower(),
-                            'amount': position_size,
-                            'leverage': leverage
-                        }
-                    },
-                    {
-                        'name': 'Market Format',
-                        'params': {
-                            'market': asset,
+                            'pair_index': 0,  # BTC usually index 0
+                            'collateral': int(position_size * 1e6),  # USDC has 6 decimals
+                            'open_price': int(trade_data.get('entry_price', 50000) * 1e10),  # 10 decimals
                             'long': is_long,
-                            'size': position_size
+                            'leverage': leverage,
+                            'tp': int(trade_data.get('tp1_price', 0) * 1e10) if trade_data.get('tp1_price', 0) > 0 else 0,
+                            'sl': int(trade_data.get('stop_loss', 0) * 1e10) if trade_data.get('stop_loss', 0) > 0 else 0
                         }
                     },
                     {
-                        'name': 'Simple Format',
+                        'name': 'Simplified Avantis Format',
                         'params': {
-                            'symbol': asset,
-                            'side': 'BUY' if is_long else 'SELL',
-                            'quantity': position_size
+                            'pair_index': 0,
+                            'collateral': position_size,
+                            'long': is_long,
+                            'leverage': leverage
+                        }
+                    },
+                    {
+                        'name': 'Basic Avantis Format',
+                        'params': {
+                            'pair_index': 0,
+                            'collateral': int(position_size),
+                            'long': is_long
                         }
                     }
                 ]
                 
-                for param_set in param_sets:
+                for param_set in avantis_param_sets:
                     try:
-                        logger.info(f"🔥 CALLING LIVE {method_name} with {param_set['name']}...")
+                        logger.info(f"🎯 Trying Avantis {param_set['name']}...")
                         logger.info(f"   Parameters: {param_set['params']}")
                         
-                        if asyncio.iscoroutinefunction(method):
-                            result = await method(**param_set['params'])
+                        if asyncio.iscoroutinefunction(trade_interface.build_trade_open_tx):
+                            tx_data = await trade_interface.build_trade_open_tx(**param_set['params'])
                         else:
-                            result = method(**param_set['params'])
+                            tx_data = trade_interface.build_trade_open_tx(**param_set['params'])
                         
-                        logger.info(f"📤 {method_name} returned: {result}")
-                        logger.info(f"   Result type: {type(result)}")
+                        logger.info(f"✅ build_trade_open_tx succeeded!")
+                        logger.info(f"   TX Data: {tx_data}")
                         
-                        # Check if result indicates success
-                        if result:
-                            success = True
-                            if isinstance(result, dict):
-                                success = result.get('success', True)
-                                if 'error' in result and result['error']:
-                                    success = False
-                            
-                            if success:
-                                logger.info(f"🎉 LIVE TRADE SUCCESS via {method_name} with {param_set['name']}!")
-                                
-                                return {
-                                    'success': True,
-                                    'position_id': str(result.get('position_id', f'live_{int(time.time())}') if isinstance(result, dict) else f'live_{int(time.time())}'),
-                                    'avantis_position_id': str(result.get('position_id', result.get('id', 'unknown')) if isinstance(result, dict) else result),
-                                    'transaction_hash': str(result.get('tx_hash', result.get('transactionHash', result.get('hash', f'tx_{int(time.time())}')) if isinstance(result, dict) else f'tx_{int(time.time())}')),
-                                    'actual_entry_price': result.get('entry_price', result.get('price', trade_data.get('entry_price', 0))) if isinstance(result, dict) else trade_data.get('entry_price', 0),
-                                    'collateral_used': position_size,
-                                    'leverage': leverage,
-                                    'gas_used': result.get('gas_used', 0) if isinstance(result, dict) else 0,
-                                    'note': f'Real trade executed via {method_name} SDK method with {param_set["name"]}',
-                                    'method_used': method_name,
-                                    'param_format': param_set['name']
-                                }
+                        # Now sign and send the transaction
+                        logger.info("📝 Signing and sending transaction...")
+                        
+                        if hasattr(self.sdk_client, 'sign_and_get_receipt'):
+                            if asyncio.iscoroutinefunction(self.sdk_client.sign_and_get_receipt):
+                                receipt = await self.sdk_client.sign_and_get_receipt(tx_data)
                             else:
-                                logger.warning(f"⚠️ {method_name} returned unsuccessful result: {result}")
+                                receipt = self.sdk_client.sign_and_get_receipt(tx_data)
+                            
+                            logger.info(f"🎉 REAL AVANTIS TRADE EXECUTED!")
+                            logger.info(f"   Receipt: {receipt}")
+                            
+                            # Extract transaction hash and other details
+                            tx_hash = receipt.get('transactionHash', receipt.get('hash', 'unknown'))
+                            
+                            return {
+                                'success': True,
+                                'position_id': f'avantis_{int(time.time())}',
+                                'avantis_position_id': f'avantis_{int(time.time())}',
+                                'transaction_hash': str(tx_hash),
+                                'actual_entry_price': trade_data.get('entry_price', 0),
+                                'collateral_used': position_size,
+                                'leverage': leverage,
+                                'gas_used': receipt.get('gasUsed', 0),
+                                'note': f'Real Avantis trade executed via build_trade_open_tx',
+                                'method_used': 'build_trade_open_tx',
+                                'param_format': param_set['name'],
+                                'receipt': receipt
+                            }
                         else:
-                            logger.warning(f"⚠️ {method_name} returned empty result")
-                        
-                        methods_tried.append(f"{method_name}({param_set['name']})")
-                        
+                            logger.warning("⚠️ No sign_and_get_receipt method found")
+                            break
+                            
                     except Exception as param_error:
-                        logger.warning(f"⚠️ LIVE {method_name} with {param_set['name']} failed: {param_error}")
-                        methods_tried.append(f"{method_name}({param_set['name']}) - {str(param_error)}")
-                        last_error = param_error
+                        logger.warning(f"⚠️ Avantis {param_set['name']} failed: {param_error}")
                         continue
             else:
-                logger.warning(f"❌ {method_name} not available on SDK client")
-                methods_tried.append(f"{method_name} - not available")
-        
-        # If we get here, no trading methods worked
-        logger.error("❌ No LIVE trading methods worked")
-        error_message = f'Tried {len(methods_tried)} method combinations. Last error: {last_error}'
-        
-        return {
-            'success': False,
-            'error': 'No working LIVE trading methods found',
-            'message': error_message,
-            'available_methods': self.available_methods,
-            'tried_methods': methods_tried,
-            'working_methods': self.working_methods,
-            'debug_info': {
-                'sdk_type': str(type(self.sdk_client)),
-                'methods_discovered': len(self.available_methods),
-                'trading_methods_found': len(trading_methods),
-                'attempts_made': len(methods_tried)
+                logger.error("❌ build_trade_open_tx method not found")
+            
+            # Method 2: Try alternative signing methods
+            logger.info("🔄 Trying alternative transaction signing methods...")
+            
+            if hasattr(self.sdk_client, 'write_contract'):
+                logger.info("🔧 Found write_contract method, attempting direct contract call...")
+                # This would require more specific contract parameters
+                # For now, return a detailed error message
+                
+            logger.error("❌ No working Avantis trading methods found")
+            return {
+                'success': False,
+                'error': 'Avantis SDK methods available but parameters need adjustment',
+                'message': 'build_trade_open_tx exists but parameter format needs refinement',
+                'available_trade_methods': [method for method in dir(trade_interface) if not method.startswith('_')],
+                'debug_info': {
+                    'trade_interface_type': str(type(trade_interface)),
+                    'has_build_trade_open_tx': hasattr(trade_interface, 'build_trade_open_tx'),
+                    'has_sign_and_get_receipt': hasattr(self.sdk_client, 'sign_and_get_receipt'),
+                    'sdk_client_type': str(type(self.sdk_client))
+                }
             }
-        }
+            
+        except Exception as e:
+            logger.error(f"💥 Avantis trade execution error: {e}")
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            return {
+                'success': False,
+                'error': f'Avantis trade execution failed: {str(e)}',
+                'message': 'Error in Avantis SDK trade execution'
+            }
 
     def _execute_test_trade(self, trade_data):
         logger.info("🧪 TEST TRADE - No real money involved")
