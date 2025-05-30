@@ -720,7 +720,7 @@ class BasicAvantisTrader:
             }
 
     async def _execute_live_trade_async(self, trade_data):
-        logger.info("🚀 Executing async LIVE trade with Avantis SDK...")
+        logger.info("🚀 Executing async LIVE trade with HYBRID Avantis approach...")
         logger.info(f"   SDK Client available: {self.sdk_client is not None}")
         
         if not self.sdk_client:
@@ -731,7 +731,7 @@ class BasicAvantisTrader:
                 'message': 'No SDK client available for LIVE trading'
             }
         
-        # Check if trade property exists (from our logs, we know it does)
+        # Check if trade property exists (we know it does from our discovery)
         if not hasattr(self.sdk_client, 'trade'):
             logger.error("❌ No 'trade' property found on SDK client")
             return {
@@ -740,142 +740,193 @@ class BasicAvantisTrader:
                 'message': 'trade property missing from SDK client'
             }
         
-        # Prepare trade parameters for Avantis format
+        # Check if we discovered the required Avantis methods
+        avantis_methods = getattr(self, 'working_methods', {}).get('avantis_trading_methods', [])
+        signing_methods = getattr(self, 'working_methods', {}).get('signing_methods', [])
+        
+        if 'trade.build_trade_open_tx' not in avantis_methods:
+            logger.error("❌ build_trade_open_tx not discovered")
+            return {
+                'success': False,
+                'error': "Required Avantis trading method not available",
+                'message': 'build_trade_open_tx method not found'
+            }
+        
+        if 'sign_and_get_receipt' not in signing_methods:
+            logger.error("❌ sign_and_get_receipt not discovered") 
+            return {
+                'success': False,
+                'error': "Required signing method not available",
+                'message': 'sign_and_get_receipt method not found'
+            }
+        
+        # Prepare trade parameters using ChatGPT's cleaner approach
         symbol = trade_data.get('symbol', 'BTC/USDT')
         direction = trade_data.get('direction', 'LONG').upper()
-        is_long = direction == 'LONG'
         position_size = trade_data.get('position_size', 100)
         leverage = trade_data.get('leverage', 10)
         
-        logger.info(f"📋 Trade Parameters:")
-        logger.info(f"   Symbol: {symbol}")
-        logger.info(f"   Direction: {direction} (is_long: {is_long})")
-        logger.info(f"   Position Size: ${position_size}")
+        # Convert to Avantis format
+        asset_symbol = symbol.replace("/", "")  # "BTC/USDT" -> "BTCUSDT"
+        direction_clean = direction.lower()     # "LONG" -> "long"
+        collateral = position_size              # Use direct USDC amount
+        
+        # Optional TP/SL (simplified)
+        tp_price = trade_data.get('tp1_price', 0)
+        sl_price = trade_data.get('stop_loss', 0)
+        
+        logger.info(f"📋 HYBRID Trade Parameters:")
+        logger.info(f"   Symbol: {symbol} → {asset_symbol}")
+        logger.info(f"   Direction: {direction} → {direction_clean}")
+        logger.info(f"   Collateral: ${collateral}")
         logger.info(f"   Leverage: {leverage}x")
+        logger.info(f"   TP: ${tp_price}, SL: ${sl_price}")
         
         try:
-            # Method 1: Try using build_trade_open_tx (the proper Avantis method)
-            logger.info("🔥 ATTEMPTING AVANTIS build_trade_open_tx METHOD...")
+            # Step 1: Check balance first (good practice)
+            logger.info("💰 Checking account balance before trade...")
+            try:
+                balance = await self.sdk_client.get_balance()
+                logger.info(f"   Account balance: {balance}")
+                
+                # Basic balance check (assuming balance is in ETH, convert to USD estimate)
+                if isinstance(balance, (int, float)):
+                    estimated_usd = balance * 2500  # Rough ETH to USD conversion
+                    if estimated_usd < collateral:
+                        logger.warning(f"⚠️ Potentially insufficient balance: ~${estimated_usd} vs ${collateral} needed")
+                
+            except Exception as balance_error:
+                logger.warning(f"⚠️ Balance check failed: {balance_error}, proceeding anyway...")
+            
+            # Step 2: Build trade transaction (ChatGPT's clean approach)
+            logger.info("🧱 Building trade transaction with Avantis SDK...")
             
             trade_interface = self.sdk_client.trade
             
-            if hasattr(trade_interface, 'build_trade_open_tx'):
-                logger.info("✅ Found build_trade_open_tx method!")
+            # Primary approach: Clean parameter format
+            primary_params = {
+                'symbol': asset_symbol,
+                'direction': direction_clean,
+                'collateral': collateral,
+                'leverage': leverage
+            }
+            
+            # Add TP/SL if provided
+            if tp_price > 0:
+                primary_params['tp'] = tp_price
+            if sl_price > 0:
+                primary_params['sl'] = sl_price
+            
+            logger.info(f"🎯 Primary params: {primary_params}")
+            
+            try:
+                tx_data = await trade_interface.build_trade_open_tx(**primary_params)
+                logger.info(f"✅ Trade transaction built successfully!")
+                logger.info(f"   TX Data type: {type(tx_data)}")
+                logger.info(f"   TX Data: {tx_data}")
                 
-                # Try different parameter combinations for Avantis SDK
-                avantis_param_sets = [
+            except Exception as primary_error:
+                logger.warning(f"⚠️ Primary approach failed: {primary_error}")
+                
+                # Fallback: Try alternative parameter formats
+                logger.info("🔄 Trying alternative parameter formats...")
+                
+                fallback_attempts = [
                     {
-                        'name': 'Full Avantis Format',
+                        'name': 'Pair Index Format',
                         'params': {
-                            'pair_index': 0,  # BTC usually index 0
-                            'collateral': int(position_size * 1e6),  # USDC has 6 decimals
-                            'open_price': int(trade_data.get('entry_price', 50000) * 1e10),  # 10 decimals
-                            'long': is_long,
-                            'leverage': leverage,
-                            'tp': int(trade_data.get('tp1_price', 0) * 1e10) if trade_data.get('tp1_price', 0) > 0 else 0,
-                            'sl': int(trade_data.get('stop_loss', 0) * 1e10) if trade_data.get('stop_loss', 0) > 0 else 0
-                        }
-                    },
-                    {
-                        'name': 'Simplified Avantis Format',
-                        'params': {
-                            'pair_index': 0,
-                            'collateral': position_size,
-                            'long': is_long,
+                            'pair_index': 0,  # BTC usually 0
+                            'collateral': collateral,
+                            'long': direction_clean == 'long',
                             'leverage': leverage
                         }
                     },
                     {
-                        'name': 'Basic Avantis Format',
+                        'name': 'Full Contract Format', 
                         'params': {
                             'pair_index': 0,
-                            'collateral': int(position_size),
-                            'long': is_long
+                            'collateral': int(collateral * 1e6),  # USDC decimals
+                            'long': direction_clean == 'long',
+                            'leverage': leverage,
+                            'tp': int(tp_price * 1e10) if tp_price > 0 else 0,
+                            'sl': int(sl_price * 1e10) if sl_price > 0 else 0
+                        }
+                    },
+                    {
+                        'name': 'Minimal Format',
+                        'params': {
+                            'pair_index': 0,
+                            'collateral': collateral,
+                            'long': direction_clean == 'long'
                         }
                     }
                 ]
                 
-                for param_set in avantis_param_sets:
+                tx_data = None
+                for attempt in fallback_attempts:
                     try:
-                        logger.info(f"🎯 Trying Avantis {param_set['name']}...")
-                        logger.info(f"   Parameters: {param_set['params']}")
-                        
-                        if asyncio.iscoroutinefunction(trade_interface.build_trade_open_tx):
-                            tx_data = await trade_interface.build_trade_open_tx(**param_set['params'])
-                        else:
-                            tx_data = trade_interface.build_trade_open_tx(**param_set['params'])
-                        
-                        logger.info(f"✅ build_trade_open_tx succeeded!")
-                        logger.info(f"   TX Data: {tx_data}")
-                        
-                        # Now sign and send the transaction
-                        logger.info("📝 Signing and sending transaction...")
-                        
-                        if hasattr(self.sdk_client, 'sign_and_get_receipt'):
-                            if asyncio.iscoroutinefunction(self.sdk_client.sign_and_get_receipt):
-                                receipt = await self.sdk_client.sign_and_get_receipt(tx_data)
-                            else:
-                                receipt = self.sdk_client.sign_and_get_receipt(tx_data)
-                            
-                            logger.info(f"🎉 REAL AVANTIS TRADE EXECUTED!")
-                            logger.info(f"   Receipt: {receipt}")
-                            
-                            # Extract transaction hash and other details
-                            tx_hash = receipt.get('transactionHash', receipt.get('hash', 'unknown'))
-                            
-                            return {
-                                'success': True,
-                                'position_id': f'avantis_{int(time.time())}',
-                                'avantis_position_id': f'avantis_{int(time.time())}',
-                                'transaction_hash': str(tx_hash),
-                                'actual_entry_price': trade_data.get('entry_price', 0),
-                                'collateral_used': position_size,
-                                'leverage': leverage,
-                                'gas_used': receipt.get('gasUsed', 0),
-                                'note': f'Real Avantis trade executed via build_trade_open_tx',
-                                'method_used': 'build_trade_open_tx',
-                                'param_format': param_set['name'],
-                                'receipt': receipt
-                            }
-                        else:
-                            logger.warning("⚠️ No sign_and_get_receipt method found")
-                            break
-                            
-                    except Exception as param_error:
-                        logger.warning(f"⚠️ Avantis {param_set['name']} failed: {param_error}")
+                        logger.info(f"   🎯 Trying {attempt['name']}: {attempt['params']}")
+                        tx_data = await trade_interface.build_trade_open_tx(**attempt['params'])
+                        logger.info(f"   ✅ {attempt['name']} succeeded!")
+                        break
+                    except Exception as fallback_error:
+                        logger.warning(f"   ❌ {attempt['name']} failed: {fallback_error}")
                         continue
-            else:
-                logger.error("❌ build_trade_open_tx method not found")
-            
-            # Method 2: Try alternative signing methods
-            logger.info("🔄 Trying alternative transaction signing methods...")
-            
-            if hasattr(self.sdk_client, 'write_contract'):
-                logger.info("🔧 Found write_contract method, attempting direct contract call...")
-                # This would require more specific contract parameters
-                # For now, return a detailed error message
                 
-            logger.error("❌ No working Avantis trading methods found")
+                if not tx_data:
+                    raise Exception("All parameter formats failed")
+            
+            # Step 3: Sign and execute transaction
+            logger.info("📝 Signing and executing trade transaction...")
+            
+            receipt = await self.sdk_client.sign_and_get_receipt(tx_data)
+            
+            logger.info(f"🎉 REAL AVANTIS TRADE EXECUTED SUCCESSFULLY!")
+            logger.info(f"   Receipt type: {type(receipt)}")
+            logger.info(f"   Receipt: {receipt}")
+            
+            # Extract key information from receipt
+            tx_hash = 'unknown'
+            gas_used = 0
+            
+            if isinstance(receipt, dict):
+                tx_hash = receipt.get('transactionHash', receipt.get('hash', 'unknown'))
+                gas_used = receipt.get('gasUsed', 0)
+            else:
+                tx_hash = str(receipt) if receipt else 'unknown'
+            
+            logger.info(f"   🔗 Transaction Hash: {tx_hash}")
+            logger.info(f"   ⛽ Gas Used: {gas_used}")
+            
             return {
-                'success': False,
-                'error': 'Avantis SDK methods available but parameters need adjustment',
-                'message': 'build_trade_open_tx exists but parameter format needs refinement',
-                'available_trade_methods': [method for method in dir(trade_interface) if not method.startswith('_')],
-                'debug_info': {
-                    'trade_interface_type': str(type(trade_interface)),
-                    'has_build_trade_open_tx': hasattr(trade_interface, 'build_trade_open_tx'),
-                    'has_sign_and_get_receipt': hasattr(self.sdk_client, 'sign_and_get_receipt'),
-                    'sdk_client_type': str(type(self.sdk_client))
-                }
+                'success': True,
+                'position_id': f'avantis_{int(time.time())}',
+                'avantis_position_id': f'avantis_{int(time.time())}', 
+                'transaction_hash': str(tx_hash),
+                'actual_entry_price': trade_data.get('entry_price', 0),
+                'collateral_used': collateral,
+                'leverage': leverage,
+                'gas_used': gas_used,
+                'note': 'Real Avantis trade executed via hybrid approach',
+                'method_used': 'build_trade_open_tx + sign_and_get_receipt',
+                'approach': 'Hybrid (ChatGPT clean params + robust framework)',
+                'receipt': receipt
             }
             
         except Exception as e:
-            logger.error(f"💥 Avantis trade execution error: {e}")
+            logger.error(f"💥 HYBRID trade execution error: {e}")
+            logger.error(f"   Error type: {type(e).__name__}")
             logger.error(f"   Traceback: {traceback.format_exc()}")
+            
             return {
                 'success': False,
-                'error': f'Avantis trade execution failed: {str(e)}',
-                'message': 'Error in Avantis SDK trade execution'
+                'error': f'Hybrid Avantis trade execution failed: {str(e)}',
+                'message': 'Error in hybrid Avantis SDK trade execution',
+                'approach': 'Hybrid approach failed',
+                'available_methods': {
+                    'avantis_methods': avantis_methods,
+                    'signing_methods': signing_methods
+                }
             }
 
     def _execute_test_trade(self, trade_data):
