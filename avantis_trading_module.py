@@ -140,7 +140,7 @@ class BasicAvantisTrader:
         print(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
         logger.info(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
 
-def _initialize_real_sdk(self):
+    def _initialize_real_sdk(self):
         print("🛠 _initialize_real_sdk() CALLED")
         logger.info("🛠 _initialize_real_sdk() CALLED")
         
@@ -294,7 +294,6 @@ def _initialize_real_sdk(self):
 
             logger.info("🔐 Setting up signer...")
             from web3 import Web3
-            ...
             from web3.providers.async_rpc import AsyncHTTPProvider
             
             async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
@@ -834,6 +833,7 @@ def _initialize_real_sdk(self):
             'test_mode': True
         }
 
+
 # Create trader client
 try:
     if not REAL_SDK_AVAILABLE:
@@ -890,6 +890,7 @@ TP_LEVELS = {
         'TP3': 0.08
     }
 }
+
 
 class EnhancedTradeLogger:
     def __init__(self):
@@ -972,6 +973,7 @@ class EnhancedTradeLogger:
         else:
             return 'American'
 
+
 class DynamicProfitManager(ProfitManager):
     def __init__(self):
         super().__init__()
@@ -1005,6 +1007,7 @@ class DynamicProfitManager(ProfitManager):
                 "reserve": 0.20,
                 "phase": "Wealth Protection"
             }
+
 
 class EnhancedAvantisEngine:
     def __init__(self, trader_client):
@@ -1280,6 +1283,7 @@ class EnhancedAvantisEngine:
             
             return {"status": "error", "reason": error_msg}
 
+
 logger.info("🚀 INITIALIZING FLASK APPLICATION...")
 
 try:
@@ -1288,6 +1292,7 @@ try:
 except Exception as e:
     logger.error(f"💥 FAILED TO INITIALIZE ENGINE: {str(e)}")
     raise
+
 
 @app.route('/webhook', methods=['POST'])
 def process_webhook():
@@ -1374,6 +1379,7 @@ def process_webhook():
             "processing_time": f"{processing_time:.2f}s"
         }), 500
 
+
 @app.route('/status', methods=['GET'])
 def get_status():
     try:
@@ -1432,6 +1438,7 @@ def get_status():
         logger.error(f"❌ Status check failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 @app.route('/health', methods=['GET'])
 def health_check():
     try:
@@ -1450,6 +1457,7 @@ def health_check():
     except Exception as e:
         logger.error(f"❌ Health check failed: {str(e)}")
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
+
 
 if __name__ == '__main__':
     logger.info("=" * 60)
