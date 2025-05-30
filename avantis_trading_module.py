@@ -929,6 +929,22 @@ class BasicAvantisTrader:
                 }
             }
 
+@app.route("/trade/test", methods=["POST"])
+def test_trade_route():
+    try:
+        data = request.get_json()
+        logger.info(f"🧪 TEST endpoint received payload: {data}")
+        
+        return jsonify({
+            "success": True,
+            "message": "✅ /trade/test is active and receiving payloads",
+            "mode": "TEST_MODE",
+            "timestamp": datetime.now().isoformat(),
+            "data": data
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
     def _execute_test_trade(self, trade_data):
         logger.info("🧪 TEST TRADE - No real money involved")
         
