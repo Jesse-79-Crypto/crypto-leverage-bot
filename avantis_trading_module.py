@@ -945,6 +945,24 @@ def test_trade_route():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
+@app.route("/trade", methods=["POST"])
+def handle_trade():
+    try:
+        data = request.get_json()
+        logger.info(f"📨 Incoming trade payload: {data}")
+        if not data:
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+        # Example basic response (replace with full bot logic later)
+        return jsonify({
+            "success": True,
+            "message": "✅ /trade endpoint is live and received your data!",
+            "data": data,
+            "timestamp": datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        logger.error(f"💥 Error in /trade: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
     def _execute_test_trade(self, trade_data):
         logger.info("🧪 TEST TRADE - No real money involved")
         
