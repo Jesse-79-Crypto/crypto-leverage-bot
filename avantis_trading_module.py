@@ -879,26 +879,47 @@ class BasicAvantisTrader:
             # Convert position size to proper format (USDC has 6 decimals)
             position_size_usdc = int(position_size * 1e6)  # Convert to USDC units
             
-            # ✅ FIXED: Correct parameter names that the SDK expects
-            trade_input = {
-                'trader': trader_address,  # ✅ FIXED: SDK expects 'trader' not 'user'
-                'pairIndex': pair_index,
-                'index': 0,  # Trade index, usually 0 for new trades
-                'initialPosToken': position_size_usdc,
-                'positionSizeUSDC': position_size_usdc,
-                'openPrice': 0,  # 0 for market order
-                'buy': is_long,
-                'leverage': leverage,
-                'tp': int(tp_price * 1e10) if tp_price > 0 else 0,  # Price precision
-                'sl': int(sl_price * 1e10) if sl_price > 0 else 0   # Price precision
-            }
+            # ✅ FIXED: Create proper object with attributes (not dictionary)
+            # The SDK expects trade_input.trader, not trade_input['trader']
+            class TradeInput:
+                def __init__(self, trader, pairIndex, index, initialPosToken, positionSizeUSDC, 
+                           openPrice, buy, leverage, tp=0, sl=0):
+                    self.trader = trader
+                    self.pairIndex = pairIndex
+                    self.index = index
+                    self.initialPosToken = initialPosToken
+                    self.positionSizeUSDC = positionSizeUSDC
+                    self.openPrice = openPrice
+                    self.buy = buy
+                    self.leverage = leverage
+                    self.tp = tp
+                    self.sl = sl
+            
+            # Create the trade input object (not dictionary!)
+            trade_input = TradeInput(
+                trader=trader_address,
+                pairIndex=pair_index,
+                index=0,  # Trade index, usually 0 for new trades
+                initialPosToken=position_size_usdc,
+                positionSizeUSDC=position_size_usdc,
+                openPrice=0,  # 0 for market order
+                buy=is_long,
+                leverage=leverage,
+                tp=int(tp_price * 1e10) if tp_price > 0 else 0,  # Price precision
+                sl=int(sl_price * 1e10) if sl_price > 0 else 0   # Price precision
+            )
             
             # ✅ FIXED: Add the missing required parameters
             trade_input_order_type = 0  # 0 = Market Order, 1 = Limit Order
             slippage_percentage = 2.0  # 2% slippage tolerance
             
             logger.info(f"🎯 Complete parameters:")
-            logger.info(f"   trade_input: {trade_input}")
+            logger.info(f"   trade_input object:")
+            logger.info(f"     trader: {trade_input.trader}")
+            logger.info(f"     pairIndex: {trade_input.pairIndex}")
+            logger.info(f"     initialPosToken: {trade_input.initialPosToken}")
+            logger.info(f"     buy: {trade_input.buy}")
+            logger.info(f"     leverage: {trade_input.leverage}")
             logger.info(f"   trade_input_order_type: {trade_input_order_type}")
             logger.info(f"   slippage_percentage: {slippage_percentage}")
             
@@ -946,15 +967,16 @@ class BasicAvantisTrader:
                     {
                         'name': 'Minimal Trade Input',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            {
-                                'trader': trader_address,  # ✅ FIXED: Use 'trader' not 'user'
-                                'pairIndex': pair_index,
-                                'index': 0,
-                                'initialPosToken': position_size_usdc,
-                                'openPrice': 0,
-                                'buy': is_long,
-                                'leverage': leverage
-                            },
+                            TradeInput(
+                                trader=trader_address,
+                                pairIndex=pair_index,
+                                index=0,
+                                initialPosToken=position_size_usdc,
+                                positionSizeUSDC=position_size_usdc,
+                                openPrice=0,
+                                buy=is_long,
+                                leverage=leverage
+                            ),
                             trade_input_order_type,
                             slippage_percentage
                         )
@@ -1668,13 +1690,13 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.3 with TRADER ADDRESS FIX",
+            "version": "Enhanced v2.4 with OBJECT STRUCTURE FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "address_fixes": "✅ Multi-method trader address resolution + SDK signer setup"
+                "object_fix": "✅ TradeInput object with attributes (not dictionary keys)"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1718,7 +1740,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - TRADER ADDRESS FIX")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - OBJECT STRUCTURE FIX")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1727,7 +1749,8 @@ if __name__ == '__main__':
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
     logger.info(f"   ✅ ALL FIXES APPLIED:")
-    logger.info(f"      - LATEST: Multi-method trader address resolution")
+    logger.info(f"      - CRITICAL: TradeInput object with attributes (not dictionary)")
+    logger.info(f"      - Multi-method trader address resolution")
     logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
     logger.info(f"      - Changed 'user' to 'trader' parameter (SDK expects .trader)")
     logger.info(f"      - Fixed AsyncIO event loop errors with nest_asyncio")
@@ -1754,7 +1777,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - TRADER ADDRESS FIX APPLIED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - OBJECT STRUCTURE FIX APPLIED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
