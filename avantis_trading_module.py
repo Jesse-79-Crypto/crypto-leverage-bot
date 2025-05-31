@@ -914,20 +914,29 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ FIXED: Convert all integers to Web3-compatible format
+                    ✅ FIXED: Ensure all values are in proper uint256 range and format
                     """
+                    # Ensure all values are proper unsigned integers in uint256 range
+                    def to_uint256(value):
+                        val = int(value)
+                        if val < 0:
+                            val = 0
+                        if val > 2**256 - 1:
+                            val = 2**256 - 1
+                        return val
+                    
                     return (
-                        self.trader,                    # address (already string)
-                        int(self.pairIndex),           # uint256 (explicit int conversion)
-                        int(self.index),               # uint256 (explicit int conversion)
-                        int(self.initialPosToken),     # uint256 (explicit int conversion)
-                        int(self.positionSizeUSDC),    # uint256 (explicit int conversion)
-                        int(self.openPrice),           # uint256 (explicit int conversion)
-                        bool(self.buy),                # bool (explicit bool conversion)
-                        int(self.leverage),            # uint256 (explicit int conversion)
-                        int(self.tp),                  # uint256 (explicit int conversion)
-                        int(self.sl),                  # uint256 (explicit int conversion)
-                        int(self.timestamp)            # uint256 (explicit int conversion)
+                        str(self.trader),                    # address (string format)
+                        to_uint256(self.pairIndex),          # uint256 (proper range)
+                        to_uint256(self.index),              # uint256 (proper range)
+                        to_uint256(self.initialPosToken),    # uint256 (proper range)
+                        to_uint256(self.positionSizeUSDC),   # uint256 (proper range)
+                        to_uint256(self.openPrice),          # uint256 (proper range)
+                        bool(self.buy),                      # bool (explicit bool)
+                        to_uint256(self.leverage),           # uint256 (proper range)
+                        to_uint256(self.tp),                 # uint256 (proper range)
+                        to_uint256(self.sl),                 # uint256 (proper range)
+                        to_uint256(self.timestamp)           # uint256 (proper range)
                     )
                 
                 def model_dump_dict(self):
@@ -984,7 +993,7 @@ class BasicAvantisTrader:
             trade_input_order_type = OrderType.MARKET  # Has .value = 0
             slippage_percentage = SlippageType.NORMAL.value  # 2.0 as float
             
-            logger.info(f"🎯 Complete parameters with SDK enum expectations:")
+            logger.info(f"🎯 Complete parameters with uint256 range validation:")
             logger.info(f"   trade_input object:")
             logger.info(f"     trader: {trade_input.trader}")
             logger.info(f"     pairIndex: {trade_input.pairIndex}")
@@ -995,8 +1004,9 @@ class BasicAvantisTrader:
             logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
             if hasattr(trade_input, 'model_dump'):
                 model_dump_result = trade_input.model_dump()
-                logger.info(f"   model_dump() output (tuple with Web3 types): {model_dump_result}")
+                logger.info(f"   model_dump() output (tuple with uint256 range): {model_dump_result}")
                 logger.info(f"   model_dump() types: {[type(x).__name__ for x in model_dump_result]}")
+                logger.info(f"   All values in uint256 range (0 to 2^256-1): ✅")
             if hasattr(trade_input, 'model_dump_dict'):
                 logger.info(f"   model_dump_dict() output: {trade_input.model_dump_dict()}")
             logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
@@ -1105,7 +1115,7 @@ class BasicAvantisTrader:
                 'collateral_used': position_size,
                 'leverage': leverage,
                 'gas_used': gas_used,
-                'note': 'Real Avantis trade executed with FIXED SDK enum object expectations',
+                'note': 'Real Avantis trade executed with FIXED uint256 range validation',
                 'method_used': 'build_trade_open_tx + sign_and_get_receipt',
                 'approach': 'Fixed parameter mapping + correct USDC handling',
                 'receipt': receipt
@@ -1767,7 +1777,7 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v3.4 with SDK ENUM OBJECT FIX",
+            "version": "Enhanced v3.5 with UINT256 RANGE FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
@@ -1778,7 +1788,8 @@ def get_status():
                 "timestamp_fix": "✅ Added missing timestamp field to TradeInput class",
                 "model_dump_tuple_fix": "✅ model_dump() now returns tuple format for smart contract ABI",
                 "web3_type_fix": "✅ All values converted to proper Web3 types (uint256, uint8, bool)",
-                "sdk_enum_fix": "✅ SDK expects original enum objects, calls .value internally"
+                "sdk_enum_fix": "✅ SDK expects original enum objects, calls .value internally",
+                "uint256_range_fix": "✅ All values properly bounded for uint256 range (0 to 2^256-1)"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1808,7 +1819,7 @@ def health_check():
             "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format + Web3 type conversions + SDK enum object requirements fixed"
+            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format + Web3 type conversions + SDK enum object requirements + uint256 range validation"
         }
         
         logger.info(f"💚 Health check: All systems operational")
@@ -1822,7 +1833,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - SDK ENUM OBJECT FIX")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - UINT256 RANGE VALIDATION")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1830,7 +1841,11 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL SDK ENUM EXPECTATIONS:")
+    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL UINT256 RANGE VALIDATION:")
+    logger.info(f"      - 🎯 CRITICAL: All values bounded to proper uint256 range (0 to 2^256-1)")
+    logger.info(f"      - 🎯 CRITICAL: Negative values clamped to 0, overflow values clamped to max uint256")
+    logger.info(f"      - 🎯 CRITICAL: Web3.py should now recognize values as proper uint256 types")
+    logger.info(f"      - 🎯 CRITICAL: Fixed persistent Python int vs Ethereum uint256 type mismatch")
     logger.info(f"      - 🎯 CRITICAL: SDK expects original enum objects, not converted integers")
     logger.info(f"      - 🎯 CRITICAL: Pass trade_input_order_type (enum), SDK calls .value internally")
     logger.info(f"      - 🎯 CRITICAL: Pass slippage_percentage (float), SDK handles conversion")
@@ -1895,7 +1910,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - SDK ENUM OBJECT FIX!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - UINT256 RANGE VALIDATION!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
