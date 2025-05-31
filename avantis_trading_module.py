@@ -871,9 +871,9 @@ class BasicAvantisTrader:
             # Convert position size to proper format (USDC has 6 decimals)
             position_size_usdc = int(position_size * 1e6)  # Convert to USDC units
             
-            # ✅ FIXED: Complete parameter structure with all required arguments
+            # ✅ FIXED: Correct parameter names that the SDK expects
             trade_input = {
-                'user': trader_address,
+                'trader': trader_address,  # ✅ FIXED: SDK expects 'trader' not 'user'
                 'pairIndex': pair_index,
                 'index': 0,  # Trade index, usually 0 for new trades
                 'initialPosToken': position_size_usdc,
@@ -939,7 +939,7 @@ class BasicAvantisTrader:
                         'name': 'Minimal Trade Input',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             {
-                                'user': trader_address,
+                                'trader': trader_address,  # ✅ FIXED: Use 'trader' not 'user'
                                 'pairIndex': pair_index,
                                 'index': 0,
                                 'initialPosToken': position_size_usdc,
@@ -1660,13 +1660,13 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.1 with CRITICAL FIXES",
+            "version": "Enhanced v2.2 with FINAL PARAMETER FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "critical_fixes": "✅ AsyncIO event loop + trade_input_order_type + slippage_percentage"
+                "final_fixes": "✅ 'trader' parameter + AsyncIO + trade_input_order_type + slippage_percentage"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1710,7 +1710,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - CRITICAL FIXES APPLIED")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - FINAL PARAMETER FIX")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1718,7 +1718,8 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ CRITICAL FIXES APPLIED:")
+    logger.info(f"   ✅ ALL FIXES APPLIED:")
+    logger.info(f"      - FINAL: Changed 'user' to 'trader' parameter (SDK expects .trader)")
     logger.info(f"      - Fixed AsyncIO event loop errors with nest_asyncio")
     logger.info(f"      - Added missing trade_input_order_type parameter (Market Order = 0)")
     logger.info(f"      - Added missing slippage_percentage parameter (2% default)")
