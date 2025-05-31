@@ -893,7 +893,7 @@ class BasicAvantisTrader:
             # Convert position size to proper format (USDC has 6 decimals)
             position_size_usdc = int(position_size * 1e6)  # Convert to USDC units
             
-            # ✅ FIXED: Create Pydantic-like object with model_dump() method
+            # ✅ FIXED: Create Pydantic-like object with model_dump() method AND tuple conversion
             # The SDK expects trade_input.model_dump(), indicating it's a Pydantic model
             class TradeInput:
                 def __init__(self, trader, pairIndex, index, initialPosToken, positionSizeUSDC, 
@@ -926,6 +926,24 @@ class BasicAvantisTrader:
                         'sl': self.sl,
                         'timestamp': self.timestamp  # ✅ FIXED: Include timestamp in model_dump
                     }
+                
+                def to_tuple(self):
+                    """Convert to tuple format expected by smart contract ABI
+                    Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
+                    """
+                    return (
+                        self.trader,           # address
+                        self.pairIndex,        # uint256
+                        self.index,            # uint256
+                        self.initialPosToken,  # uint256
+                        self.positionSizeUSDC, # uint256
+                        self.openPrice,        # uint256
+                        self.buy,              # bool
+                        self.leverage,         # uint256
+                        self.tp,               # uint256
+                        self.sl,               # uint256
+                        self.timestamp         # uint256
+                    )
             
             # Create the trade input object (with model_dump() support!)
             current_timestamp = int(time.time())
@@ -956,16 +974,17 @@ class BasicAvantisTrader:
             logger.info(f"     leverage: {trade_input.leverage}")
             logger.info(f"     timestamp: {trade_input.timestamp}")  # ✅ FIXED: Log timestamp
             logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
-            if hasattr(trade_input, 'model_dump'):
-                logger.info(f"   model_dump() output: {trade_input.model_dump()}")
+            logger.info(f"   to_tuple() available: {hasattr(trade_input, 'to_tuple')}")
+            if hasattr(trade_input, 'to_tuple'):
+                logger.info(f"   to_tuple() output: {trade_input.to_tuple()}")
             logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
             logger.info(f"   trade_input_order_type.value: {trade_input_order_type.value}")
             logger.info(f"   slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
             
             try:
-                # ✅ FIXED: Use all required parameters as positional arguments
+                # ✅ FIXED: Use tuple format instead of model_dump() for smart contract
                 tx_data = await trade_interface.build_trade_open_tx(
-                    trade_input, 
+                    trade_input.to_tuple(),  # ✅ FIXED: Convert to tuple for ABI compatibility
                     trade_input_order_type, 
                     slippage_percentage
                 )
@@ -975,14 +994,14 @@ class BasicAvantisTrader:
             except Exception as primary_error:
                 logger.warning(f"⚠️ Primary approach failed: {primary_error}")
                 
-                # ✅ FIXED: Fallback attempts with different parameter combinations
+                # ✅ FIXED: Fallback attempts with tuple format
                 logger.info("🔄 Trying alternative parameter formats...")
                 
                 fallback_attempts = [
                     {
                         'name': 'Keyword Arguments Format',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input=trade_input,
+                            trade_input=trade_input.to_tuple(),  # ✅ FIXED: Use tuple
                             trade_input_order_type=trade_input_order_type,
                             slippage_percentage=slippage_percentage
                         )
@@ -990,7 +1009,7 @@ class BasicAvantisTrader:
                     {
                         'name': 'Different Order Type',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input, 
+                            trade_input.to_tuple(),  # ✅ FIXED: Use tuple
                             OrderType.LIMIT,  # Try limit order enum
                             slippage_percentage
                         )
@@ -998,7 +1017,7 @@ class BasicAvantisTrader:
                     {
                         'name': 'Higher Slippage',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input, 
+                            trade_input.to_tuple(),  # ✅ FIXED: Use tuple
                             trade_input_order_type, 
                             SlippageType.HIGH.value  # 5.0% slippage
                         )
@@ -1006,21 +1025,21 @@ class BasicAvantisTrader:
                     {
                         'name': 'Plain Integer Values',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input, 
+                            trade_input.to_tuple(),  # ✅ FIXED: Use tuple
                             0,  # Plain integer
                             2.0  # Plain float
                         )
                     },
                     {
-                        'name': 'Dictionary Fallback',
+                        'name': 'Dictionary Fallback (model_dump)',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input.model_dump(),  # Use the dictionary representation
+                            trade_input.model_dump(),  # Try dictionary as original fallback
                             trade_input_order_type,
                             slippage_percentage
                         )
                     },
                     {
-                        'name': 'Minimal Trade Input',
+                        'name': 'Minimal Trade Input Tuple',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             TradeInput(
                                 trader=trader_address,
@@ -1032,7 +1051,7 @@ class BasicAvantisTrader:
                                 buy=is_long,
                                 leverage=leverage,
                                 timestamp=current_timestamp  # ✅ FIXED: Include timestamp in minimal fallback
-                            ),
+                            ).to_tuple(),  # ✅ FIXED: Convert to tuple
                             trade_input_order_type,
                             slippage_percentage
                         )
@@ -1084,7 +1103,7 @@ class BasicAvantisTrader:
                 'collateral_used': position_size,
                 'leverage': leverage,
                 'gas_used': gas_used,
-                'note': 'Real Avantis trade executed with FIXED parameters',
+                'note': 'Real Avantis trade executed with FIXED parameters and tuple ABI format',
                 'method_used': 'build_trade_open_tx + sign_and_get_receipt',
                 'approach': 'Fixed parameter mapping + correct USDC handling',
                 'receipt': receipt
@@ -1746,7 +1765,7 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.9 with TIMESTAMP FIELD FIX",
+            "version": "Enhanced v3.0 with TUPLE ABI FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
@@ -1754,7 +1773,8 @@ def get_status():
                 "profit_allocation_phase": allocation["phase"],
                 "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach",
                 "enum_scope_fix": "✅ OrderType and SlippageType moved to function level",
-                "timestamp_fix": "✅ Added missing timestamp field to TradeInput class"
+                "timestamp_fix": "✅ Added missing timestamp field to TradeInput class",
+                "tuple_abi_fix": "✅ Convert TradeInput to tuple format for smart contract ABI"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1784,7 +1804,7 @@ def health_check():
             "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field fixed"
+            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + tuple ABI format fixed"
         }
         
         logger.info(f"💚 Health check: All systems operational")
@@ -1798,7 +1818,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - TIMESTAMP FIELD FIXED")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - TUPLE ABI FORMAT FIXED")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1806,7 +1826,11 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + NEW TIMESTAMP FIX:")
+    logger.info(f"   ✅ ALL FIXES APPLIED + NEW TUPLE ABI FIX:")
+    logger.info(f"      - 🎯 CRITICAL: Added to_tuple() method for smart contract ABI compatibility")
+    logger.info(f"      - 🎯 CRITICAL: TradeInput now converts to tuple format (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)")
+    logger.info(f"      - 🎯 CRITICAL: Fixed 'positional arguments with type(s) dict,int,float' error")
+    logger.info(f"      - 🎯 CRITICAL: Smart contract expects tuple, not dictionary from model_dump()")
     logger.info(f"      - 🎯 CRITICAL: Added missing timestamp field to TradeInput class")
     logger.info(f"      - 🎯 CRITICAL: timestamp included in model_dump() output")
     logger.info(f"      - 🎯 CRITICAL: Fixed KeyError: 'timestamp' smart contract error")
@@ -1845,7 +1869,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - TIMESTAMP FIELD FIXED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - TUPLE ABI FORMAT FIXED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
