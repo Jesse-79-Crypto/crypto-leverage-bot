@@ -792,6 +792,20 @@ class BasicAvantisTrader:
             }
 
     async def _execute_live_trade_async(self, trade_data):
+        """Execute live trade with enhanced error handling and debugging"""
+        
+        # 🎯 DEFINE ENUMS AT FUNCTION LEVEL (OUTSIDE ALL TRY BLOCKS)
+        from enum import Enum
+        
+        class OrderType(Enum):
+            MARKET = 0
+            LIMIT = 1
+        
+        class SlippageType(Enum):
+            NORMAL = 2.0    # 2% slippage
+            HIGH = 5.0      # 5% slippage
+            LOW = 1.0       # 1% slippage
+        
         logger.info("🚀 Executing async LIVE trade with FIXED Avantis approach...")
         logger.info(f"   SDK Client available: {self.sdk_client is not None}")
         
@@ -1725,13 +1739,14 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.7 with SDK STRUCTURE CONFIRMATION",
+            "version": "Enhanced v2.8 with ENUM SCOPE FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach"
+                "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach",
+                "enum_scope_fix": "✅ OrderType and SlippageType moved to function level"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1761,7 +1776,7 @@ def health_check():
             "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ All parameter mapping issues resolved"
+            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope fixed"
         }
         
         logger.info(f"💚 Health check: All systems operational")
@@ -1775,7 +1790,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - SDK STRUCTURE CONFIRMED")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - ENUM SCOPE FIXED")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1783,7 +1798,10 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + SDK STRUCTURE CONFIRMED:")
+    logger.info(f"   ✅ ALL FIXES APPLIED + NEW ENUM SCOPE FIX:")
+    logger.info(f"      - 🎯 CRITICAL: OrderType and SlippageType Enums moved to function level")
+    logger.info(f"      - 🎯 CRITICAL: Enum definitions accessible throughout _execute_live_trade_async")
+    logger.info(f"      - 🎯 CRITICAL: Fixed NameError: name 'OrderType' is not defined")
     logger.info(f"      - CONFIRMED: SDK has no address methods - use signer.address fallback")
     logger.info(f"      - CONFIRMED: client.trade.build_trade_open_tx() is the correct method")
     logger.info(f"      - OrderType and SlippageType Enums with .value attributes")
@@ -1816,7 +1834,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - SDK STRUCTURE CONFIRMED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - ENUM SCOPE FIXED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
