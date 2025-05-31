@@ -897,7 +897,7 @@ class BasicAvantisTrader:
             # The SDK expects trade_input.model_dump(), indicating it's a Pydantic model
             class TradeInput:
                 def __init__(self, trader, pairIndex, index, initialPosToken, positionSizeUSDC, 
-                           openPrice, buy, leverage, tp=0, sl=0):
+                           openPrice, buy, leverage, tp=0, sl=0, timestamp=None):
                     self.trader = trader
                     self.pairIndex = pairIndex
                     self.index = index
@@ -908,6 +908,8 @@ class BasicAvantisTrader:
                     self.leverage = leverage
                     self.tp = tp
                     self.sl = sl
+                    # ✅ FIXED: Add missing timestamp field required by smart contract
+                    self.timestamp = timestamp if timestamp is not None else int(time.time())
                 
                 def model_dump(self):
                     """Pydantic-like model_dump method that SDK expects"""
@@ -921,10 +923,12 @@ class BasicAvantisTrader:
                         'buy': self.buy,
                         'leverage': self.leverage,
                         'tp': self.tp,
-                        'sl': self.sl
+                        'sl': self.sl,
+                        'timestamp': self.timestamp  # ✅ FIXED: Include timestamp in model_dump
                     }
             
             # Create the trade input object (with model_dump() support!)
+            current_timestamp = int(time.time())
             trade_input = TradeInput(
                 trader=trader_address,
                 pairIndex=pair_index,
@@ -935,7 +939,8 @@ class BasicAvantisTrader:
                 buy=is_long,
                 leverage=leverage,
                 tp=int(tp_price * 1e10) if tp_price > 0 else 0,  # Price precision
-                sl=int(sl_price * 1e10) if sl_price > 0 else 0   # Price precision
+                sl=int(sl_price * 1e10) if sl_price > 0 else 0,   # Price precision
+                timestamp=current_timestamp  # ✅ FIXED: Add required timestamp
             )
             
             # ✅ FIXED: Create enum instances (not plain integers!)
@@ -949,6 +954,7 @@ class BasicAvantisTrader:
             logger.info(f"     initialPosToken: {trade_input.initialPosToken}")
             logger.info(f"     buy: {trade_input.buy}")
             logger.info(f"     leverage: {trade_input.leverage}")
+            logger.info(f"     timestamp: {trade_input.timestamp}")  # ✅ FIXED: Log timestamp
             logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
             if hasattr(trade_input, 'model_dump'):
                 logger.info(f"   model_dump() output: {trade_input.model_dump()}")
@@ -1024,7 +1030,8 @@ class BasicAvantisTrader:
                                 positionSizeUSDC=position_size_usdc,
                                 openPrice=0,
                                 buy=is_long,
-                                leverage=leverage
+                                leverage=leverage,
+                                timestamp=current_timestamp  # ✅ FIXED: Include timestamp in minimal fallback
                             ),
                             trade_input_order_type,
                             slippage_percentage
@@ -1739,14 +1746,15 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.8 with ENUM SCOPE FIX",
+            "version": "Enhanced v2.9 with TIMESTAMP FIELD FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
                 "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach",
-                "enum_scope_fix": "✅ OrderType and SlippageType moved to function level"
+                "enum_scope_fix": "✅ OrderType and SlippageType moved to function level",
+                "timestamp_fix": "✅ Added missing timestamp field to TradeInput class"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1776,7 +1784,7 @@ def health_check():
             "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope fixed"
+            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field fixed"
         }
         
         logger.info(f"💚 Health check: All systems operational")
@@ -1790,7 +1798,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - ENUM SCOPE FIXED")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - TIMESTAMP FIELD FIXED")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1798,7 +1806,10 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + NEW ENUM SCOPE FIX:")
+    logger.info(f"   ✅ ALL FIXES APPLIED + NEW TIMESTAMP FIX:")
+    logger.info(f"      - 🎯 CRITICAL: Added missing timestamp field to TradeInput class")
+    logger.info(f"      - 🎯 CRITICAL: timestamp included in model_dump() output")
+    logger.info(f"      - 🎯 CRITICAL: Fixed KeyError: 'timestamp' smart contract error")
     logger.info(f"      - 🎯 CRITICAL: OrderType and SlippageType Enums moved to function level")
     logger.info(f"      - 🎯 CRITICAL: Enum definitions accessible throughout _execute_live_trade_async")
     logger.info(f"      - 🎯 CRITICAL: Fixed NameError: name 'OrderType' is not defined")
@@ -1834,7 +1845,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - ENUM SCOPE FIXED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - TIMESTAMP FIELD FIXED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
