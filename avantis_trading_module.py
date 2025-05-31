@@ -1814,7 +1814,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - PYDANTIC MODEL_DUMP FIX APPLIED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - ENUM TYPE FIX APPLIED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
