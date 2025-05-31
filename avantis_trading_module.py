@@ -351,6 +351,14 @@ class BasicAvantisTrader:
             self.signer = LocalSigner(private_key=self.private_key, async_web3=async_web3)
             logger.info("✅ Real signer created for LIVE trading")
             
+            # ✅ FIXED: Set the signer on the SDK client too
+            if self.sdk_client and hasattr(self.sdk_client, 'set_local_signer'):
+                try:
+                    self.sdk_client.set_local_signer(private_key=self.private_key)
+                    logger.info("✅ Signer set on SDK client")
+                except Exception as sdk_signer_error:
+                    logger.warning(f"⚠️ Could not set signer on SDK client: {sdk_signer_error}")
+            
             # Test signer connection
             if hasattr(self.signer, 'get_ethereum_address'):
                 try:
@@ -1660,13 +1668,13 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.2 with FINAL PARAMETER FIX",
+            "version": "Enhanced v2.3 with TRADER ADDRESS FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "final_fixes": "✅ 'trader' parameter + AsyncIO + trade_input_order_type + slippage_percentage"
+                "address_fixes": "✅ Multi-method trader address resolution + SDK signer setup"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1710,7 +1718,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - FINAL PARAMETER FIX")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - TRADER ADDRESS FIX")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1719,7 +1727,9 @@ if __name__ == '__main__':
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
     logger.info(f"   ✅ ALL FIXES APPLIED:")
-    logger.info(f"      - FINAL: Changed 'user' to 'trader' parameter (SDK expects .trader)")
+    logger.info(f"      - LATEST: Multi-method trader address resolution")
+    logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
+    logger.info(f"      - Changed 'user' to 'trader' parameter (SDK expects .trader)")
     logger.info(f"      - Fixed AsyncIO event loop errors with nest_asyncio")
     logger.info(f"      - Added missing trade_input_order_type parameter (Market Order = 0)")
     logger.info(f"      - Added missing slippage_percentage parameter (2% default)")
@@ -1744,7 +1754,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - ALL CRITICAL FIXES APPLIED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - TRADER ADDRESS FIX APPLIED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
