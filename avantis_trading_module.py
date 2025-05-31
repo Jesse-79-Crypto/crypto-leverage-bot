@@ -924,9 +924,9 @@ class BasicAvantisTrader:
                 sl=int(sl_price * 1e10) if sl_price > 0 else 0   # Price precision
             )
             
-            # ✅ FIXED: Add the missing required parameters
-            trade_input_order_type = 0  # 0 = Market Order, 1 = Limit Order
-            slippage_percentage = 2.0  # 2% slippage tolerance
+            # ✅ FIXED: Create enum instances (not plain integers!)
+            trade_input_order_type = OrderType.MARKET  # Has .value = 0
+            slippage_percentage = SlippageType.NORMAL.value  # 2.0 as float
             
             logger.info(f"🎯 Complete parameters:")
             logger.info(f"   trade_input object:")
@@ -938,8 +938,9 @@ class BasicAvantisTrader:
             logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
             if hasattr(trade_input, 'model_dump'):
                 logger.info(f"   model_dump() output: {trade_input.model_dump()}")
-            logger.info(f"   trade_input_order_type: {trade_input_order_type}")
-            logger.info(f"   slippage_percentage: {slippage_percentage}")
+            logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
+            logger.info(f"   trade_input_order_type.value: {trade_input_order_type.value}")
+            logger.info(f"   slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
             
             try:
                 # ✅ FIXED: Use all required parameters as positional arguments
@@ -970,7 +971,7 @@ class BasicAvantisTrader:
                         'name': 'Different Order Type',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input, 
-                            1,  # Limit order
+                            OrderType.LIMIT,  # Try limit order enum
                             slippage_percentage
                         )
                     },
@@ -979,7 +980,15 @@ class BasicAvantisTrader:
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input, 
                             trade_input_order_type, 
-                            5.0  # 5% slippage
+                            SlippageType.HIGH.value  # 5.0% slippage
+                        )
+                    },
+                    {
+                        'name': 'Plain Integer Values',
+                        'func': lambda: trade_interface.build_trade_open_tx(
+                            trade_input, 
+                            0,  # Plain integer
+                            2.0  # Plain float
                         )
                     },
                     {
@@ -1716,13 +1725,13 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.5 with PYDANTIC MODEL_DUMP FIX",
+            "version": "Enhanced v2.6 with ENUM TYPE FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "pydantic_fix": "✅ TradeInput with model_dump() method for Pydantic compatibility"
+                "enum_fix": "✅ OrderType and SlippageType Enums with .value attributes"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1766,7 +1775,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - PYDANTIC MODEL_DUMP FIX")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - ENUM TYPE FIX")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1775,7 +1784,8 @@ if __name__ == '__main__':
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
     logger.info(f"   ✅ ALL FIXES APPLIED:")
-    logger.info(f"      - LATEST: TradeInput with model_dump() method for Pydantic compatibility")
+    logger.info(f"      - LATEST: OrderType and SlippageType Enums with .value attributes")
+    logger.info(f"      - TradeInput with model_dump() method for Pydantic compatibility")
     logger.info(f"      - TradeInput object with attributes (not dictionary)")
     logger.info(f"      - Multi-method trader address resolution")
     logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
