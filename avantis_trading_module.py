@@ -1725,13 +1725,13 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.6 with ENUM TYPE FIX",
+            "version": "Enhanced v2.7 with SDK STRUCTURE CONFIRMATION",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "enum_fix": "✅ OrderType and SlippageType Enums with .value attributes"
+                "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1775,7 +1775,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - ENUM TYPE FIX")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - SDK STRUCTURE CONFIRMED")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1783,11 +1783,13 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED:")
-    logger.info(f"      - LATEST: OrderType and SlippageType Enums with .value attributes")
+    logger.info(f"   ✅ ALL FIXES APPLIED + SDK STRUCTURE CONFIRMED:")
+    logger.info(f"      - CONFIRMED: SDK has no address methods - use signer.address fallback")
+    logger.info(f"      - CONFIRMED: client.trade.build_trade_open_tx() is the correct method")
+    logger.info(f"      - OrderType and SlippageType Enums with .value attributes")
     logger.info(f"      - TradeInput with model_dump() method for Pydantic compatibility")
     logger.info(f"      - TradeInput object with attributes (not dictionary)")
-    logger.info(f"      - Multi-method trader address resolution")
+    logger.info(f"      - Multi-method trader address resolution (signer + environment)")
     logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
     logger.info(f"      - Changed 'user' to 'trader' parameter (SDK expects .trader)")
     logger.info(f"      - Fixed AsyncIO event loop errors with nest_asyncio")
@@ -1814,7 +1816,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - ENUM TYPE FIX APPLIED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - SDK STRUCTURE CONFIRMED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
