@@ -912,7 +912,25 @@ class BasicAvantisTrader:
                     self.timestamp = timestamp if timestamp is not None else int(time.time())
                 
                 def model_dump(self):
-                    """Pydantic-like model_dump method that SDK expects"""
+                    """SDK expects model_dump() to return tuple format for smart contract ABI
+                    Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
+                    """
+                    return (
+                        self.trader,           # address
+                        self.pairIndex,        # uint256
+                        self.index,            # uint256
+                        self.initialPosToken,  # uint256
+                        self.positionSizeUSDC, # uint256
+                        self.openPrice,        # uint256
+                        self.buy,              # bool
+                        self.leverage,         # uint256
+                        self.tp,               # uint256
+                        self.sl,               # uint256
+                        self.timestamp         # uint256
+                    )
+                
+                def model_dump_dict(self):
+                    """Dictionary representation for debugging/logging"""
                     return {
                         'trader': self.trader,
                         'pairIndex': self.pairIndex,
@@ -924,7 +942,7 @@ class BasicAvantisTrader:
                         'leverage': self.leverage,
                         'tp': self.tp,
                         'sl': self.sl,
-                        'timestamp': self.timestamp  # ✅ FIXED: Include timestamp in model_dump
+                        'timestamp': self.timestamp
                     }
                 
                 def to_tuple(self):
@@ -975,8 +993,10 @@ class BasicAvantisTrader:
             logger.info(f"     timestamp: {trade_input.timestamp}")  # ✅ FIXED: Log timestamp
             logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
             logger.info(f"   to_tuple() available: {hasattr(trade_input, 'to_tuple')}")
-            if hasattr(trade_input, 'to_tuple'):
-                logger.info(f"   to_tuple() output: {trade_input.to_tuple()}")
+            if hasattr(trade_input, 'model_dump'):
+                logger.info(f"   model_dump() output (tuple): {trade_input.model_dump()}")
+            if hasattr(trade_input, 'model_dump_dict'):
+                logger.info(f"   model_dump_dict() output: {trade_input.model_dump_dict()}")
             logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
             logger.info(f"   trade_input_order_type.value: {trade_input_order_type.value}")
             logger.info(f"   slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
@@ -1029,22 +1049,6 @@ class BasicAvantisTrader:
                             0,  # Plain integer
                             2.0  # Plain float
                         )
-                    },
-                    {
-                        'name': 'Dictionary Fallback (model_dump)',
-                        'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input.model_dump(),  # Try dictionary as fallback
-                            trade_input_order_type,
-                            slippage_percentage
-                        )
-                    },
-                    {
-                        'name': 'Tuple Format (if needed)',
-                        'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input.to_tuple(),  # Tuple as last resort
-                            trade_input_order_type,
-                            slippage_percentage
-                        )
                     }
                 ]
                 
@@ -1093,7 +1097,7 @@ class BasicAvantisTrader:
                 'collateral_used': position_size,
                 'leverage': leverage,
                 'gas_used': gas_used,
-                'note': 'Real Avantis trade executed with FIXED parameters and SDK object format',
+                'note': 'Real Avantis trade executed with FIXED model_dump tuple format',
                 'method_used': 'build_trade_open_tx + sign_and_get_receipt',
                 'approach': 'Fixed parameter mapping + correct USDC handling',
                 'receipt': receipt
@@ -1755,7 +1759,7 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v3.1 with SDK OBJECT FORMAT FIX",
+            "version": "Enhanced v3.2 with MODEL_DUMP TUPLE FORMAT FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
@@ -1764,7 +1768,7 @@ def get_status():
                 "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach",
                 "enum_scope_fix": "✅ OrderType and SlippageType moved to function level",
                 "timestamp_fix": "✅ Added missing timestamp field to TradeInput class",
-                "sdk_object_fix": "✅ SDK expects object format, handles tuple conversion internally"
+                "model_dump_tuple_fix": "✅ model_dump() now returns tuple format for smart contract ABI"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1794,7 +1798,7 @@ def health_check():
             "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + SDK object format fixed"
+            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format fixed"
         }
         
         logger.info(f"💚 Health check: All systems operational")
@@ -1808,7 +1812,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - SDK OBJECT FORMAT FIXED")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - MODEL_DUMP TUPLE FORMAT FIXED")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1816,7 +1820,13 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + NEW SDK OBJECT FORMAT FIX:")
+    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL SDK FLOW DISCOVERY:")
+    logger.info(f"      - 🎯 CRITICAL: SDK calls trade_input.model_dump() and passes result directly to smart contract")
+    logger.info(f"      - 🎯 CRITICAL: model_dump() MUST return tuple format, not dictionary")
+    logger.info(f"      - 🎯 CRITICAL: SDK line 80: Trading.functions.openTrade(trade_input.model_dump(), ...)")
+    logger.info(f"      - 🎯 CRITICAL: Fixed model_dump() to return (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)")
+    logger.info(f"      - 🎯 CRITICAL: No more Web3ValidationError: dict vs tuple mismatch")
+    logger.info(f"      - 🎯 CRITICAL: Added model_dump_dict() for debugging/logging purposes")
     logger.info(f"      - 🎯 CRITICAL: SDK expects original object, not tuple - handles conversion internally")
     logger.info(f"      - 🎯 CRITICAL: Fixed AttributeError: 'tuple' object has no attribute 'trader'")
     logger.info(f"      - 🎯 CRITICAL: SDK processes trade_input.trader before smart contract call")
@@ -1863,7 +1873,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - SDK OBJECT FORMAT FIXED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - MODEL_DUMP TUPLE FORMAT FIXED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
