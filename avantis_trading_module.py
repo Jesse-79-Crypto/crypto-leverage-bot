@@ -879,8 +879,8 @@ class BasicAvantisTrader:
             # Convert position size to proper format (USDC has 6 decimals)
             position_size_usdc = int(position_size * 1e6)  # Convert to USDC units
             
-            # ✅ FIXED: Create proper object with attributes (not dictionary)
-            # The SDK expects trade_input.trader, not trade_input['trader']
+            # ✅ FIXED: Create Pydantic-like object with model_dump() method
+            # The SDK expects trade_input.model_dump(), indicating it's a Pydantic model
             class TradeInput:
                 def __init__(self, trader, pairIndex, index, initialPosToken, positionSizeUSDC, 
                            openPrice, buy, leverage, tp=0, sl=0):
@@ -894,8 +894,23 @@ class BasicAvantisTrader:
                     self.leverage = leverage
                     self.tp = tp
                     self.sl = sl
+                
+                def model_dump(self):
+                    """Pydantic-like model_dump method that SDK expects"""
+                    return {
+                        'trader': self.trader,
+                        'pairIndex': self.pairIndex,
+                        'index': self.index,
+                        'initialPosToken': self.initialPosToken,
+                        'positionSizeUSDC': self.positionSizeUSDC,
+                        'openPrice': self.openPrice,
+                        'buy': self.buy,
+                        'leverage': self.leverage,
+                        'tp': self.tp,
+                        'sl': self.sl
+                    }
             
-            # Create the trade input object (not dictionary!)
+            # Create the trade input object (with model_dump() support!)
             trade_input = TradeInput(
                 trader=trader_address,
                 pairIndex=pair_index,
@@ -920,6 +935,9 @@ class BasicAvantisTrader:
             logger.info(f"     initialPosToken: {trade_input.initialPosToken}")
             logger.info(f"     buy: {trade_input.buy}")
             logger.info(f"     leverage: {trade_input.leverage}")
+            logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
+            if hasattr(trade_input, 'model_dump'):
+                logger.info(f"   model_dump() output: {trade_input.model_dump()}")
             logger.info(f"   trade_input_order_type: {trade_input_order_type}")
             logger.info(f"   slippage_percentage: {slippage_percentage}")
             
@@ -962,6 +980,14 @@ class BasicAvantisTrader:
                             trade_input, 
                             trade_input_order_type, 
                             5.0  # 5% slippage
+                        )
+                    },
+                    {
+                        'name': 'Dictionary Fallback',
+                        'func': lambda: trade_interface.build_trade_open_tx(
+                            trade_input.model_dump(),  # Use the dictionary representation
+                            trade_input_order_type,
+                            slippage_percentage
                         )
                     },
                     {
@@ -1690,13 +1716,13 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v2.4 with OBJECT STRUCTURE FIX",
+            "version": "Enhanced v2.5 with PYDANTIC MODEL_DUMP FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
                 "bear_market_tp3": "5% (optimized)",
                 "profit_allocation_phase": allocation["phase"],
-                "object_fix": "✅ TradeInput object with attributes (not dictionary keys)"
+                "pydantic_fix": "✅ TradeInput with model_dump() method for Pydantic compatibility"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1740,7 +1766,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - OBJECT STRUCTURE FIX")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - PYDANTIC MODEL_DUMP FIX")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1749,7 +1775,8 @@ if __name__ == '__main__':
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
     logger.info(f"   ✅ ALL FIXES APPLIED:")
-    logger.info(f"      - CRITICAL: TradeInput object with attributes (not dictionary)")
+    logger.info(f"      - LATEST: TradeInput with model_dump() method for Pydantic compatibility")
+    logger.info(f"      - TradeInput object with attributes (not dictionary)")
     logger.info(f"      - Multi-method trader address resolution")
     logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
     logger.info(f"      - Changed 'user' to 'trader' parameter (SDK expects .trader)")
@@ -1777,7 +1804,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - OBJECT STRUCTURE FIX APPLIED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - PYDANTIC MODEL_DUMP FIX APPLIED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
