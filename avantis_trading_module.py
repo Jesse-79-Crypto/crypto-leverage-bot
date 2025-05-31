@@ -929,6 +929,19 @@ class BasicAvantisTrader:
                 }
             }
 
+    def _execute_test_trade(self, trade_data):
+        logger.info("🧪 TEST TRADE - No real money involved")
+        
+        return {
+            'success': True,
+            'position_id': f'TEST_{int(time.time())}',
+            'entry_price': trade_data.get('entry_price', 0),
+            'tx_hash': f'0x{"TEST"}{"0"*36}',
+            'message': f'TEST trade executed in {self.trading_mode} mode',
+            'test_mode': True
+        }
+
+
 @app.route("/trade/test", methods=["POST"])
 def test_trade_route():
     try:
@@ -948,11 +961,20 @@ def test_trade_route():
 @app.route("/trade", methods=["POST"])
 def handle_trade():
     try:
+        # 🔐 Verify webhook secret
+        expected_secret = os.environ.get("WEBHOOK_SECRET")
+        received_secret = request.headers.get("X-Webhook-Secret")
+        
+        if expected_secret and received_secret != expected_secret:
+            logger.warning("⚠️ Webhook secret mismatch!")
+            return jsonify({"success": False, "error": "Unauthorized"}), 403
+        
+        # 📩 Process incoming data
         data = request.get_json()
         logger.info(f"📨 Incoming trade payload: {data}")
         if not data:
             return jsonify({"success": False, "error": "No JSON data provided"}), 400
-        # Example basic response (replace with full bot logic later)
+        
         return jsonify({
             "success": True,
             "message": "✅ /trade endpoint is live and received your data!",
@@ -962,18 +984,6 @@ def handle_trade():
     except Exception as e:
         logger.error(f"💥 Error in /trade: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-
-    def _execute_test_trade(self, trade_data):
-        logger.info("🧪 TEST TRADE - No real money involved")
-        
-        return {
-            'success': True,
-            'position_id': f'TEST_{int(time.time())}',
-            'entry_price': trade_data.get('entry_price', 0),
-            'tx_hash': f'0x{"TEST"}{"0"*36}',
-            'message': f'TEST trade executed in {self.trading_mode} mode',
-            'test_mode': True
-        }
 
 
 # Create trader client
