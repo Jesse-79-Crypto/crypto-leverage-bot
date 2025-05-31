@@ -914,19 +914,20 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
+                    ✅ FIXED: Convert all integers to Web3-compatible format
                     """
                     return (
-                        self.trader,           # address
-                        self.pairIndex,        # uint256
-                        self.index,            # uint256
-                        self.initialPosToken,  # uint256
-                        self.positionSizeUSDC, # uint256
-                        self.openPrice,        # uint256
-                        self.buy,              # bool
-                        self.leverage,         # uint256
-                        self.tp,               # uint256
-                        self.sl,               # uint256
-                        self.timestamp         # uint256
+                        self.trader,                    # address (already string)
+                        int(self.pairIndex),           # uint256 (explicit int conversion)
+                        int(self.index),               # uint256 (explicit int conversion)
+                        int(self.initialPosToken),     # uint256 (explicit int conversion)
+                        int(self.positionSizeUSDC),    # uint256 (explicit int conversion)
+                        int(self.openPrice),           # uint256 (explicit int conversion)
+                        bool(self.buy),                # bool (explicit bool conversion)
+                        int(self.leverage),            # uint256 (explicit int conversion)
+                        int(self.tp),                  # uint256 (explicit int conversion)
+                        int(self.sl),                  # uint256 (explicit int conversion)
+                        int(self.timestamp)            # uint256 (explicit int conversion)
                     )
                 
                 def model_dump_dict(self):
@@ -983,7 +984,7 @@ class BasicAvantisTrader:
             trade_input_order_type = OrderType.MARKET  # Has .value = 0
             slippage_percentage = SlippageType.NORMAL.value  # 2.0 as float
             
-            logger.info(f"🎯 Complete parameters:")
+            logger.info(f"🎯 Complete parameters with Web3 type conversions:")
             logger.info(f"   trade_input object:")
             logger.info(f"     trader: {trade_input.trader}")
             logger.info(f"     pairIndex: {trade_input.pairIndex}")
@@ -992,21 +993,30 @@ class BasicAvantisTrader:
             logger.info(f"     leverage: {trade_input.leverage}")
             logger.info(f"     timestamp: {trade_input.timestamp}")  # ✅ FIXED: Log timestamp
             logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
-            logger.info(f"   to_tuple() available: {hasattr(trade_input, 'to_tuple')}")
             if hasattr(trade_input, 'model_dump'):
-                logger.info(f"   model_dump() output (tuple): {trade_input.model_dump()}")
+                model_dump_result = trade_input.model_dump()
+                logger.info(f"   model_dump() output (tuple with Web3 types): {model_dump_result}")
+                logger.info(f"   model_dump() types: {[type(x).__name__ for x in model_dump_result]}")
             if hasattr(trade_input, 'model_dump_dict'):
                 logger.info(f"   model_dump_dict() output: {trade_input.model_dump_dict()}")
             logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
             logger.info(f"   trade_input_order_type.value: {trade_input_order_type.value}")
             logger.info(f"   slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
+            logger.info(f"   slippage_percentage * 10**10: {slippage_percentage * 10**10}")
             
             try:
-                # ✅ FIXED: SDK expects object, not tuple - it handles tuple conversion internally
+                # ✅ FIXED: Convert all parameters to proper Web3 types for smart contract
+                order_type_uint8 = int(trade_input_order_type.value)  # Convert to uint8
+                slippage_uint256 = int(slippage_percentage * 10**10)  # Convert to uint256
+                
+                logger.info(f"🔧 Web3 type conversions:")
+                logger.info(f"   order_type_uint8: {order_type_uint8} (type: {type(order_type_uint8)})")
+                logger.info(f"   slippage_uint256: {slippage_uint256} (type: {type(slippage_uint256)})")
+                
                 tx_data = await trade_interface.build_trade_open_tx(
-                    trade_input,  # ✅ FIXED: Pass original object, not tuple
-                    trade_input_order_type, 
-                    slippage_percentage
+                    trade_input,  # ✅ Object with fixed model_dump() tuple conversion
+                    order_type_uint8,  # ✅ FIXED: Proper uint8 type
+                    slippage_uint256   # ✅ FIXED: Proper uint256 type
                 )
                 logger.info(f"✅ Trade transaction built successfully!")
                 logger.info(f"   TX Data type: {type(tx_data)}")
@@ -1014,7 +1024,7 @@ class BasicAvantisTrader:
             except Exception as primary_error:
                 logger.warning(f"⚠️ Primary approach failed: {primary_error}")
                 
-                # ✅ FIXED: Fallback attempts with original object format
+                # ✅ FIXED: Fallback attempts with proper type conversions
                 logger.info("🔄 Trying alternative parameter formats...")
                 
                 fallback_attempts = [
@@ -1022,32 +1032,32 @@ class BasicAvantisTrader:
                         'name': 'Keyword Arguments Format',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input=trade_input,  # ✅ FIXED: Use original object
-                            trade_input_order_type=trade_input_order_type,
-                            slippage_percentage=slippage_percentage
+                            trade_input_order_type=order_type_uint8,  # ✅ FIXED: Proper uint8
+                            slippage_percentage=slippage_uint256  # ✅ FIXED: Proper uint256
                         )
                     },
                     {
                         'name': 'Different Order Type',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,  # ✅ FIXED: Use original object
-                            OrderType.LIMIT,  # Try limit order enum
-                            slippage_percentage
+                            int(OrderType.LIMIT.value),  # ✅ FIXED: Explicit int conversion
+                            slippage_uint256  # ✅ FIXED: Proper uint256
                         )
                     },
                     {
                         'name': 'Higher Slippage',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,  # ✅ FIXED: Use original object
-                            trade_input_order_type, 
-                            SlippageType.HIGH.value  # 5.0% slippage
+                            order_type_uint8,  # ✅ FIXED: Proper uint8
+                            int(SlippageType.HIGH.value * 10**10)  # ✅ FIXED: 5.0% converted to uint256
                         )
                     },
                     {
-                        'name': 'Plain Integer Values',
+                        'name': 'Minimal Integer Values',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,  # ✅ FIXED: Use original object
-                            0,  # Plain integer
-                            2.0  # Plain float
+                            0,  # ✅ FIXED: Plain integer for market order
+                            int(2.0 * 10**10)  # ✅ FIXED: 2% converted to uint256
                         )
                     }
                 ]
@@ -1097,7 +1107,7 @@ class BasicAvantisTrader:
                 'collateral_used': position_size,
                 'leverage': leverage,
                 'gas_used': gas_used,
-                'note': 'Real Avantis trade executed with FIXED model_dump tuple format',
+                'note': 'Real Avantis trade executed with FIXED Web3 type conversions',
                 'method_used': 'build_trade_open_tx + sign_and_get_receipt',
                 'approach': 'Fixed parameter mapping + correct USDC handling',
                 'receipt': receipt
@@ -1759,7 +1769,7 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v3.2 with MODEL_DUMP TUPLE FORMAT FIX",
+            "version": "Enhanced v3.3 with WEB3 TYPE CONVERSION FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
@@ -1768,7 +1778,8 @@ def get_status():
                 "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach",
                 "enum_scope_fix": "✅ OrderType and SlippageType moved to function level",
                 "timestamp_fix": "✅ Added missing timestamp field to TradeInput class",
-                "model_dump_tuple_fix": "✅ model_dump() now returns tuple format for smart contract ABI"
+                "model_dump_tuple_fix": "✅ model_dump() now returns tuple format for smart contract ABI",
+                "web3_type_fix": "✅ All values converted to proper Web3 types (uint256, uint8, bool)"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1798,7 +1809,7 @@ def health_check():
             "engine_initialized": hasattr(engine, 'trader_client'),
             "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
             "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format fixed"
+            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format + Web3 type conversions fixed"
         }
         
         logger.info(f"💚 Health check: All systems operational")
@@ -1812,7 +1823,7 @@ def health_check():
 
 if __name__ == '__main__':
     logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - MODEL_DUMP TUPLE FORMAT FIXED")
+    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - WEB3 TYPE CONVERSION FIXED")
     logger.info("=" * 60)
     logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🔧 Configuration:")
@@ -1820,7 +1831,13 @@ if __name__ == '__main__':
     logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
     logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
     logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL SDK FLOW DISCOVERY:")
+    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL WEB3 TYPE CONVERSION:")
+    logger.info(f"      - 🎯 CRITICAL: Python int vs Ethereum uint256 type mismatch resolved")
+    logger.info(f"      - 🎯 CRITICAL: All tuple values explicitly converted to int() for uint256 compatibility")
+    logger.info(f"      - 🎯 CRITICAL: Order type converted to uint8 with int(trade_input_order_type.value)")
+    logger.info(f"      - 🎯 CRITICAL: Slippage converted to uint256 with int(slippage_percentage * 10**10)")
+    logger.info(f"      - 🎯 CRITICAL: Fixed Web3ValidationError: (address,int,int...) vs (address,uint256,uint256...)")
+    logger.info(f"      - 🎯 CRITICAL: No more type mismatch between Python types and Ethereum ABI types")
     logger.info(f"      - 🎯 CRITICAL: SDK calls trade_input.model_dump() and passes result directly to smart contract")
     logger.info(f"      - 🎯 CRITICAL: model_dump() MUST return tuple format, not dictionary")
     logger.info(f"      - 🎯 CRITICAL: SDK line 80: Trading.functions.openTrade(trade_input.model_dump(), ...)")
@@ -1873,7 +1890,7 @@ if __name__ == '__main__':
             logger.error(f"❌ Trading engine not properly initialized")
         
         logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - MODEL_DUMP TUPLE FORMAT FIXED!")
+        logger.info("🏆 ENHANCED TRADING BOT READY - WEB3 TYPE CONVERSION FIXED!")
         logger.info("=" * 60)
         
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
