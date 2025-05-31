@@ -961,26 +961,30 @@ def test_trade_route():
 @app.route("/trade", methods=["POST"])
 def handle_trade():
     try:
-        # 🔐 Verify webhook secret
-        expected_secret = os.environ.get("WEBHOOK_SECRET")
-        received_secret = request.headers.get("X-Webhook-Secret")
-        
-        if expected_secret and received_secret != expected_secret:
-            logger.warning("⚠️ Webhook secret mismatch!")
-            return jsonify({"success": False, "error": "Unauthorized"}), 403
-        
-        # 📩 Process incoming data
+        # Get trade payload
         data = request.get_json()
         logger.info(f"📨 Incoming trade payload: {data}")
         if not data:
-            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+            return jsonify({"success": False, "error": "No JSON payload received"}), 400
+        
+        # Verify webhook secret
+        received_secret = request.headers.get("X-Webhook-Secret")
+        expected_secret = os.getenv("WEBHOOK_SECRET")
+        
+        if expected_secret and received_secret != expected_secret:
+            logger.warning("⛔ Webhook secret mismatch!")
+            return jsonify({"success": False, "error": "Unauthorized"}), 403
+        
+        # Execute trade using existing trader instance
+        result = trader.open_position(data)
         
         return jsonify({
             "success": True,
-            "message": "✅ /trade endpoint is live and received your data!",
-            "data": data,
+            "message": "✅ Trade processed",
+            "result": result,
             "timestamp": datetime.now().isoformat()
         }), 200
+        
     except Exception as e:
         logger.error(f"💥 Error in /trade: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
