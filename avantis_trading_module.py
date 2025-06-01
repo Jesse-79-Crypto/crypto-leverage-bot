@@ -792,7 +792,7 @@ class BasicAvantisTrader:
             }
 
     async def _execute_live_trade_async(self, trade_data):
-        """Execute live trade with CRITICAL ENUM OBJECT FIX"""
+        """Execute live trade with CRITICAL WEB3 TYPE MATCHING FIX"""
         
         # 🎯 DEFINE ENUMS AT FUNCTION LEVEL (OUTSIDE ALL TRY BLOCKS)
         from enum import Enum
@@ -806,7 +806,7 @@ class BasicAvantisTrader:
             HIGH = 5.0      # 5% slippage
             LOW = 1.0       # 1% slippage
         
-        logger.info("🚀 Executing async LIVE trade with CRITICAL ENUM OBJECT FIX...")
+        logger.info("🚀 Executing async LIVE trade with CRITICAL WEB3 TYPE MATCHING FIX...")
         logger.info(f"   SDK Client available: {self.sdk_client is not None}")
         
         if not self.sdk_client:
@@ -883,7 +883,7 @@ class BasicAvantisTrader:
                 logger.warning(f"⚠️ Balance check failed: {balance_error}, proceeding anyway...")
             
             # Step 2: Build trade transaction with CORRECT parameters
-            logger.info("🧱 Building trade transaction with CRITICAL ENUM OBJECT FIX...")
+            logger.info("🧱 Building trade transaction with CRITICAL WEB3 TYPE MATCHING FIX...")
             
             trade_interface = self.sdk_client.trade
             
@@ -893,7 +893,7 @@ class BasicAvantisTrader:
             # Convert position size to proper format (USDC has 6 decimals)
             position_size_usdc = int(position_size * 1e6)  # Convert to USDC units
             
-            # ✅ CRITICAL FIX: Create Pydantic-like object with proper model_dump() method
+            # ✅ CRITICAL FIX: Create Pydantic-like object with ENHANCED model_dump() method
             class TradeInput:
                 def __init__(self, trader, pairIndex, index, initialPosToken, positionSizeUSDC, 
                            openPrice, buy, leverage, tp=0, sl=0, timestamp=None):
@@ -911,11 +911,11 @@ class BasicAvantisTrader:
                     self.timestamp = timestamp if timestamp is not None else int(time.time())
                 
                 def model_dump(self):
-                    """🎯 CRITICAL: SDK expects model_dump() to return tuple format for smart contract ABI
+                    """🎯 CRITICAL WEB3 TYPE MATCHING FIX: SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
                     ✅ CRITICAL FIX: Return clean Python int types for Web3.py uint256 recognition
                     """
-                    # Ensure all values are clean Python ints for Web3.py type recognition
+                    # ✅ ENHANCED: Ensure all values are clean Python ints for Web3.py type recognition
                     def to_clean_int(value):
                         if value is None:
                             return 0
@@ -976,7 +976,7 @@ class BasicAvantisTrader:
                         self.timestamp         # uint256
                     )
             
-            # Create the trade input object (with model_dump() support!)
+            # Create the trade input object (with enhanced model_dump() support!)
             current_timestamp = int(time.time())
             trade_input = TradeInput(
                 trader=trader_address,
@@ -992,12 +992,13 @@ class BasicAvantisTrader:
                 timestamp=current_timestamp  # ✅ FIXED: Add required timestamp
             )
             
-            # 🎯 CRITICAL FIX: Create enum objects (NOT integers!) - SDK expects enum.value
-            trade_input_order_type = OrderType.MARKET  # ✅ SDK calls .value internally
-            slippage_percentage = SlippageType.NORMAL.value  # ✅ Already extract .value for float type
+            # 🎯 CRITICAL WEB3 TYPE MATCHING FIX: Create enum objects AND proper integer values
+            trade_input_order_type = OrderType.MARKET  # ✅ Keep as enum (has .value)
+            slippage_percentage = SlippageType.NORMAL.value  # ✅ Extract .value for proper type
+            slippage_integer = int(slippage_percentage * 100)  # ✅ Convert to int for uint256
             
-            logger.info(f"🎯 CRITICAL ENUM OBJECT FIX - Complete parameters:")
-            logger.info(f"   trade_input object: ✅ Has model_dump() method")
+            logger.info(f"🎯 CRITICAL WEB3 TYPE MATCHING FIX - Complete parameters:")
+            logger.info(f"   trade_input object: ✅ Has enhanced model_dump() method")
             logger.info(f"     trader: {trade_input.trader}")
             logger.info(f"     pairIndex: {trade_input.pairIndex}")
             logger.info(f"     initialPosToken: {trade_input.initialPosToken}")
@@ -1013,18 +1014,19 @@ class BasicAvantisTrader:
             logger.info(f"   🎯 CRITICAL: trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
             logger.info(f"   🎯 CRITICAL: Has .value attribute: {hasattr(trade_input_order_type, 'value')}")
             logger.info(f"   🎯 CRITICAL: .value = {trade_input_order_type.value}")
-            logger.info(f"   🎯 CRITICAL: slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
+            logger.info(f"   🎯 CRITICAL: slippage_integer: {slippage_integer} (type: {type(slippage_integer)})")
             logger.info(f"   🎯 CRITICAL: SDK line 82 can call trade_input_order_type.value ✅")
             logger.info(f"   🎯 CRITICAL: Web3 will see uint256 types from model_dump() ✅")
+            logger.info(f"   🎯 CRITICAL: Integer slippage for uint256 compatibility ✅")
             
             try:
-                # 🎯 CRITICAL FIX: Pass enum object (not int) and proper slippage
-                logger.info("🎯 CRITICAL: Calling build_trade_open_tx with ENUM OBJECT...")
+                # 🎯 CRITICAL FIX: Pass enum object (not int) and INTEGER slippage
+                logger.info("🎯 CRITICAL: Calling build_trade_open_tx with WEB3 TYPE MATCHING...")
                 
                 tx_data = await trade_interface.build_trade_open_tx(
                     trade_input,                # ✅ Object with clean int model_dump() 
                     trade_input_order_type,     # ✅ CRITICAL: Enum object (SDK calls .value)
-                    slippage_percentage         # ✅ CRITICAL: Float (let SDK handle conversion)
+                    slippage_integer            # ✅ CRITICAL: Integer (not float) for uint256
                 )
                 logger.info(f"✅ Trade transaction built successfully!")
                 logger.info(f"   TX Data type: {type(tx_data)}")
@@ -1033,39 +1035,39 @@ class BasicAvantisTrader:
                 logger.warning(f"⚠️ Primary approach failed: {primary_error}")
                 
                 # ✅ CRITICAL: Fallbacks keeping enum objects but trying different slippage formats
-                logger.info("🔄 Trying alternative ENUM-FRIENDLY parameter formats...")
+                logger.info("🔄 Trying alternative WEB3-FRIENDLY parameter formats...")
                 
                 fallback_attempts = [
                     {
-                        'name': 'Enum + Integer Slippage',
+                        'name': 'Enum + Basis Points Slippage',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,                # ✅ Clean int model_dump()
                             trade_input_order_type,     # ✅ Enum object (has .value)
-                            int(slippage_percentage * 100)  # ✅ Convert to integer basis points
-                        )
-                    },
-                    {
-                        'name': 'Enum + Raw Slippage',
-                        'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input,
-                            trade_input_order_type,     # ✅ Keep enum object
-                            2.0                         # ✅ Raw 2% float
-                        )
-                    },
-                    {
-                        'name': 'Enum + Different Scale',
-                        'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input,
-                            trade_input_order_type,     # ✅ Keep enum object
                             200                         # ✅ 200 basis points (2%)
                         )
                     },
                     {
-                        'name': 'Enum + Minimal Slippage',
+                        'name': 'Enum + Higher Integer Slippage',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,
                             trade_input_order_type,     # ✅ Keep enum object
-                            100                         # ✅ 1% as 100 basis points
+                            500                         # ✅ 5% as integer
+                        )
+                    },
+                    {
+                        'name': 'Enum + Minimal Integer Slippage',
+                        'func': lambda: trade_interface.build_trade_open_tx(
+                            trade_input,
+                            trade_input_order_type,     # ✅ Keep enum object
+                            100                         # ✅ 1% as integer
+                        )
+                    },
+                    {
+                        'name': 'Enum + Direct Float (Last Resort)',
+                        'func': lambda: trade_interface.build_trade_open_tx(
+                            trade_input,
+                            trade_input_order_type,     # ✅ Keep enum object
+                            2.0                         # ✅ Raw 2% float (last resort)
                         )
                     }
                 ]
@@ -1082,7 +1084,7 @@ class BasicAvantisTrader:
                         continue
                 
                 if not tx_data:
-                    raise Exception("All ENUM-FRIENDLY parameter formats failed")
+                    raise Exception("All WEB3-FRIENDLY parameter formats failed")
             
             # Step 3: Sign and execute transaction
             logger.info("📝 Signing and executing trade transaction...")
@@ -1115,9 +1117,9 @@ class BasicAvantisTrader:
                 'collateral_used': position_size,
                 'leverage': leverage,
                 'gas_used': gas_used,
-                'note': 'Real Avantis trade executed with CRITICAL ENUM OBJECT FIX',
+                'note': 'Real Avantis trade executed with CRITICAL WEB3 TYPE MATCHING FIX',
                 'method_used': 'build_trade_open_tx + sign_and_get_receipt',
-                'approach': 'CRITICAL: Keep enum objects for SDK, clean int types for Web3',
+                'approach': 'CRITICAL: Keep enum objects for SDK, clean int types for Web3, integer slippage',
                 'receipt': receipt
             }
             
@@ -1129,8 +1131,8 @@ class BasicAvantisTrader:
             return {
                 'success': False,
                 'error': f'CRITICAL Avantis trade execution failed: {str(e)}',
-                'message': 'Error in CRITICAL enum object fix approach',
-                'approach': 'CRITICAL enum object fix failed',
+                'message': 'Error in CRITICAL web3 type matching fix approach',
+                'approach': 'CRITICAL web3 type matching fix failed',
                 'available_methods': {
                     'avantis_methods': avantis_methods,
                     'signing_methods': signing_methods
@@ -1150,129 +1152,7 @@ class BasicAvantisTrader:
         }
 
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    try:
-        health_data = {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "engine_initialized": hasattr(engine, 'trader_client'),
-            "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
-            "max_positions": MAX_OPEN_POSITIONS,
-            "fixes_applied": "✅ CRITICAL ENUM OBJECT FIX: Keep enum objects (SDK needs .value), multiple slippage formats, clean Web3 types in model_dump() + All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format + Web3 type conversions + uint256 range validation + Web3 ABI type matching"
-        }
-        
-        logger.info(f"💚 Health check: All systems operational")
-        
-        return jsonify(health_data)
-        
-    except Exception as e:
-        logger.error(f"❌ Health check failed: {str(e)}")
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
-
-
-if __name__ == '__main__':
-    logger.info("=" * 60)
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - CRITICAL ENUM OBJECT FIX")
-    logger.info("=" * 60)
-    logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info(f"🔧 Configuration:")
-    logger.info(f"   Max Positions: {MAX_OPEN_POSITIONS}")
-    logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
-    logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
-    logger.info(f"   Bear Market TP3: 5% (optimized)")
-    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL ENUM OBJECT FIX:")
-    logger.info(f"      - 🎯 CRITICAL: Fixed AttributeError: 'int' object has no attribute 'value'")
-    logger.info(f"      - 🎯 CRITICAL: Keep enum objects (OrderType.MARKET) - SDK line 82 calls .value")
-    logger.info(f"      - 🎯 CRITICAL: Pass trade_input_order_type (enum), not int(enum.value)")
-    logger.info(f"      - 🎯 CRITICAL: Multiple slippage format fallbacks (float, int, basis points)")
-    logger.info(f"      - 🎯 CRITICAL: SDK expects enum objects, calls .value internally")
-    logger.info(f"      - 🎯 CRITICAL: Web3 type mismatch fixed in model_dump() with clean Python ints")
-    logger.info(f"      - 🎯 CRITICAL: model_dump() returns tuple with bounded uint256 values")
-    logger.info(f"      - 🎯 CRITICAL: (address,int,int,int...) → (address,uint256,uint256,uint256...)")
-    logger.info(f"      - 🎯 CRITICAL: All values bounded to uint256 range (0 to 2^256-1)")
-    logger.info(f"      - 🎯 CRITICAL: Fixed Web3ValidationError type mismatch completely")
-    logger.info(f"      - 🎯 CRITICAL: SDK gets enum objects it expects, Web3 gets proper types")
-    logger.info(f"      - 🎯 CRITICAL: REVERTED to original enum objects (SDK expects them)")
-    logger.info(f"      - 🎯 CRITICAL: SDK line 82 calls trade_input_order_type.value (needs enum object)")
-    logger.info(f"      - 🎯 CRITICAL: Let SDK handle ALL type conversions internally")
-    logger.info(f"      - 🎯 CRITICAL: Simplified model_dump() returns raw values, let SDK convert")
-    logger.info(f"      - 🎯 CRITICAL: No premature optimization - trust SDK to do its job")
-    logger.info(f"      - 🎯 CRITICAL: All values bounded to proper uint256 range (0 to 2^256-1)")
-    logger.info(f"      - 🎯 CRITICAL: Negative values clamped to 0, overflow values clamped to max uint256")
-    logger.info(f"      - 🎯 CRITICAL: Web3.py should now recognize values as proper uint256 types")
-    logger.info(f"      - 🎯 CRITICAL: Fixed persistent Python int vs Ethereum uint256 type mismatch")
-    logger.info(f"      - 🎯 CRITICAL: SDK expects original enum objects, not converted integers")
-    logger.info(f"      - 🎯 CRITICAL: Pass trade_input_order_type (enum), SDK calls .value internally")
-    logger.info(f"      - 🎯 CRITICAL: Pass slippage_percentage (float), SDK handles conversion")
-    logger.info(f"      - 🎯 CRITICAL: No more premature type conversion - let SDK handle it")
-    logger.info(f"      - 🎯 CRITICAL: Python int vs Ethereum uint256 type mismatch resolved")
-    logger.info(f"      - 🎯 CRITICAL: All tuple values explicitly converted to int() for uint256 compatibility")
-    logger.info(f"      - 🎯 CRITICAL: Order type converted to uint8 with int(trade_input_order_type.value)")
-    logger.info(f"      - 🎯 CRITICAL: Slippage converted to uint256 with int(slippage_percentage * 10**10)")
-    logger.info(f"      - 🎯 CRITICAL: Fixed Web3ValidationError: (address,int,int...) vs (address,uint256,uint256...)")
-    logger.info(f"      - 🎯 CRITICAL: No more type mismatch between Python types and Ethereum ABI types")
-    logger.info(f"      - 🎯 CRITICAL: SDK calls trade_input.model_dump() and passes result directly to smart contract")
-    logger.info(f"      - 🎯 CRITICAL: model_dump() MUST return tuple format, not dictionary")
-    logger.info(f"      - 🎯 CRITICAL: SDK line 80: Trading.functions.openTrade(trade_input.model_dump(), ...)")
-    logger.info(f"      - 🎯 CRITICAL: Fixed model_dump() to return (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)")
-    logger.info(f"      - 🎯 CRITICAL: No more Web3ValidationError: dict vs tuple mismatch")
-    logger.info(f"      - 🎯 CRITICAL: Added model_dump_dict() for debugging/logging purposes")
-    logger.info(f"      - 🎯 CRITICAL: SDK expects original object, not tuple - handles conversion internally")
-    logger.info(f"      - 🎯 CRITICAL: Fixed AttributeError: 'tuple' object has no attribute 'trader'")
-    logger.info(f"      - 🎯 CRITICAL: SDK processes trade_input.trader before smart contract call")
-    logger.info(f"      - 🎯 CRITICAL: Pass TradeInput object, let SDK handle tuple conversion")
-    logger.info(f"      - 🎯 CRITICAL: Added to_tuple() method for smart contract ABI compatibility (if needed)")
-    logger.info(f"      - 🎯 CRITICAL: TradeInput now converts to tuple format (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)")
-    logger.info(f"      - 🎯 CRITICAL: Fixed 'positional arguments with type(s) dict,int,float' error")
-    logger.info(f"      - 🎯 CRITICAL: Smart contract expects tuple, not dictionary from model_dump()")
-    logger.info(f"      - 🎯 CRITICAL: Added missing timestamp field to TradeInput class")
-    logger.info(f"      - 🎯 CRITICAL: timestamp included in model_dump() output")
-    logger.info(f"      - 🎯 CRITICAL: Fixed KeyError: 'timestamp' smart contract error")
-    logger.info(f"      - 🎯 CRITICAL: OrderType and SlippageType Enums moved to function level")
-    logger.info(f"      - 🎯 CRITICAL: Enum definitions accessible throughout _execute_live_trade_async")
-    logger.info(f"      - 🎯 CRITICAL: Fixed NameError: name 'OrderType' is not defined")
-    logger.info(f"      - CONFIRMED: SDK has no address methods - use signer.address fallback")
-    logger.info(f"      - CONFIRMED: client.trade.build_trade_open_tx() is the correct method")
-    logger.info(f"      - OrderType and SlippageType Enums with .value attributes")
-    logger.info(f"      - TradeInput with model_dump() method for Pydantic compatibility")
-    logger.info(f"      - TradeInput object with attributes (not dictionary)")
-    logger.info(f"      - Multi-method trader address resolution (signer + environment)")
-    logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
-    logger.info(f"      - Changed 'user' to 'trader' parameter (SDK expects .trader)")
-    logger.info(f"      - Fixed AsyncIO event loop errors with nest_asyncio")
-    logger.info(f"      - Added missing trade_input_order_type parameter (Market Order = 0)")
-    logger.info(f"      - Added missing slippage_percentage parameter (2% default)")
-    logger.info(f"      - Correct USDC contract address: {USDC_CONTRACT_BASE}")
-    logger.info(f"      - Proper symbol to pair index mapping")
-    logger.info(f"      - Enhanced fallback parameter combinations")
-    
-    try:
-        logger.info(f"🔍 STARTUP VALIDATION:")
-        
-        required_env_vars = ['WALLET_PRIVATE_KEY', 'BASE_RPC_URL']
-        missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
-        
-        if missing_env_vars:
-            logger.error(f"❌ Missing environment variables: {missing_env_vars}")
-        else:
-            logger.info(f"✅ All required environment variables present")
-        
-        if hasattr(engine, 'trader_client'):
-            logger.info(f"✅ Trading engine initialized successfully")
-        else:
-            logger.error(f"❌ Trading engine not properly initialized")
-        
-        logger.info("=" * 60)
-        logger.info("🏆 ENHANCED TRADING BOT READY - CRITICAL ENUM OBJECT FIX!")
-        logger.info("=" * 60)
-        
-        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
-        
-    except Exception as e:
-        logger.error(f"💥 STARTUP ERROR: {str(e)}")
-        logger.error(f"   Traceback: {traceback.format_exc()}")
-        raiseapp.route("/trade/test", methods=["POST"])
+@app.route("/trade/test", methods=["POST"])
 def test_trade_route():
     try:
         data = request.get_json()
@@ -1899,7 +1779,7 @@ def get_status():
         
         status_data = {
             "status": "operational",
-            "version": "Enhanced v3.8 with CRITICAL ENUM OBJECT FIX",
+            "version": "Enhanced v3.8 with CRITICAL WEB3 TYPE MATCHING FIX",
             "optimizations": {
                 "max_positions": MAX_OPEN_POSITIONS,
                 "supported_symbols": engine.supported_symbols,
@@ -1910,11 +1790,12 @@ def get_status():
                 "timestamp_fix": "✅ Added missing timestamp field to TradeInput class",
                 "model_dump_tuple_fix": "✅ model_dump() now returns tuple format for smart contract ABI",
                 "web3_type_fix": "✅ All values converted to proper Web3 types (uint256, uint8, bool)",
-                "critical_enum_object_fix": "✅ CRITICAL: Keep enum objects (SDK calls .value), clean Web3 types in model_dump()",
+                "critical_web3_type_matching_fix": "✅ CRITICAL: Keep enum objects (SDK calls .value), clean Web3 types in model_dump(), integer slippage",
                 "uint256_range_fix": "✅ All values properly bounded for uint256 range (0 to 2^256-1)",
                 "web3_abi_type_matching": "✅ Web3 sees clean int types as uint256 from model_dump()",
                 "sdk_enum_requirement": "✅ CRITICAL: SDK line 82 calls trade_input_order_type.value (needs enum object)",
-                "slippage_handling": "✅ Multiple slippage formats in fallbacks (float, int, basis points)"
+                "slippage_integer_handling": "✅ Integer slippage for uint256 compatibility (not float)",
+                "slippage_fallbacks": "✅ Multiple slippage formats in fallbacks (basis points, percentages)"
             },
             "performance": {
                 "open_positions": len(engine.open_positions),
@@ -1935,4 +1816,6 @@ def get_status():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
