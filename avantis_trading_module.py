@@ -26,7 +26,7 @@ import sys
 
 from flask import Flask, request, jsonify
 
-from flask_cors import CORS
+# flask_cors import CORS
 
 import requests
 
@@ -100,7 +100,7 @@ logger = logging.getLogger('avantis_trading_module')
 
 app = Flask(__name__)
 
-CORS(app)
+# CORS(app)
 
  
 
