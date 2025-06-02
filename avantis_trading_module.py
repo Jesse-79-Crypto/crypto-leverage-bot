@@ -914,20 +914,22 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ Let Web3/SDK handle final uint256 conversion - we provide clean integers
+                    ✅ NEW APPROACH: Force numpy uint64 for proper type recognition
                     """
+                    import numpy as np
                     from web3 import Web3
                     
-                    def to_clean_int(value):
-                        """Convert to clean Python integer for Web3/SDK processing"""
+                    def to_contract_uint(value):
+                        """Convert to proper contract uint type"""
                         if value is None:
-                            return 0
+                            return np.uint64(0)
                         try:
-                            # Convert to clean Python int - let SDK handle uint256 conversion
-                            return int(float(value))
+                            # Convert to int first, then to numpy uint64
+                            int_val = int(float(value))
+                            return np.uint64(int_val)
                         except Exception as e:
-                            print(f"Error converting {value} to int: {e}")
-                            return 0
+                            print(f"Error converting {value} to uint: {e}")
+                            return np.uint64(0)
                     
                     # Debug: Print values before conversion
                     print(f"🔍 DEBUG model_dump values:")
@@ -937,7 +939,7 @@ class BasicAvantisTrader:
                     print(f"  openPrice: {self.openPrice}")
                     print(f"  leverage: {self.leverage}")
                     
-                    # Create tuple with clean types - let SDK/Web3 handle uint256
+                    # Create tuple with numpy uint64 types
                     trader_address = str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000"
                     
                     # Ensure address is checksummed
@@ -949,16 +951,16 @@ class BasicAvantisTrader:
                     
                     result = (
                         trader_address,
-                        to_clean_int(self.pairIndex),
-                        to_clean_int(self.index), 
-                        to_clean_int(self.initialPosToken),
-                        to_clean_int(self.positionSizeUSDC),
-                        to_clean_int(self.openPrice),
+                        to_contract_uint(self.pairIndex),
+                        to_contract_uint(self.index), 
+                        to_contract_uint(self.initialPosToken),
+                        to_contract_uint(self.positionSizeUSDC),
+                        to_contract_uint(self.openPrice),
                         bool(self.buy),
-                        to_clean_int(self.leverage),
-                        to_clean_int(self.tp),
-                        to_clean_int(self.sl),
-                        to_clean_int(self.timestamp)
+                        to_contract_uint(self.leverage),
+                        to_contract_uint(self.tp),
+                        to_contract_uint(self.sl),
+                        to_contract_uint(self.timestamp)
                     )
                     
                     # Debug: Print result types and values
