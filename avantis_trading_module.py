@@ -914,21 +914,19 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ FIXED: Use proper Web3.py uint256 conversion with debugging
+                    ✅ Let Web3/SDK handle final uint256 conversion - we provide clean integers
                     """
                     from web3 import Web3
                     
-                    def to_uint256(value):
-                        """Convert to proper uint256 using Web3.py"""
+                    def to_clean_int(value):
+                        """Convert to clean Python integer for Web3/SDK processing"""
                         if value is None:
                             return 0
                         try:
-                            # Convert to int first
-                            int_val = int(float(value))
-                            # Use Web3.py to ensure proper uint256 type
-                            return Web3.to_int(int_val) if hasattr(Web3, 'to_int') else int_val
+                            # Convert to clean Python int - let SDK handle uint256 conversion
+                            return int(float(value))
                         except Exception as e:
-                            print(f"Error converting {value} to uint256: {e}")
+                            print(f"Error converting {value} to int: {e}")
                             return 0
                     
                     # Debug: Print values before conversion
@@ -939,23 +937,33 @@ class BasicAvantisTrader:
                     print(f"  openPrice: {self.openPrice}")
                     print(f"  leverage: {self.leverage}")
                     
-                    # Return tuple with proper Web3 types
+                    # Create tuple with clean types - let SDK/Web3 handle uint256
+                    trader_address = str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000"
+                    
+                    # Ensure address is checksummed
+                    if trader_address and trader_address != "0x0000000000000000000000000000000000000000":
+                        try:
+                            trader_address = Web3.to_checksum_address(trader_address)
+                        except:
+                            trader_address = str(self.trader)
+                    
                     result = (
-                        Web3.to_checksum_address(str(self.trader)) if self.trader else "0x0000000000000000000000000000000000000000",
-                        to_uint256(self.pairIndex),
-                        to_uint256(self.index), 
-                        to_uint256(self.initialPosToken),
-                        to_uint256(self.positionSizeUSDC),
-                        to_uint256(self.openPrice),
+                        trader_address,
+                        to_clean_int(self.pairIndex),
+                        to_clean_int(self.index), 
+                        to_clean_int(self.initialPosToken),
+                        to_clean_int(self.positionSizeUSDC),
+                        to_clean_int(self.openPrice),
                         bool(self.buy),
-                        to_uint256(self.leverage),
-                        to_uint256(self.tp),
-                        to_uint256(self.sl),
-                        to_uint256(self.timestamp)
+                        to_clean_int(self.leverage),
+                        to_clean_int(self.tp),
+                        to_clean_int(self.sl),
+                        to_clean_int(self.timestamp)
                     )
                     
-                    # Debug: Print result types
+                    # Debug: Print result types and values
                     print(f"🔍 DEBUG model_dump result types: {[type(x).__name__ for x in result]}")
+                    print(f"🔍 DEBUG model_dump key values: positionSize={result[4]}, openPrice={result[5]}, leverage={result[7]}")
                     
                     return result
                 
@@ -1949,4 +1957,4 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"💥 STARTUP ERROR: {str(e)}")
         logger.error(f"   Traceback: {traceback.format_exc()}")
-        raise     
+        raise
