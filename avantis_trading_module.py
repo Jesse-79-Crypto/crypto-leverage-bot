@@ -914,28 +914,28 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ FIXED: Ensure Web3-compatible uint256 types instead of Python int
+                    ✅ FIXED: Use Web3.py proper uint256 conversion
                     """
-                    # Ensure all values are uint256-compatible (bound to uint256 range)
-                    def to_uint256(value):
+                    # Use Web3.py's proper uint256 conversion
+                    def to_web3_uint256(value):
                         if value is None:
                             return 0
-                        # Ensure value is within uint256 range (0 to 2^256-1)
-                        return int(value) & ((2**256) - 1)
+                        # Web3.py's proper uint256 conversion
+                        return Web3.to_int(primitive=int(value)) if hasattr(Web3, 'to_int') else int(value)
                     
-                    # Return tuple with Web3-compatible types
+                    # Return tuple with proper Web3 uint256 types
                     return (
-                        str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000",
-                        to_uint256(self.pairIndex),
-                        to_uint256(self.index), 
-                        to_uint256(self.initialPosToken),
-                        to_uint256(self.positionSizeUSDC),
-                        to_uint256(self.openPrice),
+                        Web3.to_checksum_address(self.trader) if self.trader else "0x0000000000000000000000000000000000000000",
+                        to_web3_uint256(self.pairIndex),
+                        to_web3_uint256(self.index), 
+                        to_web3_uint256(self.initialPosToken),
+                        to_web3_uint256(self.positionSizeUSDC),
+                        to_web3_uint256(self.openPrice),
                         bool(self.buy),
-                        to_uint256(self.leverage),
-                        to_uint256(self.tp),
-                        to_uint256(self.sl),
-                        to_uint256(self.timestamp)
+                        to_web3_uint256(self.leverage),
+                        to_web3_uint256(self.tp),
+                        to_web3_uint256(self.sl),
+                        to_web3_uint256(self.timestamp)
                     )
                 
                 def model_dump_dict(self):
@@ -1031,44 +1031,40 @@ class BasicAvantisTrader:
             except Exception as primary_error:
                 logger.warning(f"⚠️ Primary approach failed: {primary_error}")
                 
-                # ✅ FIXED: Fallbacks with explicit Web3 type conversions
-                logger.info("🔄 Trying alternative parameter formats...")
-                
-                # Convert for fallbacks that need explicit conversion
-                order_type_uint8 = int(trade_input_order_type.value) & 0xFF  # Ensure uint8 range
-                slippage_uint256 = int(slippage_percentage * 100) & ((2**256) - 1)  # Ensure uint256 range
+                # ✅ FIXED: All fallbacks use enum objects (SDK expects .value internally)
+                logger.info("🔄 Trying alternative enum object formats...")
                 
                 fallback_attempts = [
                     {
-                        'name': 'Explicit Web3 Types',
+                        'name': 'Original Enum Objects + Web3 Scaling',
                         'func': lambda: trade_interface.build_trade_open_tx(
-                            trade_input,
-                            order_type_uint8,  # ✅ Explicit uint8
-                            slippage_uint256   # ✅ Explicit uint256
+                            trade_input,  # ✅ Web3-compatible model_dump()
+                            trade_input_order_type,  # ✅ Original enum (SDK calls .value)
+                            slippage_percentage  # ✅ Original float (SDK converts)
                         )
                     },
                     {
-                        'name': 'Zero Values',
+                        'name': 'Enum Objects + Integer Slippage',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,
-                            0,  # ✅ Market order as clean int
-                            200  # ✅ 2% as clean int (200 basis points)
+                            trade_input_order_type,  # ✅ Original enum
+                            200  # ✅ 2% as integer basis points
                         )
                     },
                     {
-                        'name': 'Different Scaling', 
+                        'name': 'Market Order Enum + Float',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,
-                            int(trade_input_order_type.value),  # ✅ Clean int
-                            int(slippage_percentage * 1000)  # ✅ Different scaling (2000)
+                            OrderType.MARKET,  # ✅ Force market order enum
+                            slippage_percentage  # ✅ Original float
                         )
                     },
                     {
-                        'name': 'Minimal Values',
+                        'name': 'Market Order Enum + Integer',
                         'func': lambda: trade_interface.build_trade_open_tx(
                             trade_input,
-                            0,  # ✅ Market order
-                            100  # ✅ 1% as 100 basis points
+                            OrderType.MARKET,  # ✅ Force market order enum  
+                            100  # ✅ 1% as integer
                         )
                     }
                 ]
