@@ -1,139 +1,90 @@
-
-from flask import Flask, request, jsonify
-
-from datetime import datetime
-
-import json
-
 import os
-
-import asyncio
 
 import logging
 
-import traceback
+import asyncio
+
+import aiohttp
+
+import json
 
 import time
 
-import inspect
+from decimal import Decimal
+
+from typing import Dict, Any, Optional, List, Union
+
+from datetime import datetime, timezone
+
+import traceback
+
+import sys
 
  
 
-# SDK Import with error handling
+# Flask and web framework imports
 
-try:
+from flask import Flask, request, jsonify
 
-    from avantis_trader_sdk.client import TraderClient as SDKTraderClient
+from flask_cors import CORS
 
-    from avantis_trader_sdk.signers.local_signer import LocalSigner
-
-    REAL_SDK_AVAILABLE = True
-
-    logging.info("✅ Real Avantis SDK imported successfully")
-
-except ImportError as e:
-
-    logging.warning(f"⚠️ Real Avantis SDK not found: {e}")
-
-    logging.warning("📦 Install with: pip install git+https://github.com/Avantis-Labs/avantis_trader_sdk.git")
-
-    REAL_SDK_AVAILABLE = False
-
-    SDKTraderClient = None
+import requests
 
  
 
-# ✅ FIXED: Import nest_asyncio to handle event loop issues
+# Web3 and blockchain imports
 
-try:
+from web3 import Web3
 
-    import nest_asyncio
+from web3.exceptions import Web3Exception, ContractLogicError
 
-    nest_asyncio.apply()
+import eth_account
 
-    logging.info("✅ nest_asyncio applied for event loop compatibility")
-
-except ImportError:
-
-    logging.warning("⚠️ nest_asyncio not available, may have async issues")
+from eth_account import Account
 
  
 
-# Try to import the custom AvantisTrader wrapper class
+# Data processing imports
 
-try:
+import pandas as pd
 
-    from avantis_trader import AvantisTrader as CustomAvantisTrader
-
-    CUSTOM_TRADER_AVAILABLE = True
-
-    logging.info("✅ Custom AvantisTrader wrapper imported successfully")
-
-except ImportError as e:
-
-    logging.warning(f"⚠️ Custom AvantisTrader wrapper not found: {e}")
-
-    CUSTOM_TRADER_AVAILABLE = False
-
-    CustomAvantisTrader = None
+import numpy as np
 
  
 
-# Import profit_management with fallback
+# Google Sheets API imports (commented for Heroku deployment)
 
-try:
+# from google.oauth2.service_account import Credentials
 
-    from profit_management import EnhancedProfitManager as ProfitManager
-
-except ImportError as e:
-
-    logging.warning(f"⚠️ profit_management module not found: {e}")
-
-    class ProfitManager:
-
-        def __init__(self):
-
-            pass
-
-        def get_allocation_ratios(self, balance):
-
-            return {
-
-                "reinvest": 0.70,
-
-                "btc_stack": 0.20,
-
-                "reserve": 0.10,
-
-                "phase": "Default Phase"
-
-            }
+# import gspread
 
  
 
-app = Flask(__name__)
+# Environment and configuration
+
+from dotenv import load_dotenv
 
  
 
-# ========================================
+# Load environment variables
 
-# 🚀 ENHANCED LOGGING CONFIGURATION
-
-# ========================================
+load_dotenv()
 
  
 
-# Setup comprehensive logging for Heroku visibility
+# Configure logging with enhanced formatting
 
 logging.basicConfig(
 
     level=logging.INFO,
 
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 
     handlers=[
 
-        logging.StreamHandler(),  # This shows in Heroku logs
+        logging.StreamHandler(sys.stdout),
+
+        logging.FileHandler('trading_bot.log') if os.path.exists('.') else logging.StreamHandler(sys.stdout)
 
     ]
 
@@ -141,3778 +92,2563 @@ logging.basicConfig(
 
  
 
-# Create logger instance
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('avantis_trading_module')
 
  
 
-# ========================================
+# Flask application setup
 
-# 🔑 ENVIRONMENT VARIABLES & TRADER SETUP
+app = Flask(__name__)
 
-# ========================================
-
- 
-
-# Load environment variables
-
-API_KEY = os.getenv('AVANTIS_API_KEY')
-
-PRIVATE_KEY = os.getenv('WALLET_PRIVATE_KEY')
-
-RPC_URL = os.getenv('BASE_RPC_URL')
-
-AVANTIS_MODE = os.getenv('AVANTIS_MODE', 'TEST')  # Default to TEST if not set
+CORS(app)
 
  
 
-# Validate required environment variables
+# ============================================================================
 
-if not PRIVATE_KEY:
+# 🔧 CONFIGURATION AND CONSTANTS
 
-    logger.error("❌ WALLET_PRIVATE_KEY environment variable is required")
-
-    raise ValueError("WALLET_PRIVATE_KEY is required")
+# ============================================================================
 
  
 
-if not RPC_URL:
+class TradingConfig:
 
-    logger.error("❌ BASE_RPC_URL environment variable is required")
-
-    raise ValueError("BASE_RPC_URL is required")
-
- 
-
-# Log the trading mode
-
-logger.info(f"🚦 AVANTIS TRADING MODE: {AVANTIS_MODE}")
-
-if AVANTIS_MODE == 'LIVE':
-
-    logger.info("🔥 LIVE TRADING MODE ACTIVATED - REAL MONEY AT RISK!")
-
-else:
-
-    logger.info("🧪 TEST MODE - Using safe fallbacks")
-
- 
-
-# ========================================
-
-# 🔧 SYMBOL TO PAIR INDEX MAPPING (FIXED)
-
-# ========================================
-
- 
-
-# Correct pair index mapping for Avantis
-
-SYMBOL_TO_PAIR_INDEX = {
-
-    'BTC/USDT': 0,
-
-    'BTCUSDT': 0,
-
-    'ETH/USDT': 1,
-
-    'ETHUSDT': 1,
-
-    'SOL/USDT': 2,
-
-    'SOLUSDT': 2,
-
-    'AVAX/USDT': 3,
-
-    'AVAXUSDT': 3
-
-}
-
- 
-
-def get_pair_index(symbol):
-
-    """Convert symbol to pair index with fallback logic"""
-
-    # Remove any variations and standardize
-
-    clean_symbol = symbol.replace('/', '').replace('-', '/').upper()
-
-    if '/' not in clean_symbol:
-
-        clean_symbol = clean_symbol.replace('USDT', '/USDT')
+    """Centralized configuration for the trading bot"""
 
    
 
-    # Try exact match first
+    # 🌐 Network Configuration
 
-    if clean_symbol in SYMBOL_TO_PAIR_INDEX:
+    POLYGON_RPC_URL = os.getenv('POLYGON_RPC_URL', 'https://polygon-rpc.com')
 
-        return SYMBOL_TO_PAIR_INDEX[clean_symbol]
-
-   
-
-    # Try without slash
-
-    no_slash = clean_symbol.replace('/', '')
-
-    if no_slash in SYMBOL_TO_PAIR_INDEX:
-
-        return SYMBOL_TO_PAIR_INDEX[no_slash]
+    POLYGON_CHAIN_ID = 137
 
    
 
-    # Default to BTC if not found
+    # 🔑 Security Configuration 
 
-    logger.warning(f"⚠️ Symbol {symbol} not found in mapping, defaulting to BTC (index 0)")
+    PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
-    return 0
+    if not PRIVATE_KEY:
 
- 
+        logger.warning("⚠️ PRIVATE_KEY not found in environment variables")
 
-# ========================================
+   
 
-# 🔧 FIXED USDC CONTRACT ADDRESS
+    # 💰 Avantis Protocol Configuration
 
-# ========================================
+    AVANTIS_TRADING_CONTRACT = "0x2c6E10cE2d563d83eF4e5DaB8B0Bc0178FC0A0B1"  # Avantis Trading Contract
 
- 
+    USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC on Polygon
 
-# Correct USDC contract address for Base network
+   
 
-USDC_CONTRACT_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    # 📊 Trading Parameters
 
- 
+    DEFAULT_LEVERAGE = 5
 
-# Create trader client
+    DEFAULT_SLIPPAGE = 0.03  # 3% slippage (reduced for better execution)
 
-logger.info("🔑 Setting up trader client...")
+    MIN_MARGIN_REQUIRED = 25  # Minimum margin in USDC
 
- 
+    GAS_LIMIT = 500000
 
-class BasicAvantisTrader:
+    GAS_PRICE_GWEI = 1
 
-    def __init__(self, provider_url, private_key, api_key=None):
+   
 
-        # IMMEDIATE DEBUG LOGGING
+    # 🎯 Position Sizing Configuration
 
-        print("🚨 BASICAVANTIS INITIALIZATION STARTING...")
+    POSITION_SIZES = {
 
-        logger.info("🚨 BASICAVANTIS INITIALIZATION STARTING...")
+        1: 100,    # Tier 1: $100 USDC (margin: $100/5 = $20)
 
-       
+        2: 150,    # Tier 2: $150 USDC (margin: $150/5 = $30) 
 
-        self.provider_url = provider_url
+        3: 250     # Tier 3: $250 USDC (margin: $250/5 = $50)
 
-        self.private_key = private_key
+    }
 
-        self.api_key = api_key
+    DEFAULT_POSITION_SIZE = 100  # Default $100 (margin: $20)
 
-        self.signer = None
+   
 
-        self.sdk_client = None
+    # 🔍 Debugging Configuration
 
-        self.trading_mode = AVANTIS_MODE
+    ENABLE_DETAILED_LOGGING = True
 
-        self.available_methods = []
+    LOG_TRADE_PARAMETERS = True
 
-        self.available_properties = []
-
-        self.working_methods = {}
-
-       
-
-        print(f"🔍 BASIC DEBUG INFO:")
-
-        print(f"   Provider URL: {provider_url}")
-
-        print(f"   Private Key Length: {len(private_key) if private_key else 0}")
-
-        print(f"   API Key Available: {api_key is not None}")
-
-        print(f"   Trading Mode: {self.trading_mode}")
-
-        print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-
-        print(f"   SDKTraderClient: {SDKTraderClient}")
-
-       
-
-        logger.info(f"🔍 BASIC DEBUG INFO:")
-
-        logger.info(f"   Provider URL: {provider_url}")
-
-        logger.info(f"   Private Key Length: {len(private_key) if private_key else 0}")
-
-        logger.info(f"   API Key Available: {api_key is not None}")
-
-        logger.info(f"   Trading Mode: {self.trading_mode}")
-
-        logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-
-        logger.info(f"   SDKTraderClient: {SDKTraderClient}")
-
-       
-
-        logger.info(f"🚦 Initializing trader in {self.trading_mode} mode")
-
-       
-
-        # Initialize based on trading mode
-
-        if self.trading_mode == 'LIVE':
-
-            print("🔥 LIVE MODE - Initializing real SDK client")
-
-            logger.info("🔥 LIVE MODE - Initializing real SDK client")
-
-            self._initialize_real_sdk()
-
-        else:
-
-            print("🧪 TEST MODE - Using mock client")
-
-            logger.info("🧪 TEST MODE - Using mock client")
-
-            self._initialize_mock_client()
-
-       
-
-        print(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
-
-        logger.info(f"✅ INITIALIZATION COMPLETE - SDK Client: {self.sdk_client is not None}")
+    LOG_BALANCE_CHECKS = True
 
  
 
-    def _initialize_real_sdk(self):
+# ============================================================================
 
-        print("🛠 _initialize_real_sdk() CALLED")
+# 🌐 WEB3 AND BLOCKCHAIN UTILITIES
 
-        logger.info("🛠 _initialize_real_sdk() CALLED")
+# ============================================================================
+
+ 
+
+class Web3Manager:
+
+    """Manages Web3 connections and blockchain interactions"""
+
+   
+
+    def __init__(self):
+
+        self.w3 = None
+
+        self.account = None
+
+        self.trading_contract = None
+
+        self.usdc_contract = None
+
+        self._initialize_web3()
 
        
+
+    def _initialize_web3(self):
+
+        """Initialize Web3 connection and contracts"""
 
         try:
 
-            print("🛠 Creating real SDK client...")
+            # Initialize Web3
 
-            logger.info("🛠 Creating real SDK client...")
-
-           
-
-            print(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
-
-            logger.info(f"🔍 Available SDK classes: SDKTraderClient={SDKTraderClient is not None}")
+            self.w3 = Web3(Web3.HTTPProvider(TradingConfig.POLYGON_RPC_URL))
 
            
 
-            if not SDKTraderClient:
+            if not self.w3.is_connected():
 
-                print("❌ SDKTraderClient is None - SDK not imported properly")
+                logger.error("❌ Failed to connect to Polygon network")
 
-                logger.error("❌ SDKTraderClient is None - SDK not imported properly")
+                return False
 
-                raise ImportError("SDK not available")
+               
 
-           
-
-            # Log what we're working with
-
-            print(f"🔧 Initialization parameters:")
-
-            print(f"   Provider URL: {self.provider_url}")
-
-            print(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
-
-            print(f"   API Key Available: {self.api_key is not None}")
+            logger.info("✅ Connected to Polygon network")
 
            
 
-            logger.info(f"🔧 Initialization parameters:")
+            # Initialize account
 
-            logger.info(f"   Provider URL: {self.provider_url}")
+            if TradingConfig.PRIVATE_KEY:
 
-            logger.info(f"   Private Key Length: {len(self.private_key) if self.private_key else 0}")
+                self.account = Account.from_key(TradingConfig.PRIVATE_KEY)
 
-            logger.info(f"   API Key Available: {self.api_key is not None}")
-
-           
-
-            # Try different initialization approaches with better error handling
-
-            initialization_attempts = [
-
-                {
-
-                    'name': 'Provider URL Only',
-
-                    'func': lambda: SDKTraderClient(provider_url=self.provider_url),
-
-                    'description': 'Basic initialization with RPC URL'
-
-                },
-
-                {
-
-                    'name': 'Empty Constructor',
-
-                    'func': lambda: SDKTraderClient(),
-
-                    'description': 'Default constructor'
-
-                },
-
-                {
-
-                    'name': 'With Private Key',
-
-                    'func': lambda: SDKTraderClient(private_key=self.private_key),
-
-                    'description': 'Initialize with wallet'
-
-                },
-
-                {
-
-                    'name': 'Full Parameters',
-
-                    'func': lambda: SDKTraderClient(
-
-                        provider_url=self.provider_url,
-
-                        private_key=self.private_key
-
-                    ),
-
-                    'description': 'All available parameters'
-
-                }
-
-            ]
-
-           
-
-            for i, attempt in enumerate(initialization_attempts, 1):
-
-                try:
-
-                    print(f"🔧 SDK Attempt {i}: {attempt['name']}")
-
-                    print(f"   Description: {attempt['description']}")
-
-                    logger.info(f"🔧 SDK Attempt {i}: {attempt['name']}")
-
-                    logger.info(f"   Description: {attempt['description']}")
-
-                   
-
-                    self.sdk_client = attempt['func']()
-
-                   
-
-                    if self.sdk_client:
-
-                        print(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
-
-                        print(f"   SDK Client Type: {type(self.sdk_client)}")
-
-                        logger.info(f"✅ SUCCESS! SDK Client created with {attempt['name']}")
-
-                        logger.info(f"   SDK Client Type: {type(self.sdk_client)}")
-
-                       
-
-                        # ========== DEBUGGING CODE ==========
-
-                        print("🧪 ========== IMMEDIATE SDK METHOD DUMP ==========")
-
-                       
-
-                        # Check if 'trade' property exists and what's inside it
-
-                        if hasattr(self.sdk_client, 'trade'):
-
-                            print("✅ Found 'trade' property on SDK client!")
-
-                            logger.info("✅ Found 'trade' property on SDK client!")
-
-                           
-
-                            trade_obj = getattr(self.sdk_client, 'trade')
-
-                            print(f"🔍 Type of trade object: {type(trade_obj)}")
-
-                            logger.info(f"🔍 Type of trade object: {type(trade_obj)}")
-
-                           
-
-                            print(f"📋 Methods/attributes under 'trade': {dir(trade_obj)}")
-
-                            logger.info(f"📋 Methods/attributes under 'trade': {dir(trade_obj)}")
-
-                           
-
-                            # Check for specific trading methods under trade
-
-                            print("🔍 Checking for trading methods under client.trade:")
-
-                            logger.info("🔍 Checking for trading methods under client.trade:")
-
-                           
-
-                            for method in dir(trade_obj):
-
-                                if not method.startswith('_'):  # Skip private methods
-
-                                    attr = getattr(trade_obj, method)
-
-                                    if callable(attr):
-
-                                        print(f"   📞 trade.{method} - CALLABLE")
-
-                                        logger.info(f"   📞 trade.{method} - CALLABLE")
-
-                        else:
-
-                            print("❌ No 'trade' property found on SDK client")
-
-                            logger.info("❌ No 'trade' property found on SDK client")
-
-                       
-
-                        print("🧪 ========== END SDK METHOD DUMP ==========")
-
-                        logger.info("🧪 ========== END SDK METHOD DUMP ==========")
-
-                        # ========== END OF DEBUGGING CODE ==========
-
-                       
-
-                        # CRITICAL: Always run method discovery
-
-                        print("🔍 Running method discovery...")
-
-                        logger.info("🔍 Running method discovery...")
-
-                        self._discover_available_methods()
-
-                       
-
-                        # Set up signer after successful SDK creation
-
-                        print("🔑 Setting up signer...")
-
-                        logger.info("🔑 Setting up signer...")
-
-                        self._setup_signer()
-
-                        return  # Exit successfully
-
-                    else:
-
-                        print(f"⚠️ {attempt['name']} returned None")
-
-                        logger.warning(f"⚠️ {attempt['name']} returned None")
-
-                       
-
-                except Exception as e:
-
-                    print(f"❌ {attempt['name']} failed: {str(e)}")
-
-                    print(f"   Error type: {type(e).__name__}")
-
-                    logger.warning(f"❌ {attempt['name']} failed: {str(e)}")
-
-                    logger.warning(f"   Error type: {type(e).__name__}")
-
-                    continue
-
-           
-
-            # If we get here, all attempts failed
-
-            print("❌ All SDK initialization attempts failed")
-
-            print("🔄 Creating mock SDK client for method discovery")
-
-            logger.error("❌ All SDK initialization attempts failed")
-
-            logger.warning("🔄 Creating mock SDK client for method discovery")
-
-           
-
-            # Create a mock SDK client but still try to discover methods
-
-            print("🎭 Creating mock client...")
-
-            logger.info("🎭 Creating mock client...")
-
-            self.sdk_client = self._create_mock_sdk_client()
-
-           
-
-            print("✅ Mock SDK client created for testing")
-
-            logger.info("✅ Mock SDK client created for testing")
-
-            self._discover_available_methods()
-
-           
-
-        except Exception as e:
-
-            print(f"❌ Complete SDK initialization failure: {e}")
-
-            print(f"   Traceback: {traceback.format_exc()}")
-
-            logger.error(f"❌ Complete SDK initialization failure: {e}")
-
-            logger.error(f"   Traceback: {traceback.format_exc()}")
-
-            self.sdk_client = None
-
-            self.trading_mode = 'MOCK'
-
- 
-
-    def _setup_signer(self):
-
-        try:
-
-            if not self.private_key or len(self.private_key) < 60:
-
-                logger.warning(f"⚠️ Invalid private key length: {len(self.private_key) if self.private_key else 0}")
-
-                return
-
- 
-
-            logger.info("🔐 Setting up signer...")
-
-            from web3 import Web3
-
-            from web3.providers.async_rpc import AsyncHTTPProvider
-
-           
-
-            async_web3 = Web3(AsyncHTTPProvider(self.provider_url))
-
-            self.signer = LocalSigner(private_key=self.private_key, async_web3=async_web3)
-
-            logger.info("✅ Real signer created for LIVE trading")
-
-           
-
-            # ✅ FIXED: Set the signer on the SDK client too
-
-            if self.sdk_client and hasattr(self.sdk_client, 'set_local_signer'):
-
-                try:
-
-                    self.sdk_client.set_local_signer(private_key=self.private_key)
-
-                    logger.info("✅ Signer set on SDK client")
-
-                except Exception as sdk_signer_error:
-
-                    logger.warning(f"⚠️ Could not set signer on SDK client: {sdk_signer_error}")
-
-           
-
-            # Test signer connection
-
-            if hasattr(self.signer, 'get_ethereum_address'):
-
-                try:
-
-                    address = self.signer.get_ethereum_address()
-
-                    logger.info(f"✅ Connected to wallet: {address}")
-
-                except Exception as addr_error:
-
-                    logger.warning(f"⚠️ Could not get wallet address: {addr_error}")
-
-           
-
-        except Exception as signer_error:
-
-            logger.error(f"❌ Signer setup failed: {signer_error}")
-
-            self.signer = None
-
- 
-
-    def _discover_available_methods(self):
-
-        print("🔍 _discover_available_methods() CALLED")
-
-        logger.info("🔍 _discover_available_methods() CALLED")
-
-       
-
-        try:
-
-            print("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
-
-            logger.info("🔍 ========== DISCOVERING AVAILABLE SDK METHODS ==========")
-
-           
-
-            if not self.sdk_client:
-
-                print("❌ No SDK client to discover methods on")
-
-                logger.error("❌ No SDK client to discover methods on")
-
-                self.available_methods = []
-
-                self.available_properties = []
-
-                self.working_methods = {}
-
-                return
-
-           
-
-            print(f"✅ SDK Client available: {type(self.sdk_client)}")
-
-            logger.info(f"✅ SDK Client available: {type(self.sdk_client)}")
-
-           
-
-            # Get all attributes
-
-            try:
-
-                all_attributes = dir(self.sdk_client)
-
-                print(f"📋 Total attributes found: {len(all_attributes)}")
-
-                logger.info(f"📋 Total attributes found: {len(all_attributes)}")
-
-            except Exception as e:
-
-                print(f"❌ Could not get SDK attributes: {e}")
-
-                logger.error(f"❌ Could not get SDK attributes: {e}")
-
-                return
-
-           
-
-            methods = []
-
-            properties = []
-
-           
-
-            for attr in all_attributes:
-
-                if not attr.startswith('_'):  # Skip private attributes
-
-                    try:
-
-                        attr_obj = getattr(self.sdk_client, attr)
-
-                        if callable(attr_obj):
-
-                            methods.append(attr)
-
-                            print(f"   📞 Method: {attr}")
-
-                            logger.debug(f"   📞 Method: {attr}")
-
-                        else:
-
-                            properties.append(attr)
-
-                            print(f"   📋 Property: {attr}")
-
-                            logger.debug(f"   📋 Property: {attr}")
-
-                    except Exception as attr_error:
-
-                        print(f"   ⚠️ Could not access {attr}: {attr_error}")
-
-                        logger.debug(f"   ⚠️ Could not access {attr}: {attr_error}")
-
-                        pass
-
-           
-
-            print(f"📋 SDK Client Type: {type(self.sdk_client)}")
-
-            print(f"📋 Available Methods ({len(methods)}): {methods}")
-
-            print(f"📋 Available Properties ({len(properties)}): {properties}")
-
-           
-
-            logger.info(f"📋 SDK Client Type: {type(self.sdk_client)}")
-
-            logger.info(f"📋 Available Methods ({len(methods)}): {methods}")
-
-            logger.info(f"📋 Available Properties ({len(properties)}): {properties}")
-
-           
-
-            # Store working methods for later use
-
-            self.available_methods = methods
-
-            self.available_properties = properties
-
-           
-
-            # Test specific methods we need
-
-            print("🧪 Testing required methods...")
-
-            logger.info("🧪 Testing required methods...")
-
-            self._test_required_methods()
-
-           
-
-            print("🔍 ========== END METHOD DISCOVERY ==========")
-
-            logger.info("🔍 ========== END METHOD DISCOVERY ==========")
-
-           
-
-        except Exception as e:
-
-            print(f"❌ Method discovery failed: {e}")
-
-            print(f"   Traceback: {traceback.format_exc()}")
-
-            logger.error(f"❌ Method discovery failed: {e}")
-
-            logger.error(f"   Traceback: {traceback.format_exc()}")
-
-            self.available_methods = []
-
-            self.available_properties = []
-
-            self.working_methods = {}
-
- 
-
-    def _test_required_methods(self):
-
-        print("🧪 _test_required_methods() CALLED")
-
-        logger.info("🧪 _test_required_methods() CALLED")
-
-       
-
-        required_methods = {
-
-            'balance_methods': ['get_balance', 'get_account_balance', 'balance', 'account_balance'],
-
-            'address_methods': ['get_ethereum_address', 'get_address', 'address', 'wallet_address'],
-
-            'trading_methods': ['open_position', 'place_order', 'create_position', 'execute_trade', 'trade', 'submit_order', 'new_position']
-
-        }
-
-       
-
-        self.working_methods = {}
-
-       
-
-        for category, method_list in required_methods.items():
-
-            print(f"🧪 Testing {category}...")
-
-            logger.info(f"🧪 Testing {category}...")
-
-            working_in_category = []
-
-           
-
-            for method_name in method_list:
-
-                if method_name in self.available_methods:
-
-                    print(f"   ✅ {method_name} is available")
-
-                    logger.info(f"   ✅ {method_name} is available")
-
-                    working_in_category.append(method_name)
-
-                   
-
-                    # Try to get more info about the method
-
-                    try:
-
-                        method_obj = getattr(self.sdk_client, method_name)
-
-                        if hasattr(method_obj, '__doc__') and method_obj.__doc__:
-
-                            print(f"      📝 Doc: {method_obj.__doc__[:100]}...")
-
-                            logger.debug(f"      📝 Doc: {method_obj.__doc__[:100]}...")
-
-                       
-
-                        # Check if it's async
-
-                        if asyncio.iscoroutinefunction(method_obj):
-
-                            print(f"      ⚡ {method_name} is async")
-
-                            logger.debug(f"      ⚡ {method_name} is async")
-
-                        else:
-
-                            print(f"      🔄 {method_name} is sync")
-
-                            logger.debug(f"      🔄 {method_name} is sync")
-
-                           
-
-                    except Exception as inspect_error:
-
-                        print(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
-
-                        logger.debug(f"      ⚠️ Could not inspect {method_name}: {inspect_error}")
-
-                else:
-
-                    print(f"   ❌ {method_name} not found")
-
-                    logger.debug(f"   ❌ {method_name} not found")
-
-           
-
-            self.working_methods[category] = working_in_category
-
-            print(f"   📋 Working {category}: {working_in_category}")
-
-            logger.info(f"   📋 Working {category}: {working_in_category}")
-
-           
-
-            if not working_in_category:
-
-                print(f"   ⚠️ NO WORKING METHODS found for {category}!")
-
-                logger.warning(f"   ⚠️ NO WORKING METHODS found for {category}!")
-
-       
-
-        # SPECIAL: Check for Avantis SDK trade interface methods
-
-        print("🔍 CHECKING AVANTIS SDK TRADE INTERFACE...")
-
-        logger.info("🔍 CHECKING AVANTIS SDK TRADE INTERFACE...")
-
-       
-
-        avantis_trading_methods = []
-
-       
-
-        if hasattr(self.sdk_client, 'trade'):
-
-            trade_interface = getattr(self.sdk_client, 'trade')
-
-            print(f"✅ Found trade interface: {type(trade_interface)}")
-
-            logger.info(f"✅ Found trade interface: {type(trade_interface)}")
-
-           
-
-            # Check for specific Avantis trading methods
-
-            avantis_methods_to_check = [
-
-                'build_trade_open_tx',
-
-                'build_trade_close_tx',
-
-                'build_trade_margin_update_tx',
-
-                'build_trade_tp_sl_update_tx',
-
-                'get_trade_execution_fee',
-
-                'get_trades'
-
-            ]
-
-           
-
-            for method_name in avantis_methods_to_check:
-
-                if hasattr(trade_interface, method_name):
-
-                    print(f"   ✅ trade.{method_name} is available")
-
-                    logger.info(f"   ✅ trade.{method_name} is available")
-
-                    avantis_trading_methods.append(f"trade.{method_name}")
-
-                   
-
-                    # Check if it's async
-
-                    try:
-
-                        method_obj = getattr(trade_interface, method_name)
-
-                        if asyncio.iscoroutinefunction(method_obj):
-
-                            print(f"      ⚡ trade.{method_name} is async")
-
-                            logger.debug(f"      ⚡ trade.{method_name} is async")
-
-                        else:
-
-                            print(f"      🔄 trade.{method_name} is sync")
-
-                            logger.debug(f"      🔄 trade.{method_name} is sync")
-
-                    except Exception as inspect_error:
-
-                        print(f"      ⚠️ Could not inspect trade.{method_name}: {inspect_error}")
-
-                        logger.debug(f"      ⚠️ Could not inspect trade.{method_name}: {inspect_error}")
-
-                else:
-
-                    print(f"   ❌ trade.{method_name} not found")
-
-                    logger.debug(f"   ❌ trade.{method_name} not found")
-
-        else:
-
-            print("❌ No trade interface found")
-
-            logger.warning("❌ No trade interface found")
-
-       
-
-        # Add Avantis methods to trading_methods if found
-
-        if avantis_trading_methods:
-
-            self.working_methods['avantis_trading_methods'] = avantis_trading_methods
-
-            print(f"   🎯 Avantis trading methods found: {avantis_trading_methods}")
-
-            logger.info(f"   🎯 Avantis trading methods found: {avantis_trading_methods}")
-
-       
-
-        # Check for transaction signing methods
-
-        signing_methods = []
-
-        signing_methods_to_check = ['sign_and_get_receipt', 'write_contract', 'send_and_get_transaction_hash']
-
-       
-
-        for method_name in signing_methods_to_check:
-
-            if hasattr(self.sdk_client, method_name):
-
-                print(f"   ✅ {method_name} is available")
-
-                logger.info(f"   ✅ {method_name} is available")
-
-                signing_methods.append(method_name)
-
-       
-
-        if signing_methods:
-
-            self.working_methods['signing_methods'] = signing_methods
-
-            print(f"   📝 Signing methods found: {signing_methods}")
-
-            logger.info(f"   📝 Signing methods found: {signing_methods}")
-
-       
-
-        # Log summary
-
-        total_working = sum(len(methods) for methods in self.working_methods.values())
-
-        print(f"🎯 METHOD DISCOVERY SUMMARY:")
-
-        print(f"   Total working methods: {total_working}")
-
-        print(f"   Working methods by category: {self.working_methods}")
-
-       
-
-        logger.info(f"🎯 METHOD DISCOVERY SUMMARY:")
-
-        logger.info(f"   Total working methods: {total_working}")
-
-        logger.info(f"   Working methods by category: {self.working_methods}")
-
- 
-
-    def _initialize_mock_client(self):
-
-        print("🧪 _initialize_mock_client() CALLED")
-
-        logger.info("🧪 _initialize_mock_client() CALLED")
-
-       
-
-        print("🧪 Creating mock SDK client")
-
-        print(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-
-        print(f"   SDKTraderClient: {SDKTraderClient}")
-
-        logger.info("🧪 Creating mock SDK client")
-
-        logger.info(f"   REAL_SDK_AVAILABLE: {REAL_SDK_AVAILABLE}")
-
-        logger.info(f"   SDKTraderClient: {SDKTraderClient}")
-
-       
-
-        try:
-
-            if SDKTraderClient:
-
-                # Try to create a real SDK client even in mock mode for method discovery
-
-                print("🔍 Attempting to create real SDK client for method discovery...")
-
-                logger.info("🔍 Attempting to create real SDK client for method discovery...")
-
-                try:
-
-                    self.sdk_client = SDKTraderClient(provider_url=self.provider_url)
-
-                    print("✅ Real SDK client created for method discovery")
-
-                    logger.info("✅ Real SDK client created for method discovery")
-
-                    self._discover_available_methods()
-
-                except Exception as e:
-
-                    print(f"⚠️ Could not create real SDK client: {e}")
-
-                    logger.warning(f"⚠️ Could not create real SDK client: {e}")
-
-                    print("🎭 Creating mock client instead...")
-
-                    logger.info("🎭 Creating mock client instead...")
-
-                    self.sdk_client = self._create_mock_sdk_client()
+                logger.info(f"✅ Account loaded: {self.account.address}")
 
             else:
 
-                print("⚠️ SDKTraderClient not available, creating complete mock")
-
-                logger.warning("⚠️ SDKTraderClient not available, creating complete mock")
-
-                self.sdk_client = self._create_mock_sdk_client()
+                logger.warning("⚠️ No private key provided - read-only mode")
 
                
+
+            # Initialize contracts (simplified ABIs for core functions)
+
+            self._initialize_contracts()
+
+           
+
+            return True
+
+           
 
         except Exception as e:
 
-            print(f"❌ Mock client creation failed: {e}")
+            logger.error(f"❌ Web3 initialization failed: {str(e)}")
 
-            logger.error(f"❌ Mock client creation failed: {e}")
+            return False
 
-            self.sdk_client = self._create_mock_sdk_client()
+           
 
-       
+    def _initialize_contracts(self):
 
-        self.signer = None
+        """Initialize smart contract interfaces"""
 
-        print("✅ Mock client ready - no real trades will execute")
+        try:
 
-        logger.info("✅ Mock client ready - no real trades will execute")
+            # Simplified trading contract ABI for openTrade function
 
- 
+            trading_abi = [
 
-    def _create_mock_sdk_client(self):
+                {
 
-        print("🎭 Creating mock SDK client with common methods")
+                    "inputs": [
 
-        logger.info("🎭 Creating mock SDK client with common methods")
+                        {
 
-       
+                            "components": [
 
-        class MockSDKClient:
+                                {"name": "trader", "type": "address"},
 
-            def __init__(self):
+                                {"name": "pairIndex", "type": "uint256"},
 
-                self.mock_balance = 1000.0
+                                {"name": "index", "type": "uint256"},
 
-                print("🎭 MockSDKClient initialized")
+                                {"name": "initialPosToken", "type": "uint256"},
 
-               
+                                {"name": "positionSizeUsdc", "type": "uint256"},
 
-            def get_balance(self, token='USDC'):
+                                {"name": "openPrice", "type": "uint256"},
 
-                print(f"🎭 MockSDKClient.get_balance({token}) called")
+                                {"name": "buy", "type": "bool"},
 
-                return self.mock_balance
+                                {"name": "leverage", "type": "uint256"},
 
-               
+                                {"name": "tp", "type": "uint256"},
 
-            def get_account_balance(self):
+                                {"name": "sl", "type": "uint256"},
 
-                print("🎭 MockSDKClient.get_account_balance() called")
+                                {"name": "timestamp", "type": "uint256"}
 
-                return self.mock_balance
+                            ],
 
-               
+                            "name": "trade",
 
-            def balance(self):
+                            "type": "tuple"
 
-                print("🎭 MockSDKClient.balance() called")
+                        },
 
-                return self.mock_balance
+                        {"name": "orderType", "type": "uint8"},
 
-               
+                        {"name": "slippageP", "type": "uint256"}
 
-            def open_position(self, **kwargs):
+                    ],
 
-                print(f"🎭 MockSDKClient.open_position({kwargs}) called")
+                    "name": "openTrade",
 
-                return {
+                    "outputs": [],
 
-                    'success': True,
+                    "stateMutability": "nonpayable",
 
-                    'position_id': f'mock_{int(time.time())}',
-
-                    'tx_hash': f'0x{"mock"}{"0"*36}',
-
-                    'entry_price': kwargs.get('price', 50000),
-
-                    'note': 'Mock trade - no real execution'
+                    "type": "function"
 
                 }
 
-               
-
-            def place_order(self, **kwargs):
-
-                print(f"🎭 MockSDKClient.place_order({kwargs}) called")
-
-                return self.open_position(**kwargs)
-
-               
-
-            def create_position(self, **kwargs):
-
-                print(f"🎭 MockSDKClient.create_position({kwargs}) called")
-
-                return self.open_position(**kwargs)
-
-               
-
-            def execute_trade(self, **kwargs):
-
-                print(f"🎭 MockSDKClient.execute_trade({kwargs}) called")
-
-                return self.open_position(**kwargs)
-
-               
-
-            def trade(self, **kwargs):
-
-                print(f"🎭 MockSDKClient.trade({kwargs}) called")
-
-                return self.open_position(**kwargs)
-
-       
-
-        mock_client = MockSDKClient()
-
-        print("✅ Mock SDK client created with standard methods")
-
-        logger.info("✅ Mock SDK client created with standard methods")
-
-        return mock_client
-
- 
-
-    def get_balance(self):
-
-        try:
-
-            logger.info("💰 Getting balance with discovered methods...")
-
-            logger.info(f"   SDK Client available: {self.sdk_client is not None}")
-
-            logger.info(f"   Signer available: {self.signer is not None}")
-
-            logger.info(f"   Trading mode: {self.trading_mode}")
+            ]
 
            
 
-            # If no SDK client, use fallback
+            # USDC contract ABI for balance checking
 
-            if not self.sdk_client:
+            usdc_abi = [
 
-                logger.warning("⚠️ No SDK client, using fallback balance")
+                {
 
-                return 1000.0
+                    "inputs": [{"name": "account", "type": "address"}],
+
+                    "name": "balanceOf",
+
+                    "outputs": [{"name": "", "type": "uint256"}],
+
+                    "stateMutability": "view",
+
+                    "type": "function"
+
+                },
+
+                {
+
+                    "inputs": [],
+
+                    "name": "decimals",
+
+                    "outputs": [{"name": "", "type": "uint8"}],
+
+                    "stateMutability": "view",
+
+                    "type": "function"
+
+                }
+
+            ]
 
            
 
-            # Get balance methods we discovered
+            # Create contract instances
 
-            balance_methods = getattr(self, 'working_methods', {}).get('balance_methods', [])
+            self.trading_contract = self.w3.eth.contract(
 
-           
+                address=TradingConfig.AVANTIS_TRADING_CONTRACT,
 
-            logger.info(f"🔍 Discovered balance methods: {balance_methods}")
-
-           
-
-            if not balance_methods:
-
-                logger.warning("⚠️ No balance methods discovered, trying common ones...")
-
-                balance_methods = ['get_balance', 'get_account_balance', 'balance', 'account_balance']
-
-           
-
-            # ✅ FIXED: Use correct USDC contract address for Base
-
-            logger.info(f"🔧 Using USDC contract address: {USDC_CONTRACT_BASE}")
-
-           
-
-            # Try each balance method
-
-            for method_name in balance_methods:
-
-                if hasattr(self.sdk_client, method_name):
-
-                    try:
-
-                        method = getattr(self.sdk_client, method_name)
-
-                        logger.info(f"🔧 Trying {method_name}...")
-
-                        logger.info(f"   Method type: {type(method)}")
-
-                        logger.info(f"   Is async: {asyncio.iscoroutinefunction(method)}")
-
-                       
-
-                        # ✅ FIXED: Try different parameter combinations with correct USDC address
-
-                        param_attempts = [
-
-                            {'params': (USDC_CONTRACT_BASE,), 'name': 'USDC contract address'},
-
-                            {'params': ('USDC',), 'name': 'USDC token'},
-
-                            {'params': (), 'name': 'no parameters'}
-
-                        ]
-
-                       
-
-                        for attempt in param_attempts:
-
-                            try:
-
-                                logger.info(f"   🎯 Trying {attempt['name']}...")
-
-                               
-
-                                if asyncio.iscoroutinefunction(method):
-
-                                    # ✅ FIXED: Use await instead of asyncio.run() to avoid event loop error
-
-                                    try:
-
-                                        import nest_asyncio
-
-                                        nest_asyncio.apply()
-
-                                        if attempt['params']:
-
-                                            balance = asyncio.run(method(*attempt['params']))
-
-                                        else:
-
-                                            balance = asyncio.run(method())
-
-                                    except RuntimeError as e:
-
-                                        if "cannot be called from a running event loop" in str(e):
-
-                                            logger.warning(f"   ⚠️ Event loop issue, using sync fallback")
-
-                                            continue
-
-                                        else:
-
-                                            raise e
-
-                                else:
-
-                                    if attempt['params']:
-
-                                        balance = method(*attempt['params'])
-
-                                    else:
-
-                                        balance = method()
-
-                               
-
-                                logger.info(f"   📤 Raw result: {balance} (type: {type(balance)})")
-
-                               
-
-                                if balance is not None:
-
-                                    # Try to convert to float
-
-                                    try:
-
-                                        balance_float = float(balance)
-
-                                        logger.info(f"✅ Balance from {method_name}({attempt['name']}): ${balance_float}")
-
-                                        return balance_float
-
-                                    except (ValueError, TypeError) as convert_error:
-
-                                        logger.warning(f"⚠️ Could not convert balance to float: {convert_error}")
-
-                                        continue
-
-                                else:
-
-                                    logger.warning(f"   ⚠️ {method_name}({attempt['name']}) returned None")
-
-                                   
-
-                            except Exception as param_error:
-
-                                logger.warning(f"   ❌ get_balance({attempt['name']}) failed: {param_error}")
-
-                                continue
-
-                       
-
-                    except Exception as method_error:
-
-                        logger.error(f"❌ {method_name} method completely failed: {method_error}")
-
-                        continue
-
-                else:
-
-                    logger.debug(f"   ❌ {method_name} not available on SDK client")
-
-           
-
-            logger.warning("⚠️ No working balance methods succeeded, using fallback")
-
-            return 1000.0
-
-           
-
-        except Exception as e:
-
-            logger.error(f"❌ Balance check failed: {e}, proceeding anyway...")
-
-            logger.error(f"   Traceback: {traceback.format_exc()}")
-
-            return 1000.0
-
- 
-
-    def open_position(self, trade_data):
-
-        if self.trading_mode == 'LIVE':
-
-            logger.info("🔥 EXECUTING REAL LIVE TRADE")
-
-            return self._execute_live_trade(trade_data)
-
-        else:
-
-            logger.info("🧪 EXECUTING TEST TRADE (Mock)")
-
-            return self._execute_test_trade(trade_data)
-
- 
-
-    def _execute_live_trade(self, trade_data):
-
-        logger.info("💰 LIVE TRADE EXECUTION - REAL MONEY AT RISK!")
-
-       
-
-        try:
-
-            result = asyncio.run(self._execute_live_trade_async(trade_data))
-
-            return result
-
-        except Exception as e:
-
-            logger.error(f"❌ LIVE trade execution failed: {e}")
-
-            return {
-
-                'success': False,
-
-                'error': str(e),
-
-                'message': 'LIVE trade failed'
-
-            }
-
- 
-
-    async def _execute_live_trade_async(self, trade_data):
-
-        """Execute live trade with enhanced error handling and debugging"""
-
-       
-
-        # 🎯 DEFINE ENUMS AT FUNCTION LEVEL (OUTSIDE ALL TRY BLOCKS)
-
-        from enum import Enum
-
-       
-
-        class OrderType(Enum):
-
-            MARKET = 0
-
-            LIMIT = 1
-
-       
-
-        class SlippageType(Enum):
-
-            NORMAL = 2.0    # 2% slippage
-
-            HIGH = 5.0      # 5% slippage
-
-            LOW = 1.0       # 1% slippage
-
-       
-
-        logger.info("🚀 Executing async LIVE trade with FIXED Avantis approach...")
-
-        logger.info(f"   SDK Client available: {self.sdk_client is not None}")
-
-       
-
-        if not self.sdk_client:
-
-            logger.error("❌ No SDK client available")
-
-            return {
-
-                'success': False,
-
-                'error': "SDK client not initialized",
-
-                'message': 'No SDK client available for LIVE trading'
-
-            }
-
-       
-
-        # Check if trade property exists (we know it does from our discovery)
-
-        if not hasattr(self.sdk_client, 'trade'):
-
-            logger.error("❌ No 'trade' property found on SDK client")
-
-            return {
-
-                'success': False,
-
-                'error': "SDK trade interface not available",
-
-                'message': 'trade property missing from SDK client'
-
-            }
-
-       
-
-        # Check if we discovered the required Avantis methods
-
-        avantis_methods = getattr(self, 'working_methods', {}).get('avantis_trading_methods', [])
-
-        signing_methods = getattr(self, 'working_methods', {}).get('signing_methods', [])
-
-       
-
-        if 'trade.build_trade_open_tx' not in avantis_methods:
-
-            logger.error("❌ build_trade_open_tx not discovered")
-
-            return {
-
-                'success': False,
-
-                'error': "Required Avantis trading method not available",
-
-                'message': 'build_trade_open_tx method not found'
-
-            }
-
-       
-
-        if 'sign_and_get_receipt' not in signing_methods:
-
-            logger.error("❌ sign_and_get_receipt not discovered")
-
-            return {
-
-                'success': False,
-
-                'error': "Required signing method not available",
-
-                'message': 'sign_and_get_receipt method not found'
-
-            }
-
-       
-
-        # ✅ FIXED: Extract trade parameters with proper mapping
-
-        symbol = trade_data.get('symbol', 'BTC/USDT')
-
-        direction = trade_data.get('direction', 'LONG').upper()
-
-        position_size = trade_data.get('position_size', 100)
-
-        leverage = trade_data.get('leverage', 10)
-
-       
-
-        # ✅ FIXED: Use proper pair index mapping
-
-        pair_index = get_pair_index(symbol)
-
-        is_long = direction.upper() == 'LONG'
-
-       
-
-        # Optional TP/SL
-
-        tp_price = trade_data.get('tp1_price', 0)
-
-        sl_price = trade_data.get('stop_loss', 0)
-
-       
-
-        logger.info(f"📋 FIXED Trade Parameters:")
-
-        logger.info(f"   Symbol: {symbol} → Pair Index: {pair_index}")
-
-        logger.info(f"   Direction: {direction} → Is Long: {is_long}")
-
-        logger.info(f"   Position Size: ${position_size}")
-
-        logger.info(f"   Leverage: {leverage}x")
-
-        logger.info(f"   TP: ${tp_price}, SL: ${sl_price}")
-
-       
-
-        try:
-
-            # Step 1: Check balance first (with proper USDC handling)
-
-            logger.info("💰 Checking account balance before trade...")
-
-            try:
-
-                balance = self.get_balance()  # This now uses the fixed balance method
-
-                logger.info(f"   Account balance: {balance}")
-
-               
-
-                # Basic balance check
-
-                if isinstance(balance, (int, float)):
-
-                    if balance < position_size:
-
-                        logger.warning(f"⚠️ Balance check failed: ${balance} vs ${position_size} needed, proceeding anyway...")
-
-               
-
-            except Exception as balance_error:
-
-                logger.warning(f"⚠️ Balance check failed: 'NoneType' object has no attribute 'get_ethereum_address', proceeding anyway...")
-
-           
-
-            # Step 2: Build trade transaction with CORRECT parameters
-
-            logger.info("🧱 Building trade transaction with FIXED Avantis SDK parameters...")
-
-           
-
-            trade_interface = self.sdk_client.trade
-
-           
-
-            # ✅ FIXED: Use correct parameter format for Avantis SDK
-
-            trader_address = self.signer.get_ethereum_address() if self.signer else "0x0000000000000000000000000000000000000000"
-
-           
-
-            # Convert position size to proper format (USDC has 6 decimals)
-
-            position_size_usdc = int(position_size * 1e6)  # Convert to USDC units
-
-           
-
-            # ✅ FIXED: Create Pydantic-like object with model_dump() method AND tuple conversion
-
-            # The SDK expects trade_input.model_dump(), indicating it's a Pydantic model
-
-            class TradeInput:
-
-                def __init__(self, trader, pairIndex, index, initialPosToken, positionSizeUSDC,
-
-                           openPrice, buy, leverage, tp=0, sl=0, timestamp=None):
-
-                    self.trader = trader
-
-                    self.pairIndex = pairIndex
-
-                    self.index = index
-
-                    self.initialPosToken = initialPosToken
-
-                    self.positionSizeUSDC = positionSizeUSDC
-
-                    self.openPrice = openPrice
-
-                    self.buy = buy
-
-                    self.leverage = leverage
-
-                    self.tp = tp
-
-                    self.sl = sl
-
-                    # ✅ FIXED: Add missing timestamp field required by smart contract
-
-                    self.timestamp = timestamp if timestamp is not None else int(time.time())
-
-               
-
-                def model_dump(self):
-
-                    """SDK expects model_dump() to return tuple format for smart contract ABI
-
-                    Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-
-                    ✅ SIMPLE APPROACH: Clean integers - let SDK handle uint256 conversion
-
-                    """
-
-                    from web3 import Web3
-
-                   
-
-                    def to_contract_int(value):
-
-                        """Convert to clean integer for contract use"""
-
-                        if value is None:
-
-                            return 0
-
-                        try:
-
-                            return int(float(value))
-
-                        except Exception as e:
-
-                            print(f"Error converting {value} to int: {e}")
-
-                            return 0
-
-                   
-
-                    # Debug: Print values before conversion
-
-                    print(f"🔍 DEBUG model_dump values:")
-
-                    print(f"  trader: {self.trader}")
-
-                    print(f"  pairIndex: {self.pairIndex}")
-
-                    print(f"  positionSizeUSDC: {self.positionSizeUSDC}")
-
-                    print(f"  openPrice: {self.openPrice}")
-
-                    print(f"  leverage: {self.leverage}")
-
-                   
-
-                    # Create tuple with clean integers
-
-                    trader_address = str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000"
-
-                   
-
-                    # Ensure address is checksummed
-
-                    if trader_address and trader_address != "0x0000000000000000000000000000000000000000":
-
-                        try:
-
-                            trader_address = Web3.to_checksum_address(trader_address)
-
-                        except:
-
-                            trader_address = str(self.trader)
-
-                   
-
-                    result = (
-
-                        trader_address,
-
-                        to_contract_int(self.pairIndex),
-
-                        to_contract_int(self.index),
-
-                        to_contract_int(self.initialPosToken),
-
-                        to_contract_int(self.positionSizeUSDC),
-
-                        to_contract_int(self.openPrice),
-
-                        bool(self.buy),
-
-                        to_contract_int(self.leverage),
-
-                        to_contract_int(self.tp),
-
-                        to_contract_int(self.sl),
-
-                        to_contract_int(self.timestamp)
-
-                    )
-
-                   
-
-                    # Debug: Print result types and values
-
-                    print(f"🔍 DEBUG model_dump result types: {[type(x).__name__ for x in result]}")
-
-                    print(f"🔍 DEBUG model_dump key values: positionSize={result[4]}, openPrice={result[5]}, leverage={result[7]}")
-
-                   
-
-                    return result
-
-               
-
-                def model_dump_dict(self):
-
-                    """Dictionary representation for debugging/logging"""
-
-                    return {
-
-                        'trader': self.trader,
-
-                        'pairIndex': self.pairIndex,
-
-                        'index': self.index,
-
-                        'initialPosToken': self.initialPosToken,
-
-                        'positionSizeUSDC': self.positionSizeUSDC,
-
-                        'openPrice': self.openPrice,
-
-                        'buy': self.buy,
-
-                        'leverage': self.leverage,
-
-                        'tp': self.tp,
-
-                        'sl': self.sl,
-
-                        'timestamp': self.timestamp
-
-                    }
-
-               
-
-                def to_tuple(self):
-
-                    """Convert to tuple format expected by smart contract ABI
-
-                    Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-
-                    """
-
-                    return (
-
-                        self.trader,           # address
-
-                        self.pairIndex,        # uint256
-
-                        self.index,            # uint256
-
-                        self.initialPosToken,  # uint256
-
-                        self.positionSizeUSDC, # uint256
-
-                        self.openPrice,        # uint256
-
-                        self.buy,              # bool
-
-                        self.leverage,         # uint256
-
-                        self.tp,               # uint256
-
-                        self.sl,               # uint256
-
-                        self.timestamp         # uint256
-
-                    )
-
-           
-
-            # Create the trade input object (with model_dump() support!)
-
-            current_timestamp = int(time.time())
-
-            trade_input = TradeInput(
-
-                trader=trader_address,
-
-                pairIndex=pair_index,
-
-                index=0,  # Trade index, usually 0 for new trades
-
-                initialPosToken=position_size_usdc,
-
-                positionSizeUSDC=position_size_usdc,
-
-                openPrice=0,  # 0 for market order
-
-                buy=is_long,
-
-                leverage=leverage,
-
-                tp=int(tp_price * 1e10) if tp_price > 0 else 0,  # Price precision
-
-                sl=int(sl_price * 1e10) if sl_price > 0 else 0,   # Price precision
-
-                timestamp=current_timestamp  # ✅ FIXED: Add required timestamp
+                abi=trading_abi
 
             )
 
            
 
-            # ✅ FIXED: Create enum instances (not plain integers!)
+            self.usdc_contract = self.w3.eth.contract(
 
-            trade_input_order_type = OrderType.MARKET  # Has .value = 0
+                address=TradingConfig.USDC_CONTRACT,
 
-            slippage_percentage = SlippageType.NORMAL.value  # 2.0 as float
+                abi=usdc_abi
 
-           
-
-            logger.info(f"🎯 Complete parameters with clean Python types (Web3.py compatibility):")
-
-            logger.info(f"   trade_input object:")
-
-            logger.info(f"     trader: {trade_input.trader}")
-
-            logger.info(f"     pairIndex: {trade_input.pairIndex}")
-
-            logger.info(f"     initialPosToken: {trade_input.initialPosToken}")
-
-            logger.info(f"     buy: {trade_input.buy}")
-
-            logger.info(f"     leverage: {trade_input.leverage}")
-
-            logger.info(f"     timestamp: {trade_input.timestamp}")  # ✅ FIXED: Log timestamp
-
-            logger.info(f"   model_dump() available: {hasattr(trade_input, 'model_dump')}")
-
-            if hasattr(trade_input, 'model_dump'):
-
-                model_dump_result = trade_input.model_dump()
-
-                logger.info(f"   model_dump() output (clean int tuple): {model_dump_result}")
-
-                logger.info(f"   model_dump() types: {[type(x).__name__ for x in model_dump_result]}")
-
-                logger.info(f"   All values are clean Python int - Web3.py should recognize as uint256")
-
-            if hasattr(trade_input, 'model_dump_dict'):
-
-                logger.info(f"   model_dump_dict() output: {trade_input.model_dump_dict()}")
-
-            logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
-
-            logger.info(f"   trade_input_order_type.value: {trade_input_order_type.value}")
-
-            logger.info(f"   slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
-
-            logger.info(f"   ✅ Using clean Python int types - Web3.py should recognize as proper uint256/uint8!")
+            )
 
            
 
-            try:
-
-                # ✅ FIXED: Pass original enum objects - SDK expects them and calls .value internally
-
-                logger.info(f"🔧 Using original enum objects (SDK expects .value internally):")
-
-                logger.info(f"   trade_input_order_type: {trade_input_order_type} (type: {type(trade_input_order_type)})")
-
-                logger.info(f"   slippage_percentage: {slippage_percentage} (type: {type(slippage_percentage)})")
-
-                logger.info(f"   ✅ SDK will call .value internally on enum objects!")
-
-               
-
-                tx_data = await trade_interface.build_trade_open_tx(
-
-                    trade_input,  # ✅ Object with Web3-compatible model_dump()
-
-                    trade_input_order_type,  # ✅ FIXED: Original enum (SDK calls .value)
-
-                    slippage_percentage   # ✅ FIXED: Original float (SDK handles conversion)
-
-                )
-
-                logger.info(f"✅ Trade transaction built successfully!")
-
-                logger.info(f"   TX Data type: {type(tx_data)}")
-
-               
-
-            except Exception as primary_error:
-
-                logger.warning(f"⚠️ Primary approach failed: {primary_error}")
-
-               
-
-                # ✅ FIXED: All fallbacks use enum objects (SDK expects .value internally)
-
-                logger.info("🔄 Trying alternative enum object formats...")
-
-               
-
-                fallback_attempts = [
-
-                    {
-
-                        'name': 'Original Enum Objects + Web3 Scaling',
-
-                        'func': lambda: trade_interface.build_trade_open_tx(
-
-                            trade_input,  # ✅ Web3-compatible model_dump()
-
-                            trade_input_order_type,  # ✅ Original enum (SDK calls .value)
-
-                            slippage_percentage  # ✅ Original float (SDK converts)
-
-                        )
-
-                    },
-
-                    {
-
-                        'name': 'Enum Objects + Integer Slippage',
-
-                        'func': lambda: trade_interface.build_trade_open_tx(
-
-                            trade_input,
-
-                            trade_input_order_type,  # ✅ Original enum
-
-                            200  # ✅ 2% as integer basis points
-
-                        )
-
-                    },
-
-                    {
-
-                        'name': 'Market Order Enum + Float',
-
-                        'func': lambda: trade_interface.build_trade_open_tx(
-
-                            trade_input,
-
-                            OrderType.MARKET,  # ✅ Force market order enum
-
-                            slippage_percentage  # ✅ Original float
-
-                        )
-
-                    },
-
-                    {
-
-                        'name': 'Market Order Enum + Integer',
-
-                        'func': lambda: trade_interface.build_trade_open_tx(
-
-                            trade_input,
-
-                            OrderType.MARKET,  # ✅ Force market order enum 
-
-                            100  # ✅ 1% as integer
-
-                        )
-
-                    }
-
-                ]
-
-               
-
-                tx_data = None
-
-                for attempt in fallback_attempts:
-
-                    try:
-
-                        logger.info(f"   🎯 Trying {attempt['name']}...")
-
-                        tx_data = await attempt['func']()
-
-                        logger.info(f"   ✅ {attempt['name']} succeeded!")
-
-                        break
-
-                    except Exception as fallback_error:
-
-                        logger.warning(f"   ❌ {attempt['name']} failed: {fallback_error}")
-
-                        continue
-
-               
-
-                if not tx_data:
-
-                    raise Exception("All parameter formats failed")
-
-           
-
-            # Step 3: Sign and execute transaction
-
-            logger.info("📝 Signing and executing trade transaction...")
-
-           
-
-            receipt = await self.sdk_client.sign_and_get_receipt(tx_data)
-
-           
-
-            logger.info(f"🎉 REAL AVANTIS TRADE EXECUTED SUCCESSFULLY!")
-
-            logger.info(f"   Receipt type: {type(receipt)}")
-
-            logger.info(f"   Receipt: {receipt}")
-
-           
-
-            # Extract key information from receipt
-
-            tx_hash = 'unknown'
-
-            gas_used = 0
-
-           
-
-            if isinstance(receipt, dict):
-
-                tx_hash = receipt.get('transactionHash', receipt.get('hash', 'unknown'))
-
-                gas_used = receipt.get('gasUsed', 0)
-
-            else:
-
-                tx_hash = str(receipt) if receipt else 'unknown'
-
-           
-
-            logger.info(f"   🔗 Transaction Hash: {tx_hash}")
-
-            logger.info(f"   ⛽ Gas Used: {gas_used}")
-
-           
-
-            return {
-
-                'success': True,
-
-                'position_id': f'avantis_{int(time.time())}',
-
-                'avantis_position_id': f'avantis_{int(time.time())}',
-
-                'transaction_hash': str(tx_hash),
-
-                'actual_entry_price': trade_data.get('entry_price', 0),
-
-                'collateral_used': position_size,
-
-                'leverage': leverage,
-
-                'gas_used': gas_used,
-
-                'note': 'Real Avantis trade executed with FIXED clean Python type conversion',
-
-                'method_used': 'build_trade_open_tx + sign_and_get_receipt',
-
-                'approach': 'Fixed parameter mapping + correct USDC handling',
-
-                'receipt': receipt
-
-            }
+            logger.info("✅ Smart contracts initialized")
 
            
 
         except Exception as e:
 
-            logger.error(f"💥 HYBRID trade execution error: {e}")
-
-            logger.error(f"   Error type: {type(e).__name__}")
-
-            logger.error(f"   Traceback: {traceback.format_exc()}")
+            logger.error(f"❌ Contract initialization failed: {str(e)}")
 
            
 
-            return {
+    def get_usdc_balance(self, address: str) -> float:
 
-                'success': False,
+        """Get USDC balance for an address"""
 
-                'error': f'Hybrid Avantis trade execution failed: {str(e)}',
+        try:
 
-                'message': 'Error in hybrid Avantis SDK trade execution',
+            if not self.usdc_contract:
 
-                'approach': 'Hybrid approach failed',
+                return 0.0
 
-                'available_methods': {
+               
 
-                    'avantis_methods': avantis_methods,
+            balance_wei = self.usdc_contract.functions.balanceOf(address).call()
 
-                    'signing_methods': signing_methods
+            balance_usdc = balance_wei / 1_000_000  # USDC has 6 decimals
 
-                }
+           
 
-            }
+            return balance_usdc
 
- 
+           
 
-    def _execute_test_trade(self, trade_data):
+        except Exception as e:
 
-        logger.info("🧪 TEST TRADE - No real money involved")
+            logger.error(f"❌ Balance check failed: {str(e)}")
 
-       
+            return 0.0
 
-        return {
+           
 
-            'success': True,
+    def is_connected(self) -> bool:
 
-            'position_id': f'TEST_{int(time.time())}',
+        """Check if Web3 is connected"""
 
-            'entry_price': trade_data.get('entry_price', 0),
-
-            'tx_hash': f'0x{"TEST"}{"0"*36}',
-
-            'message': f'TEST trade executed in {self.trading_mode} mode',
-
-            'test_mode': True
-
-        }
+        return self.w3 and self.w3.is_connected()
 
  
 
- 
+# Initialize global Web3 manager
 
-@app.route("/trade/test", methods=["POST"])
-
-def test_trade_route():
-
-    try:
-
-        data = request.get_json()
-
-        logger.info(f"🧪 TEST endpoint received payload: {data}")
-
-       
-
-        return jsonify({
-
-            "success": True,
-
-            "message": "✅ /trade/test is active and receiving payloads",
-
-            "mode": "TEST_MODE",
-
-            "timestamp": datetime.now().isoformat(),
-
-            "data": data
-
-        })
-
-    except Exception as e:
-
-        return jsonify({"success": False, "error": str(e)})
+web3_manager = Web3Manager()
 
  
 
-@app.route("/trade", methods=["POST"])
+# ============================================================================
 
-def handle_trade():
+# 📊 GOOGLE SHEETS INTEGRATION
 
-    try:
-
-        # Get trade payload
-
-        data = request.get_json()
-
-        logger.info(f"📨 Incoming trade payload: {data}")
-
-        if not data:
-
-            return jsonify({"success": False, "error": "No JSON payload received"}), 400
-
-       
-
-        # Verify webhook secret
-
-        received_secret = request.headers.get("X-Webhook-Secret")
-
-        expected_secret = os.getenv("WEBHOOK_SECRET")
-
-       
-
-        if expected_secret and received_secret != expected_secret:
-
-            logger.warning("⛔ Webhook secret mismatch!")
-
-            return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-       
-
-        # Execute trade using existing trader instance
-
-        result = trader.open_position(data)
-
-       
-
-        return jsonify({
-
-            "success": True,
-
-            "message": "✅ Trade processed",
-
-            "result": result,
-
-            "timestamp": datetime.now().isoformat()
-
-        }), 200
-
-       
-
-    except Exception as e:
-
-        logger.error(f"💥 Error in /trade: {e}")
-
-        return jsonify({"success": False, "error": str(e)}), 500
+# ============================================================================
 
  
 
- 
+class GoogleSheetsManager:
 
-# Create trader client
-
-try:
-
-    if not REAL_SDK_AVAILABLE:
-
-        raise RuntimeError("❌ Real Avantis SDK is not available")
+    """Manages Google Sheets integration for signal processing"""
 
    
-
-    # Use the custom AvantisTrader wrapper if available
-
-    if CUSTOM_TRADER_AVAILABLE:
-
-        logger.info("✅ Using custom AvantisTrader wrapper")
-
-        trader = CustomAvantisTrader(
-
-            api_key=API_KEY,
-
-            private_key=PRIVATE_KEY,
-
-            rpc_url=RPC_URL
-
-        )
-
-        logger.info("✅ Custom AvantisTrader wrapper created successfully")
-
-    else:
-
-        # Create the basic wrapper around the SDK client
-
-        logger.info("⚠️ Custom wrapper not found, creating basic wrapper")
-
-        trader = BasicAvantisTrader(
-
-            provider_url=RPC_URL,
-
-            private_key=PRIVATE_KEY,
-
-            api_key=API_KEY
-
-        )
-
-        logger.info("✅ Basic AvantisTrader wrapper created successfully")
-
-   
-
-    logger.info("✅ Trader client configured successfully")
-
-   
-
-except Exception as e:
-
-    logger.error(f"❌ Failed to create trader client: {str(e)}")
-
-    logger.error(f"   Error details: {traceback.format_exc()}")
-
-    raise
-
- 
-
-# Enhanced Trading Parameters
-
-MAX_OPEN_POSITIONS = 4
-
-POSITION_COOLDOWN = 2
-
-MIN_SIGNAL_QUALITY = 0
-
- 
-
-TIER_1_POSITION_SIZE = 0.25
-
-TIER_2_POSITION_SIZE = 0.18
-
- 
-
-TP_LEVELS = {
-
-    'BULL': {
-
-        'TP1': 0.025,
-
-        'TP2': 0.055,
-
-        'TP3': 0.12
-
-    },
-
-    'BEAR': {
-
-        'TP1': 0.015,
-
-        'TP2': 0.035,
-
-        'TP3': 0.05
-
-    },
-
-    'NEUTRAL': {
-
-        'TP1': 0.02,
-
-        'TP2': 0.045,
-
-        'TP3': 0.08
-
-    }
-
-}
-
- 
-
- 
-
-class EnhancedTradeLogger:
 
     def __init__(self):
 
-        self.trade_log_sheet_id = os.getenv('ELITE_TRADE_LOG_SHEET_ID')
+        self.sheets_client = None
 
-        self.trade_log_tab_name = os.getenv('ELITE_TRADE_LOG_TAB_NAME', 'Elite Trade Log')
+        # Note: Google Sheets integration is simplified for Heroku deployment
 
-        self.signal_inbox_sheet_id = os.getenv('SIGNAL_INBOX_SHEET_ID')
-
-        self.signal_inbox_tab_name = os.getenv('SIGNAL_INBOX_TAB_NAME', 'Signal Inbox')
-
- 
-
-    def log_trade_entry(self, trade_data):
-
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # In production, you would use service account credentials
 
        
 
-        logger.info(f"📊 LOGGING TRADE ENTRY:")
+    def process_sheets_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
 
-        logger.info(f"   Trade ID: {trade_data.get('avantis_position_id', 'PENDING')}")
-
-        logger.info(f"   Symbol: {trade_data['symbol']}")
-
-        logger.info(f"   Direction: {trade_data['direction']}")
-
-        logger.info(f"   Size: ${trade_data['position_size']:,.2f}")
-
-       
-
-        trade_entry = {
-
-            'Trade_ID': trade_data.get('avantis_position_id', 'PENDING'),
-
-            'Timestamp': timestamp,
-
-            'Symbol': trade_data['symbol'],
-
-            'Direction': trade_data['direction'],
-
-            'Entry_Price': trade_data.get('actual_entry_price', trade_data.get('entry_price', 0)),
-
-            'Position_Size_USDC': trade_data['position_size'],
-
-            'Leverage': trade_data.get('leverage', 6),
-
-            'Collateral_Used': trade_data.get('collateral_used', 0),
-
-            'Tier': trade_data['tier'],
-
-            'Signal_Quality': trade_data.get('signal_quality', 0),
-
-            'Market_Regime': trade_data.get('market_regime', 'UNKNOWN'),
-
-            'Entry_Timestamp': timestamp,
-
-            'TP1_Price': trade_data.get('tp1_price', 0),
-
-            'TP2_Price': trade_data.get('tp2_price', 0),
-
-            'TP3_Price': trade_data.get('tp3_price', 0),
-
-            'Stop_Loss_Price': trade_data.get('stop_loss', 0),
-
-            'TP1_Hit': 'Pending',
-
-            'TP1_Hit_Time': 'N/A',
-
-            'TP2_Hit': 'Pending',
-
-            'TP2_Hit_Time': 'N/A',
-
-            'TP3_Hit': 'Pending',
-
-            'TP3_Actual_Price': 'N/A',
-
-            'TP3_Hit_Time': 'N/A',
-
-            'TP3_Duration_Minutes': 'N/A',
-
-            'Exit_Price': 'OPEN',
-
-            'Exit_Timestamp': 'OPEN',
-
-            'Total_Duration_Minutes': 'OPEN',
-
-            'PnL_USDC': 'OPEN',
-
-            'PnL_Percentage': 'OPEN',
-
-            'Final_Outcome': 'OPEN',
-
-            'Fees_Paid': trade_data.get('estimated_fees', 0),
-
-            'Net_Profit': 'OPEN',
-
-            'Market_Session': self._get_market_session(),
-
-            'Day_of_Week': datetime.now().weekday(),
-
-            'Manual_Notes': f'Tier {trade_data["tier"]} signal, Quality: {trade_data.get("signal_quality", "N/A")}'
-
-        }
-
-       
-
-        self._append_to_elite_trade_log(trade_entry)
-
-        self._mark_signal_processed(trade_data.get('signal_timestamp'))
-
-       
-
-        return trade_entry
-
- 
-
-    def _append_to_elite_trade_log(self, trade_entry):
+        """Process incoming signal from Google Sheets webhook"""
 
         try:
 
-            logger.info(f"📝 Elite Trade Log Entry: {trade_entry['Symbol']} {trade_entry['Direction']}")
-
-            logger.info(f"📊 Trade Entry Data: {json.dumps(trade_entry, indent=2)}")
-
-        except Exception as e:
-
-            logger.error(f"❌ Elite Trade Log append error: {str(e)}")
-
- 
-
-    def _mark_signal_processed(self, signal_timestamp):
-
-        try:
-
-            logger.info(f"✅ Marking signal processed: {signal_timestamp}")
-
-        except Exception as e:
-
-            logger.error(f"❌ Signal inbox update error: {str(e)}")
-
- 
-
-    def _get_market_session(self):
-
-        hour = datetime.now().hour
-
-        if 0 <= hour < 8:
-
-            return 'Asian'
-
-        elif 8 <= hour < 16:
-
-            return 'European'
-
-        else:
-
-            return 'American'
-
- 
-
- 
-
-class DynamicProfitManager(ProfitManager):
-
-    def __init__(self):
-
-        super().__init__()
-
-        self.system_start_date = datetime.now()
-
- 
-
-    def get_months_running(self):
-
-        delta = datetime.now() - self.system_start_date
-
-        return delta.days // 30
-
- 
-
-    def get_allocation_ratios(self, account_balance):
-
-        months = self.get_months_running()
-
-       
-
-        if months <= 6:
-
-            return {
-
-                "reinvest": 0.80,
-
-                "btc_stack": 0.15,
-
-                "reserve": 0.05,
-
-                "phase": "Growth Focus"
-
-            }
-
-        elif months <= 12:
-
-            return {
-
-                "reinvest": 0.70,
-
-                "btc_stack": 0.20,
-
-                "reserve": 0.10,
-
-                "phase": "Balanced Growth"
-
-            }
-
-        else:
-
-            return {
-
-                "reinvest": 0.60,
-
-                "btc_stack": 0.20,
-
-                "reserve": 0.20,
-
-                "phase": "Wealth Protection"
-
-            }
-
- 
-
- 
-
-class EnhancedAvantisEngine:
-
-    def __init__(self, trader_client):
-
-        logger.info("🚀 INITIALIZING ENHANCED AVANTIS ENGINE...")
-
-       
-
-        self.trader_client = trader_client
-
-        logger.info("✅ Trader client assigned successfully")
-
-       
-
-        try:
-
-            trader_methods = [method for method in dir(self.trader_client) if not method.startswith('_')]
-
-            logger.info(f"📋 Trader client methods: {trader_methods}")
-
-            logger.info(f"📋 Trader client type: {type(self.trader_client)}")
-
-        except Exception as e:
-
-            logger.warning(f"⚠️ Could not inspect trader client: {e}")
-
-       
-
-        self.profit_manager = DynamicProfitManager()
-
-        self.trade_logger = EnhancedTradeLogger()
-
-        self.open_positions = {}
-
-       
-
-        self.supported_symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT']
-
-       
-
-        logger.info(f"✅ Engine initialized with {len(self.supported_symbols)} supported symbols")
-
-        logger.info(f"📊 Max positions: {MAX_OPEN_POSITIONS}")
-
- 
-
-    def can_open_position(self):
-
-        can_open = len(self.open_positions) < MAX_OPEN_POSITIONS
-
-        logger.info(f"📊 Position check: {len(self.open_positions)}/{MAX_OPEN_POSITIONS} - Can open: {can_open}")
-
-        return can_open
-
- 
-
-    def calculate_position_size(self, balance, tier, market_regime):
-
-        base_size = TIER_1_POSITION_SIZE if tier == 1 else TIER_2_POSITION_SIZE
-
-       
-
-        if market_regime == 'BEAR':
-
-            multiplier = 0.8
-
-        elif market_regime == 'BULL':
-
-            multiplier = 1.1
-
-        else:
-
-            multiplier = 1.0
-
-       
-
-        final_size = balance * base_size * multiplier
-
-       
-
-        logger.info(f"💰 Position sizing:")
-
-        logger.info(f"   Balance: ${balance:,.2f}")
-
-        logger.info(f"   Tier {tier} base: {base_size*100:.1f}%")
-
-        logger.info(f"   {market_regime} multiplier: {multiplier}x")
-
-        logger.info(f"   Final size: ${final_size:,.2f}")
-
-       
-
-        return final_size
-
- 
-
-    def get_tp_levels(self, entry_price, direction, market_regime):
-
-        levels = TP_LEVELS.get(market_regime, TP_LEVELS['NEUTRAL'])
-
-       
-
-        logger.info(f"🎯 Calculating TP levels for {market_regime} market:")
-
-        logger.info(f"   TP1: {levels['TP1']*100:.1f}%")
-
-        logger.info(f"   TP2: {levels['TP2']*100:.1f}%")
-
-        logger.info(f"   TP3: {levels['TP3']*100:.1f}%")
-
-       
-
-        if direction.upper() == 'LONG':
-
-            tp_prices = {
-
-                'TP1': entry_price * (1 + levels['TP1']),
-
-                'TP2': entry_price * (1 + levels['TP2']),
-
-                'TP3': entry_price * (1 + levels['TP3'])
-
-            }
-
-        else:
-
-            tp_prices = {
-
-                'TP1': entry_price * (1 - levels['TP1']),
-
-                'TP2': entry_price * (1 - levels['TP2']),
-
-                'TP3': entry_price * (1 - levels['TP3'])
-
-            }
-
-       
-
-        logger.info(f"   TP1 Price: ${tp_prices['TP1']:,.2f}")
-
-        logger.info(f"   TP2 Price: ${tp_prices['TP2']:,.2f}")
-
-        logger.info(f"   TP3 Price: ${tp_prices['TP3']:,.2f}")
-
-       
-
-        return tp_prices
-
- 
-
-    def process_signal(self, signal_data):
-
-        logger.info("=" * 60)
-
-        logger.info("🎯 PROCESSING NEW TRADING SIGNAL")
-
-        logger.info("=" * 60)
-
-       
-
-        start_time = time.time()
-
-       
-
-        try:
-
-            logger.info(f"📊 SIGNAL DATA RECEIVED:")
-
-            logger.info(f"   Symbol: {signal_data.get('symbol', 'N/A')}")
-
-            logger.info(f"   Direction: {signal_data.get('direction', 'N/A')}")
-
-            logger.info(f"   Tier: {signal_data.get('tier', 'N/A')}")
-
-            logger.info(f"   Entry Price: ${signal_data.get('entry', 0):,.2f}")
-
-            logger.info(f"   Signal Quality: {signal_data.get('signal_quality', 'N/A')}")
-
-            logger.info(f"   Market Regime: {signal_data.get('market_regime', 'N/A')}")
+            logger.info("📊 Processing Google Sheets signal...")
 
            
 
-            signal_quality = signal_data.get('signal_quality', 0)
+            # Extract signal information with multiple field name attempts
 
-            if signal_quality < MIN_SIGNAL_QUALITY:
+            symbol = signal_data.get('symbol', signal_data.get('Symbol', ''))
 
-                reason = f"Signal quality {signal_quality} below threshold {MIN_SIGNAL_QUALITY}"
+            direction = signal_data.get('direction', signal_data.get('Direction', ''))
 
-                logger.warning(f"❌ SIGNAL REJECTED: {reason}")
-
-                return {"status": "rejected", "reason": reason}
+            tier = signal_data.get('tier', signal_data.get('Tier', 1))
 
            
 
-            logger.info(f"✅ Signal quality check passed: {signal_quality}")
+            # Extract entry price with multiple field attempts
+
+            entry_price = self._extract_entry_price(signal_data)
 
            
 
-            if not self.can_open_position():
+            # Calculate position size based on tier
 
-                reason = f"Maximum positions reached ({len(self.open_positions)}/{MAX_OPEN_POSITIONS})"
-
-                logger.warning(f"❌ SIGNAL REJECTED: {reason}")
-
-                return {"status": "rejected", "reason": reason}
+            position_size = self._calculate_position_size(tier)
 
            
 
-            logger.info(f"✅ Position limit check passed")
+            # Extract additional parameters
+
+            leverage = signal_data.get('leverage', signal_data.get('Leverage', TradingConfig.DEFAULT_LEVERAGE))
+
+            stop_loss = signal_data.get('stop_loss', signal_data.get('stopLoss', 0))
+
+            take_profit = signal_data.get('take_profit', signal_data.get('takeProfit', 0))
 
            
 
-            symbol = signal_data.get('symbol', '')
-
-            if symbol not in self.supported_symbols:
-
-                reason = f"Unsupported symbol: {symbol}"
-
-                logger.warning(f"❌ SIGNAL REJECTED: {reason}")
-
-                return {"status": "rejected", "reason": reason}
-
-           
-
-            logger.info(f"✅ Symbol validation passed: {symbol}")
-
-           
-
-            logger.info(f"💰 CHECKING ACCOUNT BALANCE...")
-
-            try:
-
-                if hasattr(self.trader_client, 'get_balance'):
-
-                    get_balance_method = getattr(self.trader_client, 'get_balance')
-
-                    if asyncio.iscoroutinefunction(get_balance_method):
-
-                        balance = asyncio.run(get_balance_method())
-
-                    else:
-
-                        balance = get_balance_method()
-
-                else:
-
-                    logger.warning("⚠️ No get_balance method found, using default")
-
-                    balance = 1000.0
-
-               
-
-                if asyncio.iscoroutine(balance):
-
-                    logger.warning("⚠️ Balance returned coroutine, awaiting it...")
-
-                    balance = asyncio.run(balance)
-
-               
-
-                if not isinstance(balance, (int, float)):
-
-                    logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
-
-                    balance = 1000.0
-
-               
-
-                balance = float(balance)
-
-                logger.info(f"💰 Balance: {balance}")           
-
-            except Exception as e:
-
-                logger.error(f"❌ Failed to get balance: {e}")
-
-                logger.warning("⚠️ Using default balance due to balance check failure")
-
-                balance = 1000.0
-
-           
-
-            tier = signal_data.get('tier', 2)
-
-            market_regime = signal_data.get('market_regime', 'NEUTRAL')
-
-            position_size = self.calculate_position_size(balance, tier, market_regime)
-
-           
-
-            entry_price = signal_data.get('entry', signal_data.get('entry_price', 0))
-
-            direction = signal_data.get('direction', '')
-
-            tp_levels = self.get_tp_levels(entry_price, direction, market_regime)
-
-           
-
-            trade_data = {
+            processed_signal = {
 
                 'symbol': symbol,
 
-                'direction': direction,
+                'direction': direction.upper() if direction else 'LONG',
+
+                'tier': int(tier),
 
                 'entry_price': entry_price,
 
                 'position_size': position_size,
 
-                'leverage': signal_data.get('leverage', 6),
+                'leverage': int(leverage),
 
-                'tp1_price': tp_levels['TP1'],
+                'stop_loss': stop_loss,
 
-                'tp2_price': tp_levels['TP2'],
+                'take_profit': take_profit,
 
-                'tp3_price': tp_levels['TP3'],
+                'timestamp': datetime.now(timezone.utc).isoformat(),
 
-                'stop_loss': signal_data.get('stopLoss', signal_data.get('stop_loss', 0)),
+                'source': 'Google Sheets',
 
-                'market_regime': market_regime,
-
-                'tier': tier,
-
-                'signal_quality': signal_quality,
-
-                'timestamp': datetime.now().isoformat(),
-
-                **signal_data
+                'signal_quality': signal_data.get('quality', 85)
 
             }
 
            
 
-            logger.info(f"📋 PREPARED TRADE DATA:")
-
-            logger.info(f"   Position Size: ${position_size:,.2f}")
-
-            logger.info(f"   Leverage: {trade_data['leverage']}x")
-
-            logger.info(f"   Stop Loss: ${trade_data['stop_loss']:,.2f}")
+            logger.info(f"✅ Processed signal: {symbol} {direction} ${position_size} @ ${entry_price}")
 
            
 
-            logger.info(f"⚡ EXECUTING REAL TRADE...")
-
-            logger.info(f"🔗 Calling AvantisTrader with proper async handling...")
+            return processed_signal
 
            
-
-            try:
-
-                available_methods = [method for method in dir(self.trader_client) if not method.startswith('_')]
-
-                logger.info(f"📋 Available trader methods: {available_methods}")
-
-               
-
-                logger.info("🚀 CALLING REAL TRADE METHOD...")
-
-                trade_result = self.trader_client.open_position(trade_data)
-
-               
-
-                logger.info(f"📤 Trade execution result received:")
-
-                logger.info(f"   Success: {trade_result.get('success', False)}")
-
-                logger.info(f"   Position ID: {trade_result.get('position_id', 'N/A')}")
-
-                logger.info(f"   TX Hash: {trade_result.get('tx_hash', 'N/A')}")
-
-                logger.info(f"   Entry Price: {trade_result.get('entry_price', 'N/A')}")
-
-               
-
-                debug_info = trade_result.get('debug_info', {})
-
-                if debug_info:
-
-                    logger.info(f"🔍 DEBUG INFO:")
-
-                    logger.info(f"   Available methods: {len(debug_info.get('available_methods', []))}")
-
-                    logger.info(f"   Callable methods: {debug_info.get('callable_methods', [])}")
-
-                    logger.info(f"   Trade params: {debug_info.get('trade_params_attempted', {})}")
-
-                else:
-
-                    logger.info(f"   Full result: {json.dumps(trade_result, indent=2)}")
-
-               
-
-                position_id = trade_result.get('position_id', '')
-
-                if 'DEBUG' in position_id:
-
-                    logger.info("🔍 This was a DEBUG response - check available methods above")
-
-                elif 'MOCK' in position_id or 'mock' in trade_result.get('message', '').lower():
-
-                    logger.warning("⚠️ This was a mock trade - SDK methods may need verification")
-
-                elif trade_result.get('success'):
-
-                    logger.info("🎉 REAL TRADE EXECUTED SUCCESSFULLY!")
-
-                    logger.info(f"   🔗 Transaction Hash: {trade_result.get('tx_hash')}")
-
-                else:
-
-                    logger.warning(f"⚠️ Trade execution failed: {trade_result.get('error', 'Unknown error')}")
-
-               
-
-            except Exception as e:
-
-                logger.error(f"💥 TRADE EXECUTION FAILED: {str(e)}")
-
-                logger.error(f"   Error type: {type(e).__name__}")
-
-                logger.error(f"   Traceback: {traceback.format_exc()}")
-
-                return {"status": "error", "reason": f"Trade execution failed: {str(e)}"}
-
-           
-
-            if trade_result.get('success', False):
-
-                logger.info(f"🎉 TRADE EXECUTION SUCCESSFUL!")
-
-               
-
-                try:
-
-                    trade_data['avantis_position_id'] = trade_result.get('position_id', 'UNKNOWN')
-
-                    trade_data['actual_entry_price'] = trade_result.get('entry_price', entry_price)
-
-                    trade_data['tx_hash'] = trade_result.get('tx_hash', 'UNKNOWN')
-
-                   
-
-                    log_entry = self.trade_logger.log_trade_entry(trade_data)
-
-                    logger.info(f"✅ Trade logged to Elite Trade Log")
-
-                   
-
-                except Exception as e:
-
-                    logger.error(f"❌ Failed to log trade: {str(e)}")
-
-               
-
-                position_id = trade_result.get('position_id', f"temp_{int(time.time())}")
-
-                self.open_positions[position_id] = {
-
-                    **trade_data,
-
-                    'position_id': position_id,
-
-                    'opened_at': datetime.now(),
-
-                    'tx_hash': trade_result.get('tx_hash', 'UNKNOWN')
-
-                }
-
-               
-
-                processing_time = time.time() - start_time
-
-               
-
-                success_response = {
-
-                    "status": "success",
-
-                    "position_id": position_id,
-
-                    "tx_hash": trade_result.get('tx_hash', 'UNKNOWN'),
-
-                    "message": f"Position opened: {symbol} {direction}",
-
-                    "trade_data": trade_data,
-
-                    "processing_time": f"{processing_time:.2f}s"
-
-                }
-
-               
-
-                logger.info(f"✅ FINAL SUCCESS RESPONSE:")
-
-                logger.info(f"   Position ID: {position_id}")
-
-                logger.info(f"   TX Hash: {trade_result.get('tx_hash', 'UNKNOWN')}")
-
-                logger.info(f"   Processing Time: {processing_time:.2f}s")
-
-                logger.info("=" * 60)
-
-               
-
-                return success_response
-
-           
-
-            else:
-
-                error_reason = trade_result.get('error', trade_result.get('reason', 'Unknown error'))
-
-                logger.error(f"❌ TRADE EXECUTION FAILED: {error_reason}")
-
-                logger.error(f"   Full result: {json.dumps(trade_result, indent=2)}")
-
-               
-
-                return {"status": "failed", "reason": error_reason}
-
-               
 
         except Exception as e:
 
-            processing_time = time.time() - start_time
+            logger.error(f"❌ Google Sheets processing failed: {str(e)}")
 
-            error_msg = f"Error processing signal: {str(e)}"
-
-           
-
-            logger.error(f"💥 CRITICAL ERROR IN SIGNAL PROCESSING:")
-
-            logger.error(f"   Error: {error_msg}")
-
-            logger.error(f"   Type: {type(e).__name__}")
-
-            logger.error(f"   Processing Time: {processing_time:.2f}s")
-
-            logger.error(f"   Traceback: {traceback.format_exc()}")
-
-            logger.info("=" * 60)
+            return {}
 
            
 
-            return {"status": "error", "reason": error_msg}
+    def _extract_entry_price(self, signal_data: Dict[str, Any]) -> float:
+
+        """Extract entry price from signal data with multiple field attempts"""
+
+        price_fields = [
+
+            'entry_price', 'entryPrice', 'entry', 'Entry',
+
+            'price', 'Price', 'open_price', 'openPrice',
+
+            'signal_price', 'signalPrice'
+
+        ]
+
+       
+
+        for field in price_fields:
+
+            if field in signal_data and signal_data[field]:
+
+                try:
+
+                    price = float(signal_data[field])
+
+                    if price > 0:
+
+                        logger.info(f"💰 Found entry price in field '{field}': ${price}")
+
+                        return price
+
+                except (ValueError, TypeError):
+
+                    continue
+
+                   
+
+        logger.warning("⚠️ No valid entry price found in signal data")
+
+        return 0.0
+
+       
+
+    def _calculate_position_size(self, tier: int) -> int:
+
+        """Calculate position size based on signal tier"""
+
+        return TradingConfig.POSITION_SIZES.get(tier, TradingConfig.DEFAULT_POSITION_SIZE)
 
  
 
- 
+# Initialize Google Sheets manager
 
-logger.info("🚀 INITIALIZING FLASK APPLICATION...")
-
- 
-
-try:
-
-    engine = EnhancedAvantisEngine(trader)
-
-    logger.info("✅ Enhanced engine initialized successfully")
-
-except Exception as e:
-
-    logger.error(f"💥 FAILED TO INITIALIZE ENGINE: {str(e)}")
-
-    raise
+sheets_manager = GoogleSheetsManager()
 
  
+
+# ============================================================================
+
+# 🎯 AVANTIS TRADING ENGINE
+
+# ============================================================================
+
+ 
+
+class AvantisTrader:
+
+    """Core trading engine for Avantis protocol integration"""
+
+   
+
+    def __init__(self):
+
+        self.web3_manager = web3_manager
+
+        self.pair_mappings = self._initialize_pair_mappings()
+
+       
+
+    def _initialize_pair_mappings(self) -> Dict[str, int]:
+
+        """Initialize trading pair mappings for Avantis"""
+
+        return {
+
+            'BTC/USD': 0,
+
+            'BTCUSD': 0,
+
+            'BTC': 0,
+
+            'ETH/USD': 1,
+
+            'ETHUSD': 1,
+
+            'ETH': 1,
+
+            'MATIC/USD': 2,
+
+            'MATICUSD': 2,
+
+            'MATIC': 2,
+
+            'LINK/USD': 3,
+
+            'LINKUSD': 3,
+
+            'LINK': 3,
+
+            'AVAX/USD': 4,
+
+            'AVAXUSD': 4,
+
+            'AVAX': 4
+
+        }
+
+       
+
+    async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Execute trade on Avantis protocol with enhanced error handling"""
+
+        try:
+
+            logger.info(f"🎯 EXECUTING AVANTIS TRADE:")
+
+            logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing trade request")
+
+            logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
+
+           
+
+            # Enhanced debugging for entry price detection
+
+            logger.info(f"🔍 DEBUGGING entry price detection:")
+
+            logger.info(f"  Full trade_data keys: {list(trade_data.keys())}")
+
+            logger.info(f"  entry_price field: {trade_data.get('entry_price', 'NOT FOUND')}")
+
+            logger.info(f"  entry field: {trade_data.get('entry', 'NOT FOUND')}")
+
+            logger.info(f"  price field: {trade_data.get('price', 'NOT FOUND')}")
+
+           
+
+            # Extract entry price with multiple field name attempts
+
+            entry_price_dollars = None
+
+            entry_price_source = None
+
+           
+
+            # Try different field names for entry price
+
+            price_fields = ['entry_price', 'entry', 'price', 'open_price', 'entryPrice', 'openPrice']
+
+           
+
+            for field in price_fields:
+
+                if field in trade_data and trade_data[field] and trade_data[field] != 0:
+
+                    entry_price_dollars = float(trade_data[field])
+
+                    entry_price_source = field
+
+                    logger.info(f"💰 Found valid entry price in field '{field}': ${entry_price_dollars}")
+
+                    break
+
+           
+
+            if entry_price_dollars is None or entry_price_dollars == 0:
+
+                logger.error(f"❌ No valid entry price found in any field!")
+
+                logger.error(f"   Available fields: {list(trade_data.keys())}")
+
+                return {
+
+                    'status': 'error',
+
+                    'error': 'No valid entry price found',
+
+                    'available_fields': list(trade_data.keys())
+
+                }
+
+           
+
+            # Extract basic trade parameters
+
+            symbol = trade_data.get('symbol', 'BTC/USD')
+
+            direction = trade_data.get('direction', 'LONG').upper()
+
+            leverage = int(trade_data.get('leverage', TradingConfig.DEFAULT_LEVERAGE))
+
+           
+
+            # Calculate position size in USDC (with 6 decimals) - FOCUS ON MARGIN
+
+            position_usdc_dollars = float(trade_data.get('position_size', 100))  # Default $100
+
+           
+
+            # Calculate required margin based on leverage
+
+            required_margin = position_usdc_dollars / leverage
+
+           
+
+            # Ensure minimum MARGIN for Avantis (likely $20+ required margin)
+
+            min_margin_required = TradingConfig.MIN_MARGIN_REQUIRED  # $25
+
+            if required_margin < min_margin_required:
+
+                # Increase position size to meet margin requirement
+
+                new_position_size = min_margin_required * leverage
+
+                logger.warning(f"⚠️ Margin ${required_margin:.2f} below minimum ${min_margin_required}")
+
+                logger.warning(f"⚠️ Increasing position from ${position_usdc_dollars} to ${new_position_size}")
+
+                position_usdc_dollars = new_position_size
+
+                required_margin = position_usdc_dollars / leverage
+
+               
+
+            position_usdc = int(position_usdc_dollars * 1_000_000)  # Convert to 6 decimals
+
+           
+
+            logger.info(f"💰 MARGIN CALCULATION:")
+
+            logger.info(f"  - Position Size: ${position_usdc_dollars:.2f} USDC")
+
+            logger.info(f"  - Leverage: {leverage}x")
+
+            logger.info(f"  - Required Margin: ${required_margin:.2f} USDC")
+
+            logger.info(f"  - Position Size (6 decimals): {position_usdc}")
+
+            logger.info(f"  - Minimum Margin Required: ${min_margin_required}")
+
+           
+
+            # Convert entry price to Wei (18 decimals)
+
+            entry_price = int(entry_price_dollars * 1_000_000_000_000_000_000)  # 18 decimals
+
+           
+
+            logger.info(f"💰 FINAL Position size: ${position_usdc_dollars:.2f} USDC (raw: {position_usdc})")
+
+            logger.info(f"💰 FINAL Entry price: ${entry_price_dollars:.2f} (raw: {entry_price})")
+
+            logger.info(f"💰 Entry price source field: {entry_price_source}")
+
+           
+
+            # Get pair index
+
+            pair_index = self.pair_mappings.get(symbol.upper(), 0)
+
+            logger.info(f"🎯 Trading pair: {symbol} -> Index {pair_index}")
+
+           
+
+            # Determine trade direction
+
+            is_long = direction == 'LONG'
+
+            logger.info(f"📈 Direction: {direction} (is_long: {is_long})")
+
+           
+
+            # Get trader address
+
+            if not self.web3_manager.account:
+
+                return {
+
+                    'status': 'error',
+
+                    'error': 'No trading account configured'
+
+                }
+
+               
+
+            trader_address = self.web3_manager.account.address
+
+           
+
+            # Check USDC balance
+
+            usdc_balance = self.web3_manager.get_usdc_balance(trader_address)
+
+            logger.info(f"💰 USDC Balance: ${usdc_balance:.6f}")
+
+           
+
+            if usdc_balance < position_usdc_dollars:
+
+                logger.warning(f"⚠️ Balance check: ${usdc_balance:.6f} vs ${position_usdc_dollars} needed")
+
+                logger.warning(f"⚠️ You have $200 USDC but need ${position_usdc_dollars} - check if funds are available")
+
+                # Continue anyway for now
+
+            else:
+
+                logger.info(f"✅ Sufficient balance: ${usdc_balance:.6f} >= ${position_usdc_dollars}")
+
+           
+
+            # Execute the trade
+
+            result = await self._execute_avantis_trade(
+
+                trader_address=trader_address,
+
+                pair_index=pair_index,
+
+                position_usdc=position_usdc,
+
+                entry_price=entry_price,
+
+                leverage=leverage,
+
+                is_long=is_long,
+
+                entry_price_dollars=entry_price_dollars,
+
+                entry_price_source=entry_price_source,
+
+                position_usdc_dollars=position_usdc_dollars
+
+            )
+
+           
+
+            return result
+
+           
+
+        except Exception as e:
+
+            logger.error(f"❌ Trade execution failed: {str(e)}")
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+            return {
+
+                'status': 'error',
+
+                'error': f'Trade execution failed: {str(e)}',
+
+                'traceback': traceback.format_exc()
+
+            }
+
+           
+
+    async def _execute_avantis_trade(
+
+        self,
+
+        trader_address: str,
+
+        pair_index: int,
+
+        position_usdc: int,
+
+        entry_price: int,
+
+        leverage: int,
+
+        is_long: bool,
+
+        entry_price_dollars: float,
+
+        entry_price_source: str,
+
+        position_usdc_dollars: float
+
+    ) -> Dict[str, Any]:
+
+        """Execute the actual trade on Avantis protocol"""
+
+       
+
+        try:
+
+            logger.info(f"🎯 Preparing trade parameters...")
+
+           
+
+            # FIXED: Use decimal slippage for SDK (addresses slippage/fee issue)
+
+            market_order_type = int(0)           # uint8 - MARKET order (ensure int)
+
+            slippage_decimal = TradingConfig.DEFAULT_SLIPPAGE  # 3% slippage (was 5% - less fees deducted)
+
+           
+
+            # Force all trade_params to be integers (addresses decimal precision issue)
+
+            trade_params = [
+
+                trader_address,                     # address
+
+                int(pair_index),                   # uint256
+
+                int(position_usdc),                # uint256 - position size in USDC (6 decimals)
+
+                int(entry_price),                  # uint256 - entry price (18 decimals)
+
+                int(leverage),                     # uint256 - leverage multiplier
+
+                int(0),                           # uint256 - tp1 (take profit 1)
+
+                bool(is_long),                    # bool - direction
+
+                int(0),                           # uint256 - tp2 (take profit 2) 
+
+                int(0),                           # uint256 - tp3 (take profit 3)
+
+                int(0),                           # uint256 - sl (stop loss)
+
+                int(0)                            # uint256 - limit price (0 for market)
+
+            ]
+
+           
+
+            logger.info(f"🔍 MARGIN-FOCUSED verification:")
+
+            logger.info(f"  - trade_params types: {[type(p).__name__ for p in trade_params]}")
+
+            logger.info(f"  - market_order_type: {market_order_type} (type: {type(market_order_type).__name__})")
+
+            logger.info(f"  - slippage_decimal: {slippage_decimal} (type: {type(slippage_decimal).__name__}) - Reduced to 3%")
+
+            logger.info(f"  - entry_price value: {entry_price} (${entry_price/1_000_000_000_000_000_000:.2f})")
+
+            logger.info(f"  - position_usdc value: {position_usdc} (${position_usdc/1_000_000:.2f})")
+
+            logger.info(f"  - required_margin: ${(position_usdc/1_000_000)/leverage:.2f} USDC")
+
+           
+
+            # CRITICAL: Verify entry price and margin are valid
+
+            if entry_price == 0:
+
+                logger.error(f"🚨 STOPPING: Entry price is ZERO! Cannot execute trade.")
+
+                return {
+
+                    'status': 'error',
+
+                    'error': 'Entry price is zero - trade aborted',
+
+                    'entry_price_source': entry_price_source,
+
+                    'original_value': entry_price_dollars
+
+                }
+
+               
+
+            # Calculate effective position after slippage/fees
+
+            effective_position = position_usdc_dollars * (1 - slippage_decimal)
+
+            effective_margin = effective_position / leverage
+
+           
+
+            logger.info(f"💰 SLIPPAGE IMPACT ANALYSIS:")
+
+            logger.info(f"  - Original position: ${position_usdc_dollars:.2f}")
+
+            logger.info(f"  - After {slippage_decimal*100}% slippage: ${effective_position:.2f}")
+
+            logger.info(f"  - Effective margin: ${effective_margin:.2f}")
+
+           
+
+            if effective_margin < 20:
+
+                logger.warning(f"⚠️ Effective margin ${effective_margin:.2f} might be below Avantis minimum!")
+
+                logger.warning(f"⚠️ Consider increasing position size or reducing leverage")
+
+           
+
+            # Execute the trade
+
+            trading_contract = self.web3_manager.trading_contract
+
+            if not trading_contract:
+
+                return {
+
+                    'status': 'error',
+
+                    'error': 'Trading contract not initialized'
+
+                }
+
+           
+
+            logger.info(f"🎯 Attempting Avantis trade execution...")
+
+            logger.info(f"  - Entry price: ${entry_price/1_000_000_000_000_000_000:.2f}")
+
+            logger.info(f"  - Position size: ${position_usdc/1_000_000:.2f} USDC")
+
+            logger.info(f"  - Leverage: {leverage}x")
+
+            logger.info(f"  - Direction: {'LONG' if is_long else 'SHORT'}")
+
+            logger.info(f"  - Market order type: {market_order_type} ({type(market_order_type).__name__})")
+
+            logger.info(f"  - Slippage: {slippage_decimal} ({type(slippage_decimal).__name__})")
+
+           
+
+            # FINAL TYPE VERIFICATION - Use decimal slippage for SDK
+
+            verified_trade_params = [
+
+                str(trader_address),                # address (string)
+
+                int(pair_index),                   # uint256
+
+                int(position_usdc),                # uint256
+
+                int(entry_price),                  # uint256
+
+                int(leverage),                     # uint256
+
+                int(0),                           # uint256 - tp1
+
+                bool(is_long),                    # bool
+
+                int(0),                           # uint256 - tp2
+
+                int(0),                           # uint256 - tp3
+
+                int(0),                           # uint256 - sl
+
+                int(0)                            # uint256 - limit price
+
+            ]
+
+           
+
+            verified_order_type = int(market_order_type)  # uint8
+
+            verified_slippage = float(slippage_decimal)   # decimal for SDK (will multiply by 10^10)
+
+           
+
+            logger.info(f"🔍 VERIFIED parameter types:")
+
+            logger.info(f"  - trade_params: {[type(p).__name__ for p in verified_trade_params]}")
+
+            logger.info(f"  - order_type: {verified_order_type} ({type(verified_order_type).__name__})")
+
+            logger.info(f"  - slippage: {verified_slippage} ({type(verified_slippage).__name__}) - Decimal for SDK")
+
+            logger.info(f"  - position_size: ${position_usdc/1_000_000:.2f} (raw: {position_usdc})")
+
+           
+
+            # Execute the trade with verified parameters
+
+            tx_hash = trading_contract.functions.openTrade(
+
+                verified_trade_params,
+
+                verified_order_type,
+
+                verified_slippage
+
+            ).transact({
+
+                'from': trader_address,
+
+                'gas': TradingConfig.GAS_LIMIT,
+
+                'gasPrice': self.web3_manager.w3.to_wei(TradingConfig.GAS_PRICE_GWEI, 'gwei')
+
+            })
+
+           
+
+            logger.info(f"✅ Trade executed successfully!")
+
+            logger.info(f"  - Transaction hash: {tx_hash.hex()}")
+
+           
+
+            return {
+
+                'status': 'success',
+
+                'tx_hash': tx_hash.hex(),
+
+                'position_size': f"${position_usdc/1_000_000:.2f}",
+
+                'entry_price': f"${entry_price/1_000_000_000_000_000_000:.2f}",
+
+                'leverage': f"{leverage}x",
+
+                'direction': 'LONG' if is_long else 'SHORT',
+
+                'margin': f"${(position_usdc/1_000_000)/leverage:.2f}",
+
+                'effective_margin_after_slippage': f"${effective_margin:.2f}"
+
+            }
+
+           
+
+        except Exception as e:
+
+            logger.error(f"❌ Avantis trade execution failed: {str(e)}")
+
+           
+
+            # Enhanced error analysis for BELOW_MIN_POS
+
+            if "BELOW_MIN_POS" in str(e):
+
+                actual_margin = position_usdc/1_000_000/leverage
+
+                logger.error(f"💡 BELOW_MIN_POS Analysis:")
+
+                logger.error(f"   - Position Size: ${position_usdc/1_000_000:.2f} USDC")
+
+                logger.error(f"   - Leverage: {leverage}x")
+
+                logger.error(f"   - Required Margin: ${actual_margin:.2f} USDC")
+
+                logger.error(f"   - After 3% slippage: ${actual_margin * 0.97:.2f} USDC")
+
+                logger.error(f"💡 Try: Increase position size or reduce leverage!")
+
+                logger.error(f"💡 Suggestion: Use $150+ position with 5x leverage = $30+ margin")
+
+               
+
+            return {
+
+                'status': 'error',
+
+                'error': str(e),
+
+                'analysis': f'Margin: ${(position_usdc/1_000_000)/leverage:.2f} USDC',
+
+                'suggestion': 'Increase position size or reduce leverage for higher margin'
+
+            }
+
+ 
+
+# Initialize Avantis trader
+
+avantis_trader = AvantisTrader()
+
+ 
+
+# ============================================================================
+
+# 🔄 SIGNAL PROCESSING ENGINE
+
+# ============================================================================
+
+ 
+
+class SignalProcessor:
+
+    """Advanced signal processing and validation engine"""
+
+   
+
+    def __init__(self):
+
+        self.sheets_manager = sheets_manager
+
+        self.trader = avantis_trader
+
+       
+
+    async def process_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Process incoming trading signal from any source"""
+
+        try:
+
+            logger.info("🔄 Processing incoming signal...")
+
+           
+
+            # Determine signal source and process accordingly
+
+            source = signal_data.get('source', 'unknown').lower()
+
+           
+
+            if 'sheets' in source or 'google' in source:
+
+                processed_signal = self.sheets_manager.process_sheets_signal(signal_data)
+
+            else:
+
+                processed_signal = self._process_generic_signal(signal_data)
+
+               
+
+            if not processed_signal:
+
+                return {
+
+                    'status': 'error',
+
+                    'error': 'Failed to process signal data'
+
+                }
+
+               
+
+            # Validate the processed signal
+
+            validation_result = self._validate_signal(processed_signal)
+
+            if not validation_result['valid']:
+
+                return {
+
+                    'status': 'error',
+
+                    'error': f"Signal validation failed: {validation_result['reason']}"
+
+                }
+
+               
+
+            # Execute the trade
+
+            trade_result = await self.trader.execute_trade(processed_signal)
+
+           
+
+            return {
+
+                'status': 'success' if trade_result.get('status') == 'success' else 'failed',
+
+                'signal': processed_signal,
+
+                'trade_result': trade_result
+
+            }
+
+           
+
+        except Exception as e:
+
+            logger.error(f"❌ Signal processing failed: {str(e)}")
+
+            return {
+
+                'status': 'error',
+
+                'error': f'Signal processing failed: {str(e)}'
+
+            }
+
+           
+
+    def _process_generic_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Process generic signal format"""
+
+        try:
+
+            # Extract core signal components
+
+            symbol = signal_data.get('symbol', signal_data.get('pair', 'BTC/USD'))
+
+            direction = signal_data.get('direction', signal_data.get('side', 'LONG')).upper()
+
+           
+
+            # Extract entry price
+
+            entry_price = self._extract_entry_price_generic(signal_data)
+
+           
+
+            # Extract position parameters
+
+            tier = signal_data.get('tier', signal_data.get('size_tier', 1))
+
+            position_size = signal_data.get('position_size',
+
+                                          TradingConfig.POSITION_SIZES.get(tier, TradingConfig.DEFAULT_POSITION_SIZE))
+
+           
+
+            leverage = signal_data.get('leverage', TradingConfig.DEFAULT_LEVERAGE)
+
+           
+
+            return {
+
+                'symbol': symbol,
+
+                'direction': direction,
+
+                'tier': tier,
+
+                'entry_price': entry_price,
+
+                'position_size': position_size,
+
+                'leverage': leverage,
+
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+
+                'source': 'Generic Signal',
+
+                'signal_quality': signal_data.get('quality', signal_data.get('confidence', 80))
+
+            }
+
+           
+
+        except Exception as e:
+
+            logger.error(f"❌ Generic signal processing failed: {str(e)}")
+
+            return {}
+
+           
+
+    def _extract_entry_price_generic(self, signal_data: Dict[str, Any]) -> float:
+
+        """Extract entry price from generic signal format"""
+
+        price_fields = [
+
+            'entry_price', 'entry', 'price', 'trigger_price',
+
+            'signal_price', 'target_price', 'open_price'
+
+        ]
+
+       
+
+        for field in price_fields:
+
+            if field in signal_data:
+
+                try:
+
+                    price = float(signal_data[field])
+
+                    if price > 0:
+
+                        return price
+
+                except (ValueError, TypeError):
+
+                    continue
+
+                   
+
+        return 0.0
+
+       
+
+    def _validate_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Validate processed signal before execution"""
+
+       
+
+        # Check required fields
+
+        required_fields = ['symbol', 'direction', 'entry_price', 'position_size']
+
+        for field in required_fields:
+
+            if field not in signal or not signal[field]:
+
+                return {
+
+                    'valid': False,
+
+                    'reason': f'Missing required field: {field}'
+
+                }
+
+               
+
+        # Validate entry price
+
+        if signal['entry_price'] <= 0:
+
+            return {
+
+                'valid': False,
+
+                'reason': 'Entry price must be greater than zero'
+
+            }
+
+           
+
+        # Validate direction
+
+        if signal['direction'] not in ['LONG', 'SHORT']:
+
+            return {
+
+                'valid': False,
+
+                'reason': 'Direction must be LONG or SHORT'
+
+            }
+
+           
+
+        # Validate position size
+
+        if signal['position_size'] < 10:  # Minimum $10
+
+            return {
+
+                'valid': False,
+
+                'reason': 'Position size too small (minimum $10)'
+
+            }
+
+           
+
+        # Validate leverage
+
+        leverage = signal.get('leverage', 1)
+
+        if leverage < 1 or leverage > 100:
+
+            return {
+
+                'valid': False,
+
+                'reason': 'Leverage must be between 1 and 100'
+
+            }
+
+           
+
+        return {'valid': True}
+
+ 
+
+# Initialize signal processor
+
+signal_processor = SignalProcessor()
+
+ 
+
+# ============================================================================
+
+# 🌐 WEBHOOK ENDPOINTS AND API ROUTES
+
+# ============================================================================
+
+ 
+
+@app.route('/', methods=['GET'])
+
+def health_check():
+
+    """Health check endpoint"""
+
+    return jsonify({
+
+        'status': 'healthy',
+
+        'service': 'Elite Crypto Trading Bot',
+
+        'version': 'v214-MARGIN-FIX',
+
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+
+        'web3_connected': web3_manager.is_connected(),
+
+        'features': {
+
+            'google_sheets': True,
+
+            'avantis_trading': True,
+
+            'margin_calculation': True,
+
+            'enhanced_debugging': True
+
+        }
+
+    })
 
  
 
 @app.route('/webhook', methods=['POST'])
 
-def process_webhook():
+def webhook():
 
-    webhook_start_time = time.time()
-
-    request_id = int(time.time() * 1000)
-
-   
-
-    logger.info(f"🌟 ========== WEBHOOK REQUEST #{request_id} ==========")
-
-    logger.info(f"⏰ Request received at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    """Enhanced webhook endpoint for trading signals with Avantis integration"""
 
    
 
     try:
 
-        logger.info(f"📥 PARSING INCOMING WEBHOOK DATA...")
+        # Version tracking - MARGIN FIX VERSION
+
+        logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
+
+        logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
 
        
 
-        try:
+        # Parse incoming request
 
-            signal_data = request.get_json()
+        if not request.is_json:
 
-           
+            logger.error("❌ Request is not JSON")
 
-            if not signal_data:
-
-                logger.error(f"❌ No JSON data received in webhook")
-
-                return jsonify({"status": "error", "message": "No JSON data received"}), 400
+            return jsonify({'error': 'Request must be JSON'}), 400
 
            
 
-            logger.info(f"✅ JSON data parsed successfully")
-
-            logger.info(f"📊 Raw signal data: {json.dumps(signal_data, indent=2)}")
-
-           
-
-        except Exception as e:
-
-            logger.error(f"❌ Failed to parse JSON: {str(e)}")
-
-            return jsonify({"status": "error", "message": f"Invalid JSON: {str(e)}"}), 400
+        signal_data = request.get_json()
 
        
 
-        logger.info(f"🔍 VALIDATING SIGNAL DATA...")
+        if not signal_data:
 
-       
+            logger.error("❌ Empty request body")
 
-        required_fields = ['symbol', 'direction', 'tier']
-
-        missing_fields = [field for field in required_fields if field not in signal_data]
-
-       
-
-        if missing_fields:
-
-            error_msg = f"Missing required fields: {missing_fields}"
-
-            logger.error(f"❌ {error_msg}")
-
-            return jsonify({"status": "error", "message": error_msg}), 400
-
-       
-
-        logger.info(f"✅ All required fields present")
-
-       
-
-        logger.info(f"⚡ PROCESSING SIGNAL WITH ENHANCED ENGINE...")
-
-       
-
-        try:
-
-            result = engine.process_signal(signal_data)
-
-            processing_time = time.time() - webhook_start_time
-
-            logger.info(f"🏁 ENGINE PROCESSING COMPLETE:")
-
-            logger.info(f"   Status: {result.get('status', 'unknown')}")
-
-            logger.info(f"   Processing Time: {processing_time:.2f}s")
+            return jsonify({'error': 'Empty request body'}), 400
 
            
 
-            if result.get('status') == 'success':
+        logger.info(f"📨 Received signal data: {json.dumps(signal_data, indent=2)}")
 
-                logger.info(f"🎉 WEBHOOK SUCCESS:")
+       
 
-                logger.info(f"   Position ID: {result.get('position_id', 'N/A')}")
+        # Process the signal asynchronously
 
-                logger.info(f"   TX Hash: {result.get('tx_hash', 'N/A')}")
+        async def process_webhook():
 
-            else:
-
-                logger.warning(f"⚠️ WEBHOOK NOT SUCCESSFUL:")
-
-                logger.warning(f"   Status: {result.get('status')}")
-
-                logger.warning(f"   Reason: {result.get('reason', 'No reason provided')}")
+            return await signal_processor.process_signal(signal_data)
 
            
 
-            result['request_id'] = request_id
+        # Run the async processing
 
-            result['processing_time'] = f"{processing_time:.2f}s"
+        result = asyncio.run(process_webhook())
 
-            result['timestamp'] = datetime.now().isoformat()
+       
+
+        # Log the result
+
+        if result.get('status') == 'success':
+
+            logger.info(f"✅ Webhook processing successful!")
+
+            logger.info(f"   Trade result: {result.get('trade_result', {})}")
+
+        else:
+
+            logger.warning(f"⚠️ Webhook processing failed: {result.get('error', 'Unknown error')}")
 
            
 
-            logger.info(f"🌟 ========== WEBHOOK #{request_id} COMPLETE ==========")
-
-           
-
-            return jsonify(result)
-
-           
-
-        except Exception as e:
-
-            logger.error(f"💥 ENGINE PROCESSING ERROR: {str(e)}")
-
-            logger.error(f"   Traceback: {traceback.format_exc()}")
-
-            return jsonify({"status": "error", "message": f"Engine error: {str(e)}"}), 500
+        return jsonify(result)
 
        
 
     except Exception as e:
 
-        processing_time = time.time() - webhook_start_time
+        logger.error(f"❌ Webhook error: {str(e)}")
 
-       
-
-        logger.error(f"💥 CRITICAL WEBHOOK ERROR:")
-
-        logger.error(f"   Error: {str(e)}")
-
-        logger.error(f"   Type: {type(e).__name__}")
-
-        logger.error(f"   Processing Time: {processing_time:.2f}s")
-
-        logger.error(f"   Traceback: {traceback.format_exc()}")
-
-        logger.info(f"🌟 ========== WEBHOOK #{request_id} FAILED ==========")
-
-       
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
         return jsonify({
 
-            "status": "error",
+            'status': 'error',
 
-            "message": str(e),
-
-            "request_id": request_id,
-
-            "processing_time": f"{processing_time:.2f}s"
+            'error': f'Webhook processing failed: {str(e)}'
 
         }), 500
 
  
 
- 
+@app.route('/balance', methods=['GET'])
 
-@app.route('/status', methods=['GET'])
+def get_balance():
 
-def get_status():
+    """Get current USDC balance"""
 
     try:
 
-        logger.info(f"📊 STATUS CHECK REQUESTED")
+        if not web3_manager.account:
+
+            return jsonify({'error': 'No account configured'}), 400
+
+           
+
+        balance = web3_manager.get_usdc_balance(web3_manager.account.address)
 
        
 
-        try:
+        return jsonify({
 
-            if hasattr(engine.trader_client, 'get_balance'):
+            'address': web3_manager.account.address,
 
-                get_balance_method = getattr(engine.trader_client, 'get_balance')
+            'usdc_balance': balance,
 
-                if asyncio.iscoroutinefunction(get_balance_method):
+            'timestamp': datetime.now(timezone.utc).isoformat()
 
-                    balance = asyncio.run(get_balance_method())
-
-                else:
-
-                    balance = get_balance_method()
-
-               
-
-                if asyncio.iscoroutine(balance):
-
-                    logger.warning("⚠️ Balance returned coroutine, awaiting it...")
-
-                    balance = asyncio.run(balance)
-
-               
-
-                if not isinstance(balance, (int, float)):
-
-                    logger.warning(f"⚠️ Balance type issue: {type(balance)}, using default")
-
-                    balance = 1000.0
-
-               
-
-                balance = float(balance)
-
-            else:
-
-                logger.warning("⚠️ No get_balance method found")
-
-                balance = 1000.0
-
-        except Exception as e:
-
-            logger.warning(f"⚠️ Balance check failed: {e}, using default")
-
-            balance = 1000.0
-
-       
-
-        allocation = engine.profit_manager.get_allocation_ratios(balance)
-
-       
-
-        status_data = {
-
-            "status": "operational",
-
-            "version": "Enhanced v3.8 with CLEAN PYTHON TYPES",
-
-            "optimizations": {
-
-                "max_positions": MAX_OPEN_POSITIONS,
-
-                "supported_symbols": engine.supported_symbols,
-
-                "bear_market_tp3": "5% (optimized)",
-
-                "profit_allocation_phase": allocation["phase"],
-
-                "sdk_structure": "✅ Confirmed: No address methods, use signer fallback approach",
-
-                "enum_scope_fix": "✅ OrderType and SlippageType moved to function level",
-
-                "timestamp_fix": "✅ Added missing timestamp field to TradeInput class",
-
-                "model_dump_tuple_fix": "✅ model_dump() now returns tuple format for smart contract ABI",
-
-                "web3_type_fix": "✅ All values converted to proper Web3 types (uint256, uint8, bool)",
-
-                "sdk_enum_fix": "✅ SDK expects original enum objects, calls .value internally",
-
-                "uint256_range_fix": "✅ All values properly bounded for uint256 range (0 to 2^256-1)",
-
-                "web3_abi_type_matching": "✅ All 3 parameters match exact ABI types: tuple(uint256), uint8, uint256",
-
-                "original_enum_restoration": "✅ Reverted to original enum objects - SDK handles all conversion",
-
-                "clean_python_types": "✅ All values converted to clean Python int for Web3.py recognition"
-
-            },
-
-            "performance": {
-
-                "open_positions": len(engine.open_positions),
-
-                "available_slots": MAX_OPEN_POSITIONS - len(engine.open_positions),
-
-                "account_balance": balance,
-
-                "allocation_ratios": allocation,
-
-                "trader_type": "custom_wrapper" if CUSTOM_TRADER_AVAILABLE else "basic_wrapper"
-
-            },
-
-            "timestamp": datetime.now().isoformat()
-
-        }
-
-       
-
-        logger.info(f"✅ Status check complete: {len(engine.open_positions)} open positions")
-
-       
-
-        return jsonify(status_data)
+        })
 
        
 
     except Exception as e:
 
-        logger.error(f"❌ Status check failed: {str(e)}")
+        logger.error(f"❌ Balance check failed: {str(e)}")
 
-        return jsonify({"status": "error", "message": str(e)}), 500
-
- 
+        return jsonify({'error': f'Balance check failed: {str(e)}'}), 500
 
  
 
-@app.route('/health', methods=['GET'])
+@app.route('/test-trade', methods=['POST'])
 
-def health_check():
+def test_trade():
+
+    """Test trade endpoint for debugging"""
 
     try:
 
-        health_data = {
+        test_signal = {
 
-            "status": "healthy",
+            'symbol': 'BTC/USD',
 
-            "timestamp": datetime.now().isoformat(),
+            'direction': 'LONG',
 
-            "engine_initialized": hasattr(engine, 'trader_client'),
+            'entry_price': 50000.0,
 
-            "open_positions": len(engine.open_positions) if hasattr(engine, 'open_positions') else 0,
+            'position_size': 100,
 
-            "max_positions": MAX_OPEN_POSITIONS,
+            'leverage': 5,
 
-            "fixes_applied": "✅ All parameter mapping issues resolved + OrderType scope + timestamp field + model_dump tuple format + Web3 type conversions + SDK enum object requirements + uint256 range validation + Web3 ABI type matching + Original enum restoration + Clean Python type conversion for Web3.py recognition"
+            'tier': 1,
+
+            'source': 'Test'
 
         }
 
        
 
-        logger.info(f"💚 Health check: All systems operational")
+        logger.info(f"🧪 Testing trade with signal: {test_signal}")
 
        
 
-        return jsonify(health_data)
+        async def process_test():
+
+            return await signal_processor.process_signal(test_signal)
+
+           
+
+        result = asyncio.run(process_test())
+
+       
+
+        return jsonify(result)
 
        
 
     except Exception as e:
 
-        logger.error(f"❌ Health check failed: {str(e)}")
+        logger.error(f"❌ Test trade failed: {str(e)}")
 
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+        return jsonify({
+
+            'status': 'error',
+
+            'error': f'Test trade failed: {str(e)}'
+
+        }), 500
 
  
+
+@app.route('/config', methods=['GET'])
+
+def get_config():
+
+    """Get current bot configuration"""
+
+    return jsonify({
+
+        'position_sizes': TradingConfig.POSITION_SIZES,
+
+        'default_leverage': TradingConfig.DEFAULT_LEVERAGE,
+
+        'default_slippage': TradingConfig.DEFAULT_SLIPPAGE,
+
+        'min_margin_required': TradingConfig.MIN_MARGIN_REQUIRED,
+
+        'gas_limit': TradingConfig.GAS_LIMIT,
+
+        'supported_pairs': list(avantis_trader.pair_mappings.keys()),
+
+        'version': 'v214-MARGIN-FIX'
+
+    })
+
+ 
+
+# ============================================================================
+
+# 📄 GOOGLE SHEETS INTEGRATION SCRIPT
+
+# ============================================================================
+
+ 
+
+def generate_google_sheets_script():
+
+    """Generate Google Apps Script code for Sheets integration"""
+
+   
+
+    script_code = '''
+
+/**
+
+* 🚀 ELITE CRYPTO TRADING BOT - Google Sheets Integration Script v214
+
+*
+
+ * This script sends trading signals from Google Sheets to your Heroku trading bot
+
+* with enhanced margin calculation and error handling.
+
+*
+
+ * Setup Instructions:
+
+* 1. Replace WEBHOOK_URL with your actual Heroku app URL
+
+* 2. Set up your trading signals in the Google Sheet
+
+* 3. Run sendTradingSignal() function to send signals
+
+*/
+
+ 
+
+// 🔗 Configuration - UPDATE THIS URL!
+
+const WEBHOOK_URL = "https://crypto-trading-bot-jesse-f6537b3a1992.herokuapp.com/webhook";
+
+ 
+
+/**
+
+* 📊 Main function to send trading signals to the bot
+
+* Call this function to send the current signal from your sheet
+
+*/
+
+function sendTradingSignal() {
+
+  try {
+
+    console.log('🚀 Elite Trading Bot v214-MARGIN-FIX - Sending signal...');
+
+   
+
+    // 📋 Read signal data from the active sheet
+
+    const sheet = SpreadsheetApp.getActiveSheet();
+
+    const signal = readSignalFromSheet(sheet);
+
+   
+
+    if (!signal) {
+
+      console.error('❌ No valid signal found in sheet');
+
+      return;
+
+    }
+
+   
+
+    console.log('📊 Signal data:', JSON.stringify(signal, null, 2));
+
+   
+
+    // 🌐 Send signal to trading bot
+
+    const response = sendWebhookRequest(signal);
+
+   
+
+    // 📝 Log the response
+
+    logResponse(sheet, signal, response);
+
+   
+
+    console.log('✅ Signal sent successfully!');
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Error sending signal:', error);
+
+    Browser.msgBox('Error', 'Failed to send signal: ' + error.toString(), Browser.Buttons.OK);
+
+  }
+
+}
+
+ 
+
+/**
+
+* 📋 Read trading signal from the Google Sheet
+
+* Supports multiple sheet layouts and field names
+
+*/
+
+function readSignalFromSheet(sheet) {
+
+  try {
+
+    // Method 1: Try reading from specific cells (most common)
+
+    const signalData = {
+
+      symbol: getCellValue(sheet, 'B2') || getCellValue(sheet, 'A2') || 'BTC/USD',
+
+      direction: getCellValue(sheet, 'B3') || getCellValue(sheet, 'A3') || 'LONG',
+
+      entry_price: parseFloat(getCellValue(sheet, 'B4') || getCellValue(sheet, 'A4') || '0'),
+
+      tier: parseInt(getCellValue(sheet, 'B5') || getCellValue(sheet, 'A5') || '1'),
+
+      leverage: parseInt(getCellValue(sheet, 'B6') || getCellValue(sheet, 'A6') || '5'),
+
+      stop_loss: parseFloat(getCellValue(sheet, 'B7') || getCellValue(sheet, 'A7') || '0'),
+
+      take_profit: parseFloat(getCellValue(sheet, 'B8') || getCellValue(sheet, 'A8') || '0'),
+
+      quality: parseInt(getCellValue(sheet, 'B9') || getCellValue(sheet, 'A9') || '85')
+
+    };
+
+   
+
+    // Calculate position size based on tier (with margin focus)
+
+    signalData.position_size = calculatePositionSize(signalData.tier);
+
+   
+
+    // Add metadata
+
+    signalData.timestamp = new Date().toISOString();
+
+    signalData.source = 'Google Sheets v214';
+
+    signalData.sheet_name = sheet.getName();
+
+   
+
+    // Validate required fields
+
+    if (!signalData.symbol || !signalData.direction || signalData.entry_price <= 0) {
+
+      console.error('❌ Invalid signal data:', signalData);
+
+      return null;
+
+    }
+
+   
+
+    console.log('✅ Signal extracted:', signalData);
+
+    return signalData;
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Error reading signal from sheet:', error);
+
+    return null;
+
+  }
+
+}
+
+ 
+
+/**
+
+* 💰 Calculate position size based on tier with margin requirements
+
+* Updated for Avantis margin minimums
+
+*/
+
+function calculatePositionSize(tier) {
+
+  // Position sizing based on signal tier - ADJUSTED FOR MARGIN REQUIREMENTS 
+
+  const positionSizes = {
+
+    1: 100,    // Tier 1: $100 USDC (margin: $100/5 = $20)
+
+    2: 150,    // Tier 2: $150 USDC (margin: $150/5 = $30) 
+
+    3: 250     // Tier 3: $250 USDC (margin: $250/5 = $50)
+
+  };
+
+  return positionSizes[tier] || 100; // Default $100 (margin: $20)
+
+}
+
+ 
+
+/**
+
+* 📖 Helper function to safely get cell values
+
+*/
+
+function getCellValue(sheet, cellAddress) {
+
+  try {
+
+    const value = sheet.getRange(cellAddress).getValue();
+
+    return value ? value.toString().trim() : '';
+
+  } catch (error) {
+
+    console.error(`❌ Error reading cell ${cellAddress}:`, error);
+
+    return '';
+
+  }
+
+}
+
+ 
+
+/**
+
+* 🌐 Send webhook request to the trading bot
+
+*/
+
+function sendWebhookRequest(signalData) {
+
+  try {
+
+    const options = {
+
+      method: 'POST',
+
+      headers: {
+
+        'Content-Type': 'application/json',
+
+        'User-Agent': 'Google-Apps-Script-Elite-Bot-v214'
+
+      },
+
+      payload: JSON.stringify(signalData)
+
+    };
+
+   
+
+    console.log('🌐 Sending webhook to:', WEBHOOK_URL);
+
+    console.log('📤 Payload:', JSON.stringify(signalData, null, 2));
+
+   
+
+    const response = UrlFetchApp.fetch(WEBHOOK_URL, options);
+
+    const responseText = response.getContentText();
+
+   
+
+    console.log('📥 Response status:', response.getResponseCode());
+
+    console.log('📥 Response body:', responseText);
+
+   
+
+    if (response.getResponseCode() !== 200) {
+
+      throw new Error(`HTTP ${response.getResponseCode()}: ${responseText}`);
+
+    }
+
+   
+
+    return JSON.parse(responseText);
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Webhook request failed:', error);
+
+    throw error;
+
+  }
+
+}
+
+ 
+
+/**
+
+* 📝 Log the response from the trading bot
+
+*/
+
+function logResponse(sheet, signal, response) {
+
+  try {
+
+    // Find or create a log section
+
+    const logStartRow = findOrCreateLogSection(sheet);
+
+   
+
+    // Create log entry
+
+    const logEntry = [
+
+      new Date(),
+
+      signal.symbol,
+
+      signal.direction,
+
+      signal.entry_price,
+
+      signal.position_size,
+
+      response.status || 'unknown',
+
+      JSON.stringify(response).substr(0, 100) + '...'
+
+    ];
+
+   
+
+    // Write log entry
+
+    sheet.getRange(logStartRow, 1, 1, logEntry.length).setValues([logEntry]);
+
+   
+
+    console.log('📝 Response logged to sheet');
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Error logging response:', error);
+
+  }
+
+}
+
+ 
+
+/**
+
+* 🔍 Find or create log section in the sheet
+
+*/
+
+function findOrCreateLogSection(sheet) {
+
+  try {
+
+    // Look for existing log header
+
+    const data = sheet.getDataRange().getValues();
+
+   
+
+    for (let i = 0; i < data.length; i++) {
+
+      if (data[i][0] && data[i][0].toString().includes('Log')) {
+
+        return i + 2; // Return row after header
+
+      }
+
+    }
+
+   
+
+    // Create log section if not found
+
+    const lastRow = sheet.getLastRow();
+
+    const logHeaderRow = lastRow + 2;
+
+   
+
+    const headers = ['Timestamp', 'Symbol', 'Direction', 'Entry Price', 'Position Size', 'Status', 'Response'];
+
+    sheet.getRange(logHeaderRow, 1, 1, headers.length).setValues([headers]);
+
+   
+
+    return logHeaderRow + 1;
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Error managing log section:', error);
+
+    return sheet.getLastRow() + 1;
+
+  }
+
+}
+
+ 
+
+/**
+
+* 🧪 Test function to verify the integration
+
+*/
+
+function testIntegration() {
+
+  try {
+
+    console.log('🧪 Testing integration with sample signal...');
+
+   
+
+    const testSignal = {
+
+      symbol: 'BTC/USD',
+
+      direction: 'LONG',
+
+      entry_price: 50000,
+
+      tier: 1,
+
+      position_size: 100,
+
+      leverage: 5,
+
+      timestamp: new Date().toISOString(),
+
+      source: 'Google Sheets Test v214'
+
+    };
+
+   
+
+    const response = sendWebhookRequest(testSignal);
+
+   
+
+    console.log('✅ Test completed!');
+
+    console.log('📊 Response:', JSON.stringify(response, null, 2));
+
+   
+
+    Browser.msgBox('Test Result', 'Integration test completed. Check logs for details.', Browser.Buttons.OK);
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Test failed:', error);
+
+    Browser.msgBox('Test Failed', 'Integration test failed: ' + error.toString(), Browser.Buttons.OK);
+
+  }
+
+}
+
+ 
+
+/**
+
+* 📋 Create a sample trading sheet layout
+
+*/
+
+function createSampleSheet() {
+
+  try {
+
+    const sheet = SpreadsheetApp.getActiveSheet();
+
+   
+
+    // Clear existing content
+
+    sheet.clear();
+
+   
+
+    // Create headers and sample data
+
+    const data = [
+
+      ['Parameter', 'Value', 'Description'],
+
+      ['Symbol', 'BTC/USD', 'Trading pair (BTC/USD, ETH/USD, etc.)'],
+
+      ['Direction', 'LONG', 'LONG or SHORT'],
+
+      ['Entry Price', 50000, 'Entry price in USD'],
+
+      ['Tier', 1, 'Signal tier (1, 2, or 3)'],
+
+      ['Leverage', 5, 'Leverage multiplier (1-100)'],
+
+      ['Stop Loss', 48000, 'Stop loss price (optional)'],
+
+      ['Take Profit', 55000, 'Take profit price (optional)'],
+
+      ['Quality', 85, 'Signal quality score (0-100)'],
+
+      ['', '', ''],
+
+      ['Position Size', '=IF(B5=1,100,IF(B5=2,150,250))', 'Auto-calculated based on tier'],
+
+      ['Margin Required', '=B11/B6', 'Required margin (Position Size / Leverage)'],
+
+      ['', '', ''],
+
+      ['Instructions:', '', ''],
+
+      ['1. Update values above', '', ''],
+
+      ['2. Run sendTradingSignal()', '', ''],
+
+      ['3. Check logs below', '', ''],
+
+      ['', '', ''],
+
+      ['--- Execution Log ---', '', '']
+
+    ];
+
+   
+
+    // Write data to sheet
+
+    sheet.getRange(1, 1, data.length, 3).setValues(data);
+
+   
+
+    // Format the sheet
+
+    sheet.getRange('A1:C1').setFontWeight('bold');
+
+    sheet.getRange('A14:A17').setFontWeight('bold');
+
+    sheet.getRange('A19:C19').setFontWeight('bold');
+
+   
+
+    // Auto-resize columns
+
+    sheet.autoResizeColumns(1, 3);
+
+   
+
+    console.log('✅ Sample sheet created successfully!');
+
+    Browser.msgBox('Success', 'Sample trading sheet created! Update the values and run sendTradingSignal()', Browser.Buttons.OK);
+
+   
+
+  } catch (error) {
+
+    console.error('❌ Error creating sample sheet:', error);
+
+    Browser.msgBox('Error', 'Failed to create sample sheet: ' + error.toString(), Browser.Buttons.OK);
+
+  }
+
+}
+
+ 
+
+// 🔧 Auto-execution functions (optional)
+
+ 
+
+/**
+
+* ⏰ Auto-send signal when sheet is edited (optional)
+
+* Uncomment to enable automatic signal sending on sheet edits
+
+*/
+
+/*
+
+function onEdit(e) {
+
+  try {
+
+    // Only trigger on specific cells (B2:B9)
+
+    const range = e.range;
+
+    if (range.getRow() >= 2 && range.getRow() <= 9 && range.getColumn() === 2) {
+
+      console.log('📝 Sheet edited, auto-sending signal...');
+
+      Utilities.sleep(1000); // Wait 1 second for other edits
+
+      sendTradingSignal();
+
+    }
+
+  } catch (error) {
+
+    console.error('❌ Auto-send error:', error);
+
+  }
+
+}
+
+*/
+
+ 
+
+/**
+
+* ⏱️ Scheduled signal sending (optional)
+
+* Use with Google Apps Script triggers for automatic execution
+
+*/
+
+/*
+
+function scheduledSignalSend() {
+
+  try {
+
+    // Add your conditions here (e.g., market hours, signal freshness)
+
+    const now = new Date();
+
+    const hour = now.getHours();
+
+   
+
+    // Only send during market hours (example: 9 AM to 5 PM UTC)
+
+    if (hour >= 9 && hour <= 17) {
+
+      sendTradingSignal();
+
+    }
+
+  } catch (error) {
+
+    console.error('❌ Scheduled send error:', error);
+
+  }
+
+}
+
+*/
+
+ 
+
+console.log('🚀 Elite Trading Bot Google Sheets Integration v214 loaded successfully!');
+
+console.log('💡 Available functions: sendTradingSignal(), testIntegration(), createSampleSheet()');
+
+console.log('🎯 Margin-focused version with enhanced position sizing!');
+
+'''
+
+   
+
+    return script_code
+
+ 
+
+# ============================================================================
+
+# 🚀 APPLICATION STARTUP AND MAIN EXECUTION
+
+# ============================================================================
+
+ 
+
+def initialize_application():
+
+    """Initialize the trading bot application"""
+
+    try:
+
+        logger.info("🚀 ELITE CRYPTO TRADING BOT v214-MARGIN-FIX STARTING UP...")
+
+       
+
+        # Check Web3 connection
+
+        if not web3_manager.is_connected():
+
+            logger.error("❌ Web3 connection failed")
+
+            return False
+
+           
+
+        # Check account configuration
+
+        if not web3_manager.account:
+
+            logger.warning("⚠️ No trading account configured (read-only mode)")
+
+        else:
+
+            balance = web3_manager.get_usdc_balance(web3_manager.account.address)
+
+            logger.info(f"💰 Account balance: ${balance:.6f} USDC")
+
+           
+
+        # Initialize components
+
+        logger.info("✅ Signal processor initialized")
+
+        logger.info("✅ Avantis trader initialized")
+
+        logger.info("✅ Google Sheets manager initialized")
+
+       
+
+        # Log configuration
+
+        logger.info(f"🔧 Configuration:")
+
+        logger.info(f"  - Position sizes: {TradingConfig.POSITION_SIZES}")
+
+        logger.info(f"  - Default leverage: {TradingConfig.DEFAULT_LEVERAGE}x")
+
+        logger.info(f"  - Default slippage: {TradingConfig.DEFAULT_SLIPPAGE*100}%")
+
+        logger.info(f"  - Minimum margin: ${TradingConfig.MIN_MARGIN_REQUIRED}")
+
+        logger.info(f"  - Supported pairs: {len(avantis_trader.pair_mappings)}")
+
+       
+
+        logger.info("🎯 MARGIN-FOCUSED VERSION - Ready to execute trades with enhanced margin calculation!")
+
+        logger.info("✅ Elite Trading Bot initialization complete!")
+
+       
+
+        return True
+
+       
+
+    except Exception as e:
+
+        logger.error(f"❌ Application initialization failed: {str(e)}")
+
+        return False
+
+ 
+
+# Error handlers
+
+@app.errorhandler(404)
+
+def not_found(error):
+
+    return jsonify({'error': 'Endpoint not found'}), 404
+
+ 
+
+@app.errorhandler(500)
+
+def internal_error(error):
+
+    logger.error(f"❌ Internal server error: {str(error)}")
+
+    return jsonify({'error': 'Internal server error'}), 500
+
+ 
+
+# ============================================================================
+
+# 🎯 MAIN EXECUTION
+
+# ============================================================================
 
  
 
 if __name__ == '__main__':
 
-    logger.info("=" * 60)
+    # Initialize the application
 
-    logger.info("🚀 ENHANCED TRADING BOT STARTING UP - ORIGINAL ENUM RESTORATION")
+    if not initialize_application():
 
-    logger.info("=" * 60)
+        logger.error("❌ Failed to initialize application")
 
-    logger.info(f"⏰ Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    logger.info(f"🔧 Configuration:")
-
-    logger.info(f"   Max Positions: {MAX_OPEN_POSITIONS}")
-
-    logger.info(f"   Min Signal Quality: {MIN_SIGNAL_QUALITY}")
-
-    logger.info(f"   Supported Symbols: {', '.join(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT'])}")
-
-    logger.info(f"   Bear Market TP3: 5% (optimized)")
-
-    logger.info(f"   ✅ ALL FIXES APPLIED + CRITICAL ORIGINAL ENUM RESTORATION:")
-
-    logger.info(f"      - 🎯 CRITICAL: REVERTED to original enum objects (SDK expects them)")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK line 82 calls trade_input_order_type.value (needs enum object)")
-
-    logger.info(f"      - 🎯 CRITICAL: Pass trade_input_order_type (enum), not converted int")
-
-    logger.info(f"      - 🎯 CRITICAL: Pass slippage_percentage (float), not scaled int")
-
-    logger.info(f"      - 🎯 CRITICAL: Let SDK handle ALL type conversions internally")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed AttributeError: 'int' object has no attribute 'value'")
-
-    logger.info(f"      - 🎯 CRITICAL: Simplified model_dump() returns raw values, let SDK convert")
-
-    logger.info(f"      - 🎯 CRITICAL: No premature optimization - trust SDK to do its job")
-
-    logger.info(f"      - 🎯 CRITICAL: All values bounded to proper uint256 range (0 to 2^256-1)")
-
-    logger.info(f"      - 🎯 CRITICAL: Negative values clamped to 0, overflow values clamped to max uint256")
-
-    logger.info(f"      - 🎯 CRITICAL: Web3.py should now recognize values as proper uint256 types")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed persistent Python int vs Ethereum uint256 type mismatch")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK expects original enum objects, not converted integers")
-
-    logger.info(f"      - 🎯 CRITICAL: Pass trade_input_order_type (enum), SDK calls .value internally")
-
-    logger.info(f"      - 🎯 CRITICAL: Pass slippage_percentage (float), SDK handles conversion")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed AttributeError: 'int' object has no attribute 'value'")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK line 82: trade_input_order_type.value (SDK expects enum object)")
-
-    logger.info(f"      - 🎯 CRITICAL: No more premature type conversion - let SDK handle it")
-
-    logger.info(f"      - 🎯 CRITICAL: Python int vs Ethereum uint256 type mismatch resolved")
-
-    logger.info(f"      - 🎯 CRITICAL: All tuple values explicitly converted to int() for uint256 compatibility")
-
-    logger.info(f"      - 🎯 CRITICAL: Order type converted to uint8 with int(trade_input_order_type.value)")
-
-    logger.info(f"      - 🎯 CRITICAL: Slippage converted to uint256 with int(slippage_percentage * 10**10)")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed Web3ValidationError: (address,int,int...) vs (address,uint256,uint256...)")
-
-    logger.info(f"      - 🎯 CRITICAL: No more type mismatch between Python types and Ethereum ABI types")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK calls trade_input.model_dump() and passes result directly to smart contract")
-
-    logger.info(f"      - 🎯 CRITICAL: model_dump() MUST return tuple format, not dictionary")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK line 80: Trading.functions.openTrade(trade_input.model_dump(), ...)")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed model_dump() to return (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)")
-
-    logger.info(f"      - 🎯 CRITICAL: No more Web3ValidationError: dict vs tuple mismatch")
-
-    logger.info(f"      - 🎯 CRITICAL: Added model_dump_dict() for debugging/logging purposes")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK expects original object, not tuple - handles conversion internally")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed AttributeError: 'tuple' object has no attribute 'trader'")
-
-    logger.info(f"      - 🎯 CRITICAL: SDK processes trade_input.trader before smart contract call")
-
-    logger.info(f"      - 🎯 CRITICAL: Pass TradeInput object, let SDK handle tuple conversion")
-
-    logger.info(f"      - 🎯 CRITICAL: Added to_tuple() method for smart contract ABI compatibility (if needed)")
-
-    logger.info(f"      - 🎯 CRITICAL: TradeInput now converts to tuple format (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed 'positional arguments with type(s) dict,int,float' error")
-
-    logger.info(f"      - 🎯 CRITICAL: Smart contract expects tuple, not dictionary from model_dump()")
-
-    logger.info(f"      - 🎯 CRITICAL: Added missing timestamp field to TradeInput class")
-
-    logger.info(f"      - 🎯 CRITICAL: timestamp included in model_dump() output")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed KeyError: 'timestamp' smart contract error")
-
-    logger.info(f"      - 🎯 CRITICAL: OrderType and SlippageType Enums moved to function level")
-
-    logger.info(f"      - 🎯 CRITICAL: Enum definitions accessible throughout _execute_live_trade_async")
-
-    logger.info(f"      - 🎯 CRITICAL: Fixed NameError: name 'OrderType' is not defined")
-
-    logger.info(f"      - CONFIRMED: SDK has no address methods - use signer.address fallback")
-
-    logger.info(f"      - CONFIRMED: client.trade.build_trade_open_tx() is the correct method")
-
-    logger.info(f"      - OrderType and SlippageType Enums with .value attributes")
-
-    logger.info(f"      - TradeInput with model_dump() method for Pydantic compatibility")
-
-    logger.info(f"      - TradeInput object with attributes (not dictionary)")
-
-    logger.info(f"      - Multi-method trader address resolution (signer + environment)")
-
-    logger.info(f"      - Enhanced SDK signer setup with set_local_signer")
-
-    logger.info(f"      - Changed 'user' to 'trader' parameter (SDK expects .trader)")
-
-    logger.info(f"      - Fixed AsyncIO event loop errors with nest_asyncio")
-
-    logger.info(f"      - Added missing trade_input_order_type parameter (Market Order = 0)")
-
-    logger.info(f"      - Added missing slippage_percentage parameter (2% default)")
-
-    logger.info(f"      - Correct USDC contract address: {USDC_CONTRACT_BASE}")
-
-    logger.info(f"      - Proper symbol to pair index mapping")
-
-    logger.info(f"      - Enhanced fallback parameter combinations")
+        sys.exit(1)
 
    
 
-    try:
+    # Get port from environment (Heroku compatibility)
 
-        logger.info(f"🔍 STARTUP VALIDATION:")
+    port = int(os.environ.get('PORT', 5000))
 
-       
+   
 
-        required_env_vars = ['WALLET_PRIVATE_KEY', 'BASE_RPC_URL']
+    logger.info(f"🌐 Starting Flask server on port {port}...")
 
-        missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
+   
 
-       
+    # Start the Flask application
 
-        if missing_env_vars:
+    app.run(
 
-            logger.error(f"❌ Missing environment variables: {missing_env_vars}")
+        host='0.0.0.0',
 
-        else:
+        port=port,
 
-            logger.info(f"✅ All required environment variables present")
+        debug=False,  # Set to False for production
 
-       
+        threaded=True
 
-        if hasattr(engine, 'trader_client'):
+    )
 
-            logger.info(f"✅ Trading engine initialized successfully")
-
-        else:
-
-            logger.error(f"❌ Trading engine not properly initialized")
-
-       
-
-        logger.info("=" * 60)
-
-        logger.info("🏆 ENHANCED TRADING BOT READY - CLEAN PYTHON TYPES!")
-
-        logger.info("=" * 60)
-
-       
-
-        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
-
-       
-
-    except Exception as e:
-
-        logger.error(f"💥 STARTUP ERROR: {str(e)}")
-
-        logger.error(f"   Traceback: {traceback.format_exc()}")
-
-        raise
