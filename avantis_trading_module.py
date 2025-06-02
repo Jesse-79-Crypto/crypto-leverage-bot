@@ -914,20 +914,34 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ FIXED: Force all integers to proper uint256 format
+                    ✅ FIXED: Use proper Web3.py uint256 conversion with debugging
                     """
-                    # Force proper uint256 conversion - ensure values are large enough integers
+                    from web3 import Web3
+                    
                     def to_uint256(value):
+                        """Convert to proper uint256 using Web3.py"""
                         if value is None:
                             return 0
-                        # Convert to int and ensure it's a proper Python int (not numpy/other types)
-                        result = int(float(value))
-                        # Ensure non-negative and within uint256 range
-                        return max(0, result) & ((2**256) - 1)
+                        try:
+                            # Convert to int first
+                            int_val = int(float(value))
+                            # Use Web3.py to ensure proper uint256 type
+                            return Web3.to_int(int_val) if hasattr(Web3, 'to_int') else int_val
+                        except Exception as e:
+                            print(f"Error converting {value} to uint256: {e}")
+                            return 0
                     
-                    # Return tuple with consistent integer types
-                    return (
-                        str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000",
+                    # Debug: Print values before conversion
+                    print(f"🔍 DEBUG model_dump values:")
+                    print(f"  trader: {self.trader}")
+                    print(f"  pairIndex: {self.pairIndex}")
+                    print(f"  positionSizeUSDC: {self.positionSizeUSDC}")
+                    print(f"  openPrice: {self.openPrice}")
+                    print(f"  leverage: {self.leverage}")
+                    
+                    # Return tuple with proper Web3 types
+                    result = (
+                        Web3.to_checksum_address(str(self.trader)) if self.trader else "0x0000000000000000000000000000000000000000",
                         to_uint256(self.pairIndex),
                         to_uint256(self.index), 
                         to_uint256(self.initialPosToken),
@@ -939,6 +953,11 @@ class BasicAvantisTrader:
                         to_uint256(self.sl),
                         to_uint256(self.timestamp)
                     )
+                    
+                    # Debug: Print result types
+                    print(f"🔍 DEBUG model_dump result types: {[type(x).__name__ for x in result]}")
+                    
+                    return result
                 
                 def model_dump_dict(self):
                     """Dictionary representation for debugging/logging"""
@@ -1930,4 +1949,4 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"💥 STARTUP ERROR: {str(e)}")
         logger.error(f"   Traceback: {traceback.format_exc()}")
-        raise
+        raise     
