@@ -916,6 +916,8 @@ class BasicAvantisTrader:
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
                     ✅ FIXED: Use Web3.py proper uint256 conversion
                     """
+                    from web3 import Web3  # Import inside method for scope access
+                    
                     # Use Web3.py's proper uint256 conversion
                     def to_web3_uint256(value):
                         if value is None:
