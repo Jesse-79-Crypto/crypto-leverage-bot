@@ -914,30 +914,30 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ FIXED: Use Web3.py proper uint256 conversion
+                    ✅ FIXED: Force all integers to proper uint256 format
                     """
-                    from web3 import Web3  # Import inside method for scope access
-                    
-                    # Use Web3.py's proper uint256 conversion
-                    def to_web3_uint256(value):
+                    # Force proper uint256 conversion - ensure values are large enough integers
+                    def to_uint256(value):
                         if value is None:
                             return 0
-                        # Web3.py's proper uint256 conversion
-                        return Web3.to_int(primitive=int(value)) if hasattr(Web3, 'to_int') else int(value)
+                        # Convert to int and ensure it's a proper Python int (not numpy/other types)
+                        result = int(float(value))
+                        # Ensure non-negative and within uint256 range
+                        return max(0, result) & ((2**256) - 1)
                     
-                    # Return tuple with proper Web3 uint256 types
+                    # Return tuple with consistent integer types
                     return (
-                        Web3.to_checksum_address(self.trader) if self.trader else "0x0000000000000000000000000000000000000000",
-                        to_web3_uint256(self.pairIndex),
-                        to_web3_uint256(self.index), 
-                        to_web3_uint256(self.initialPosToken),
-                        to_web3_uint256(self.positionSizeUSDC),
-                        to_web3_uint256(self.openPrice),
+                        str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000",
+                        to_uint256(self.pairIndex),
+                        to_uint256(self.index), 
+                        to_uint256(self.initialPosToken),
+                        to_uint256(self.positionSizeUSDC),
+                        to_uint256(self.openPrice),
                         bool(self.buy),
-                        to_web3_uint256(self.leverage),
-                        to_web3_uint256(self.tp),
-                        to_web3_uint256(self.sl),
-                        to_web3_uint256(self.timestamp)
+                        to_uint256(self.leverage),
+                        to_uint256(self.tp),
+                        to_uint256(self.sl),
+                        to_uint256(self.timestamp)
                     )
                 
                 def model_dump_dict(self):
