@@ -1,5 +1,7 @@
+avantis-trader-sdk
 flask
 web3
+python-dotenv
+gunicorn
 eth-account
 requests
-python-dotenv
