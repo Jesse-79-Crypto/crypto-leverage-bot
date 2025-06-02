@@ -914,22 +914,19 @@ class BasicAvantisTrader:
                 def model_dump(self):
                     """SDK expects model_dump() to return tuple format for smart contract ABI
                     Contract expects: (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
-                    ✅ NEW APPROACH: Force numpy uint64 for proper type recognition
+                    ✅ SIMPLE APPROACH: Clean integers - let SDK handle uint256 conversion
                     """
-                    import numpy as np
                     from web3 import Web3
                     
-                    def to_contract_uint(value):
-                        """Convert to proper contract uint type"""
+                    def to_contract_int(value):
+                        """Convert to clean integer for contract use"""
                         if value is None:
-                            return np.uint64(0)
+                            return 0
                         try:
-                            # Convert to int first, then to numpy uint64
-                            int_val = int(float(value))
-                            return np.uint64(int_val)
+                            return int(float(value))
                         except Exception as e:
-                            print(f"Error converting {value} to uint: {e}")
-                            return np.uint64(0)
+                            print(f"Error converting {value} to int: {e}")
+                            return 0
                     
                     # Debug: Print values before conversion
                     print(f"🔍 DEBUG model_dump values:")
@@ -939,7 +936,7 @@ class BasicAvantisTrader:
                     print(f"  openPrice: {self.openPrice}")
                     print(f"  leverage: {self.leverage}")
                     
-                    # Create tuple with numpy uint64 types
+                    # Create tuple with clean integers
                     trader_address = str(self.trader) if self.trader else "0x0000000000000000000000000000000000000000"
                     
                     # Ensure address is checksummed
@@ -951,16 +948,16 @@ class BasicAvantisTrader:
                     
                     result = (
                         trader_address,
-                        to_contract_uint(self.pairIndex),
-                        to_contract_uint(self.index), 
-                        to_contract_uint(self.initialPosToken),
-                        to_contract_uint(self.positionSizeUSDC),
-                        to_contract_uint(self.openPrice),
+                        to_contract_int(self.pairIndex),
+                        to_contract_int(self.index), 
+                        to_contract_int(self.initialPosToken),
+                        to_contract_int(self.positionSizeUSDC),
+                        to_contract_int(self.openPrice),
                         bool(self.buy),
-                        to_contract_uint(self.leverage),
-                        to_contract_uint(self.tp),
-                        to_contract_uint(self.sl),
-                        to_contract_uint(self.timestamp)
+                        to_contract_int(self.leverage),
+                        to_contract_int(self.tp),
+                        to_contract_int(self.sl),
+                        to_contract_int(self.timestamp)
                     )
                     
                     # Debug: Print result types and values
