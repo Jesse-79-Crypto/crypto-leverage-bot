@@ -152,7 +152,7 @@ class TradingConfig:
 
     # 🎯 Avantis Protocol Configuration
 
-    AVANTIS_TRADING_CONTRACT = os.getenv('AVANTIS_CONTRACT')
+    AVANTIS_TRADING_CONTRACT = os.getenv('AVANTIS_CONTRACT', '0xd5A2922cF6fC7a9aa8aa6287AC4f48C8F7e0A22b')  # Base Avantis Trading
 
     USDC_CONTRACT = os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')  # Base USDC
 
