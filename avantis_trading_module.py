@@ -671,7 +671,7 @@ class AvantisTrader:
             abi=AVANTIS_TRADING_ABI
             )
         
-        logging.info("✅ Contracts initialized successfully!")
+            logging.info("✅ Contracts initialized successfully!")
         
     except Exception as e:
         logging.error(f"❌ Contract initialization failed: {e}")
