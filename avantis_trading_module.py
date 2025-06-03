@@ -1,6 +1,6 @@
 import os
 
-import logging
+from web3 import Web3
 
 import asyncio
 
@@ -152,9 +152,9 @@ class TradingConfig:
 
     # 🎯 Avantis Protocol Configuration
 
-    AVANTIS_TRADING_CONTRACT = os.getenv('AVANTIS_CONTRACT', '0xd5a2922cf6fc7a9aa8aa6287ac4f48c8f7e0a22b')  # Base Avantis Trading
+    AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(os.getenv('AVANTIS_CONTRACT', '0xd5a2922cf6fc7a9aa8aa6287ac4f48c8f7e0a22b'))  # Base Avantis Trading
 
-    USDC_CONTRACT = os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')  # Base USDC
+    USDC_CONTRACT = Web3.to_checksum_address(os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'))  # Base USDC
 
    
 
