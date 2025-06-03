@@ -2,6 +2,8 @@ import os
 
 from web3 import Web3
 
+import logging
+
 import asyncio
 
 import aiohttp
