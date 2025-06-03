@@ -220,19 +220,19 @@ class Web3Manager:
 
             # Initialize Web3
 
-            self.w3 = Web3(Web3.HTTPProvider(TradingConfig.POLYGON_RPC_URL))
+            self.w3 = Web3(Web3.HTTPProvider(TradingConfig.BASE_RPC_URL))
 
            
 
             if not self.w3.is_connected():
 
-                logger.error("❌ Failed to connect to Polygon network")
+                logger.error("❌ Failed to connect to Base network")
 
                 return False
 
                
 
-            logger.info("✅ Connected to Polygon network")
+            logger.info("✅ Connected to Base network")
 
            
 
