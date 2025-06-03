@@ -673,9 +673,9 @@ class AvantisTrader:
         
             logging.info("✅ Contracts initialized successfully!")
         
-    except Exception as e:
-        logging.error(f"❌ Contract initialization failed: {e}")
-        raise
+        except Exception as e:
+            logging.error(f"❌ Contract initialization failed: {e}")
+            raise
     def _initialize_pair_mappings(self) -> Dict[str, int]:
 
         """Initialize trading pair mappings for Avantis"""
