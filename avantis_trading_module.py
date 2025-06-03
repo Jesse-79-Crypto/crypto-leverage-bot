@@ -651,8 +651,31 @@ class AvantisTrader:
 
         self.pair_mappings = self._initialize_pair_mappings()
 
-       
-
+        try:
+            # Get Web3 instance
+            self.w3 = self.web3_manager.w3
+            self.wallet_address = self.web3_manager.account.address
+        
+            logging.info(f"📝 Wallet Address: {self.wallet_address}")
+            logging.info(f"📝 USDC Contract: {USDC_CONTRACT}")
+            logging.info(f"📝 Avantis Contract: {AVANTIS_TRADING_CONTRACT}")
+        
+            # Create contract instances
+            self.usdc_contract = self.w3.eth.contract(
+            address=USDC_CONTRACT,
+            abi=USDC_ABI
+            )
+        
+            self.avantis_contract = self.w3.eth.contract(
+            address=AVANTIS_TRADING_CONTRACT,
+            abi=AVANTIS_TRADING_ABI
+            )
+        
+        logging.info("✅ Contracts initialized successfully!")
+        
+    except Exception as e:
+        logging.error(f"❌ Contract initialization failed: {e}")
+        raise
     def _initialize_pair_mappings(self) -> Dict[str, int]:
 
         """Initialize trading pair mappings for Avantis"""
