@@ -119,7 +119,7 @@ class TradingConfig:
 
     # 🌐 Network Configuration
 
-    RPC_URL = os.getenv('RPC_URL')
+    RPC_URL = os.getenv('BASE_RPC_URL')
 
     CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))  # Base network
 
@@ -220,7 +220,7 @@ class Web3Manager:
 
             # Initialize Web3
 
-            self.w3 = Web3(Web3.HTTPProvider(TradingConfig.BASE_RPC_URL))
+            self.w3 = Web3(Web3.HTTPProvider(TradingConfig.RPC_URL))
 
            
 
