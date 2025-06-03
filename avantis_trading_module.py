@@ -781,7 +781,7 @@ class AvantisTrader:
             # Get current USDC balance for dynamic position sizing
             trader_address = self.web3_manager.account.address if self.web3_manager.account else None
             if trader_address:
-                current_balance = self.web3_manager.get_usdc_balance(trader_address)
+                current_balance = self.usdc_contract.functions.balanceOf(self.wallet_address).call() / 1e6  # Convert from wei
             else:
                 current_balance = 1000  # Default for testing when no account
 
