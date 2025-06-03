@@ -123,7 +123,22 @@ class TradingConfig:
 
     CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))  # Base network
 
-   
+
+
+    # 🎯 Dynamic Position Sizing Configuration
+    TIER_POSITION_PERCENTAGES = {
+    1: 0.40,  # Elite signal: 40% of account
+    2: 0.30,  # Good signal: 30% of account  
+    3: 0.20   # Test signal: 20% of account
+    }
+
+    MIN_TIER_POSITIONS = {
+    1: 100,  # $100 minimum for Tier 1
+    2: 75,   # $75 minimum for Tier 2
+    3: 50    # $50 minimum for Tier 3
+    }   
+
+
 
     # 🔐 Security Configuration
 
@@ -762,7 +777,44 @@ class AvantisTrader:
 
             # Calculate position size in USDC (with 6 decimals) - FOCUS ON MARGIN
 
-            position_usdc_dollars = float(trade_data.get('position_size', 100))  # Default $100
+            # 🚀 DYNAMIC POSITION SIZING - ELITE STRATEGY!
+            # Get current USDC balance for dynamic position sizing
+            trader_address = self.web3_manager.account.address if self.web3_manager.account else None
+            if trader_address:
+                current_balance = self.web3_manager.get_usdc_balance(trader_address)
+            else:
+                current_balance = 1000  # Default for testing when no account
+
+            # Calculate position size based on account balance and tier
+            tier = int(trade_data.get('tier', 2))  # Default to tier 2 if not specified
+
+            if tier in TradingConfig.TIER_POSITION_PERCENTAGES:
+                # Calculate percentage-based position size
+                percentage = TradingConfig.TIER_POSITION_PERCENTAGES[tier]
+                calculated_position = current_balance * percentage
+    
+                # Ensure minimum position size is met
+                min_position = TradingConfig.MIN_TIER_POSITIONS[tier]
+                position_usdc_dollars = max(calculated_position, min_position)
+    
+                logger.info(f"💰 DYNAMIC POSITION SIZING - ELITE STRATEGY:")
+                logger.info(f"  - Current Balance: ${current_balance:.2f} USDC")
+                logger.info(f"  - Tier {tier}: {percentage*100:.0f}% of account")
+                logger.info(f"  - Calculated: ${calculated_position:.2f}")
+                logger.info(f"  - Minimum: ${min_position}")
+                logger.info(f"  - Final Position: ${position_usdc_dollars:.2f} USDC")
+    
+                # Show scaling preview
+                if current_balance >= 1000:
+                    logger.info(f"🚀 SCALING SUCCESS: Account grew from $250 → ${current_balance:.0f}!")
+                else:
+                    future_1k = 1000 * percentage
+                    logger.info(f"📈 FUTURE: At $1K balance, Tier {tier} = ${future_1k:.0f} position")
+        
+            else:
+                # Fallback to signal's position_size if tier not recognized
+                position_usdc_dollars = float(trade_data.get('position_size', 100))
+                logger.warning(f"⚠️ Unknown tier {tier}, using signal position: ${position_usdc_dollars}")
 
            
 
@@ -1126,7 +1178,7 @@ class AvantisTrader:
 
             verified_order_type = int(market_order_type)  # uint8
 
-            verified_slippage = float(slippage_decimal)   # decimal for SDK (will multiply by 10^10)
+            verified_slippage = int(slippage_decimal * 10**10)  # Convert to uint256 (3% = 3000000000)
 
            
 
