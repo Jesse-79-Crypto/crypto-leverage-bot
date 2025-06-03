@@ -103,10 +103,9 @@ app = Flask(__name__)
 # CORS(app)
 
  
-
 # ============================================================================
 
-# 🔧 CONFIGURATION AND CONSTANTS
+# 🔧 CONFIGURATION AND CONSTANTS 
 
 # ============================================================================
 
@@ -120,13 +119,13 @@ class TradingConfig:
 
     # 🌐 Network Configuration
 
-    POLYGON_RPC_URL = os.getenv('POLYGON_RPC_URL', 'https://polygon-rpc.com')
+    RPC_URL = os.getenv('RPC_URL')
 
-    POLYGON_CHAIN_ID = 137
+    CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))  # Base network
 
    
 
-    # 🔑 Security Configuration 
+    # 🔐 Security Configuration
 
     PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
@@ -136,11 +135,11 @@ class TradingConfig:
 
    
 
-    # 💰 Avantis Protocol Configuration
+    # 🎯 Avantis Protocol Configuration
 
-    AVANTIS_TRADING_CONTRACT = "0x2c6E10cE2d563d83eF4e5DaB8B0Bc0178FC0A0B1"  # Avantis Trading Contract
+    AVANTIS_TRADING_CONTRACT = os.getenv('AVANTIS_CONTRACT')
 
-    USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC on Polygon
+    USDC_CONTRACT = os.getenv('USDC_ADDRESS', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')  # Base USDC
 
    
 
@@ -155,6 +154,7 @@ class TradingConfig:
     GAS_LIMIT = 500000
 
     GAS_PRICE_GWEI = 1
+
 
    
 
