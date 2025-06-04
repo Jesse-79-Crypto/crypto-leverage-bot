@@ -1283,18 +1283,26 @@ class AvantisTrader:
             )
 
             try:
-                # Execute real trade
-                tx_hash = trading_contract.functions.openTrade(
-                    0,  # BTC pair index
-                    position_usdc,  # Position size in USDC wei (6 decimals)
-                    leverage,  # Leverage amount
-                    is_long,  # True for long, False for short
-                    int(verified_slippage * 10000)  # Slippage in basis points
-                ).transact({
-                    'from': trader_address,
-                    'gas': 500000,
-                    'gasPrice': web3.eth.gas_price
-                })
+                # Execute real trade - FULLY AUTOMATED SIGNING
+            transaction = trading_contract.functions.openTrade(
+                0,  # BTC pair index
+                position_usdc,  # Position size in USDC wei (6 decimals)
+                leverage,  # Leverage amount
+                is_long,  # True for long, False for short
+                int(verified_slippage * 10000)  # Slippage in basis points
+            ).build_transaction({
+                'from': trader_address,
+                'gas': 500000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': web3.eth.get_transaction_count(trader_address)
+            })
+
+            # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
+            private_key = TradingConfig.PRIVATE_KEY
+            signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
+            
+            # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
     
                 logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
     
