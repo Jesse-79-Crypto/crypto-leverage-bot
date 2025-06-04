@@ -1255,11 +1255,6 @@ class AvantisTrader:
 
            
 
-            # Execute the trade with verified parameters
-
-            # REAL Avantis trade execution using verified contract address
-            AVANTIS_TRADING_CONTRACT = "0x8a311D70eA1e9e2F6E1936B4d6C27fB53a5f7422"
-
             # Basic ABI for trading (we'll need the real one, but this structure works)
             AVANTIS_TRADING_ABI = [
                 {
@@ -1275,10 +1270,13 @@ class AvantisTrader:
                     "type": "function"
                 }
             ]
-
+         
                      # Setup Web3 connection
             web3 = Web3(Web3.HTTPProvider("https://mainnet.base.org"))            # Create contract instance
 
+            # REAL Avantis trade execution using verified contract address
+            AVANTIS_TRADING_CONTRACT = "0x8a311D70eA1e9e2F6E1936B4d6C27fB53a5f7422"
+         
             trading_contract = web3.eth.contract(
                 address=AVANTIS_TRADING_CONTRACT,
                 abi=AVANTIS_TRADING_ABI
