@@ -2,6 +2,8 @@ import os
 
 from web3 import Web3
 
+import random
+
 import logging
 
 from avantis_trader_sdk import TraderClient
