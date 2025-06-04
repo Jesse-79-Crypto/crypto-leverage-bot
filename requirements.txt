@@ -7,3 +7,4 @@ eth-account
 requests
 pandas
 avantis-trader-sdk==0.2.1
+web3>=6.0.0
