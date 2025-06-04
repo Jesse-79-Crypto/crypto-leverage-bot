@@ -1284,13 +1284,13 @@ class AvantisTrader:
 
             try:
                 # Execute real trade - FULLY AUTOMATED SIGNING
-            transaction = trading_contract.functions.openTrade(
+                transaction = trading_contract.functions.openTrade(
                 0,  # BTC pair index
                 position_usdc,  # Position size in USDC wei (6 decimals)
                 leverage,  # Leverage amount
                 is_long,  # True for long, False for short
                 int(verified_slippage * 10000)  # Slippage in basis points
-            ).build_transaction({
+                ).build_transaction({
                 'from': trader_address,
                 'gas': 500000,
                 'gasPrice': web3.eth.gas_price,
