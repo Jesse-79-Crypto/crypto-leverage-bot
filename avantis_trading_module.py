@@ -32,7 +32,39 @@ from flask import Flask, request, jsonify
 
 import requests
 
- 
+# ========== AVANTIS TRADING CONSTANTS (BASE NETWORK) ==========
+
+# USDC Contract on Base Network (CONFIRMED)
+USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+
+# PLACEHOLDER - We'll find the real Avantis contract later
+AVANTIS_TRADING_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Using USDC for now
+
+# USDC ABI (minimal for balance checking)
+USDC_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    },
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_spender", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "name": "approve",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function"
+    }
+]
+
+# Placeholder ABI - we'll add real Avantis functions later
+AVANTIS_TRADING_ABI = USDC_ABI  # Using USDC ABI for now
+
+# ========== END CONSTANTS ==========
 
 # Web3 and blockchain imports
 
