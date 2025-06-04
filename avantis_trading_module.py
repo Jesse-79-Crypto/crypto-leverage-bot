@@ -1256,7 +1256,7 @@ class AvantisTrader:
             # Simulate successful trade execution
             logger.info(f"🎯 TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
             tx_hash = f"0x{'1234567890abcdef' * 8}"  # Fake transaction hash
-            })
+            
 
            
 
