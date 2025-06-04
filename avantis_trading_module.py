@@ -1262,7 +1262,7 @@ class AvantisTrader:
 
             logger.info(f"✅ Trade executed successfully!")
 
-            logger.info(f"  - Transaction hash: {tx_hash.hex()}")
+            logger.info(f"  - Transaction hash: {tx_hash}")
 
            
 
