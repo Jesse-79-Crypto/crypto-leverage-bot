@@ -1302,7 +1302,7 @@ class AvantisTrader:
                 signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
             
                 # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
-                tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
     
                 logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
     
