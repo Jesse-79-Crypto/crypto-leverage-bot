@@ -1275,7 +1275,7 @@ class AvantisTrader:
             web3 = Web3(Web3.HTTPProvider("https://mainnet.base.org"))            # Create contract instance
 
             # REAL Avantis trade execution using verified contract address
-            AVANTIS_TRADING_CONTRACT = "0x8a311D70eA1e9e2F6E1936B4d6C27fB53a5f7422"
+            AVANTIS_TRADING_CONTRACT = "0x8a311d70ea1e9e2f6e1936b4d6c27fb53a5f7422"
          
             trading_contract = web3.eth.contract(
                 address=AVANTIS_TRADING_CONTRACT,
