@@ -1276,7 +1276,9 @@ class AvantisTrader:
                 }
             ]
 
-            # Create contract instance
+                     # Setup Web3 connection
+            web3 = Web3(Web3.HTTPProvider("https://mainnet.base.org"))            # Create contract instance
+
             trading_contract = web3.eth.contract(
                 address=AVANTIS_TRADING_CONTRACT,
                 abi=AVANTIS_TRADING_ABI
