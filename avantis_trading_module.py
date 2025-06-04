@@ -1295,14 +1295,14 @@ class AvantisTrader:
                 'gas': 500000,
                 'gasPrice': web3.eth.gas_price,
                 'nonce': web3.eth.get_transaction_count(trader_address)
-            })
+                })
 
-            # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
-            private_key = TradingConfig.PRIVATE_KEY
-            signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
+                # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
+                private_key = TradingConfig.PRIVATE_KEY
+                signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
             
-            # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
-            tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
+                tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
     
                 logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
     
