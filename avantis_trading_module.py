@@ -1294,7 +1294,7 @@ class AvantisTrader:
                 'from': trader_address,
                 'gas': 500000,
                 'gasPrice': web3.eth.gas_price,
-                'nonce': web3.eth.get_transaction_count(trader_address)
+                'nonce': web3.eth.get_transaction_count(trader_address, 'pending')
                 })
 
                 # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
