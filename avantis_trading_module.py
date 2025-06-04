@@ -4,6 +4,8 @@ from web3 import Web3
 
 import logging
 
+from avantis_trader_sdk import TraderClient
+
 import asyncio
 
 import aiohttp
@@ -1253,9 +1255,27 @@ class AvantisTrader:
 
             # Execute the trade with verified parameters
 
-            # Instead of simulation, use real Avantis:
-            result = avantis_client.submit_trade(verified_trade_params)
-            tx_hash = result.transaction_hash
+            # REAL Avantis trade execution using official SDK
+            from avantis_trader_sdk import TraderClient
+            import asyncio
+
+            async def execute_real_trade():
+                provider_url = "https://mainnet.base.org"
+                trader_client = TraderClient(provider_url)
+    
+                # Execute real trade
+                trade_result = await trader_client.open_trade(
+                    pair_index=pair_index,
+                    position_size_usdc=position_usdc,
+                    leverage=leverage,
+                    is_long=is_long,
+                    slippage=verified_slippage
+                )
+    
+                return trade_result.transaction_hash
+
+            # Execute the real trade
+            tx_hash = asyncio.run(execute_real_trade())
             
 
            
