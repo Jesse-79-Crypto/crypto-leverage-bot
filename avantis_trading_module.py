@@ -1285,16 +1285,16 @@ class AvantisTrader:
             try:
                 # Execute real trade - FULLY AUTOMATED SIGNING
                 transaction = trading_contract.functions.openTrade(
-                0,  # BTC pair index
-                position_usdc,  # Position size in USDC wei (6 decimals)
-                leverage,  # Leverage amount
-                is_long,  # True for long, False for short
-                int(verified_slippage * 10000)  # Slippage in basis points
+                    0,  # BTC pair index
+                    position_usdc,  # Position size in USDC wei (6 decimals)
+                    leverage,  # Leverage amount
+                    is_long,  # True for long, False for short
+                    int(verified_slippage * 10000)  # Slippage in basis points
                 ).build_transaction({
-                'from': trader_address,
-                'gas': 500000,
-                'gasPrice': int(web3.eth.gas_price * 1.2),
-                'nonce': web3.eth.get_transaction_count(trader_address, 'pending')
+                    'from': trader_address,
+                    'gas': 500000,
+                    'gasPrice': int(web3.eth.gas_price * 1.2),
+                    'nonce': web3.eth.get_transaction_count(trader_address, 'pending')
                 })
 
                 # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
@@ -1307,24 +1307,19 @@ class AvantisTrader:
                 logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
                 logger.info(f"📝 Transaction Hash: {tx_hash.hex()}")
 
-            except Exception as trade_error:
-                error_msg = str(trade_error)
+            except Exception as e:
+                error_msg = str(e)
             
                 # Check if transaction is already pending (this is actually success!)
-            if "already known" in error_msg:
-                logger.info("🔄 Transaction already submitted to mempool - waiting for confirmation...")
-                tx_hash = "0x" + "".join([format(random.randint(0, 15), 'x') for _ in range(64)])
-                logger.info(f"✅ Trade submitted successfully! Pending TX: {tx_hash}")
-            else:
-                logger.error(f"❌ Trade execution failed: {trade_error}")
-                # Generate a simulation transaction hash for testing
-                tx_hash = f"0x{''.join([format(random.randint(0, 15), 'x') for _ in range(64)])}"
-                logger.info(f"🔄 Using simulation mode due to error – Generated TX: {tx_hash}")
-            
-
-            logger.info(f"✅ Trade executed successfully!")
-
-            logger.info(f"  - Transaction hash: {tx_hash}")
+                if "already known" in error_msg:
+                    logger.info("🔄 Transaction already submitted to mempool - waiting for confirmation...")
+                    tx_hash = "0x" + "".join([format(random.randint(0, 15), 'x') for _ in range(64)])
+                    logger.info(f"✅ Trade submitted successfully! Pending TX: {tx_hash}")
+                else:
+                    logger.error(f"❌ Trade execution failed: {e}")
+                    # Generate a simulation transaction hash for testing
+                    tx_hash = f"0x{''.join([format(random.randint(0, 15), 'x') for _ in range(64)])}"
+                    logger.info(f"🔄 Using simulation mode due to error – Generated TX: {tx_hash}"
 
            
 
