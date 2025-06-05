@@ -1293,7 +1293,7 @@ class AvantisTrader:
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
-                    'gasPrice': int(web3.eth.gas_price * 1.2),
+                    'gasPrice': int(web3.eth.gas_price * 1.5),
                     'nonce': web3.eth.get_transaction_count(trader_address, 'pending')
                 })
 
