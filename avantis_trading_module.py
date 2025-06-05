@@ -1319,7 +1319,7 @@ class AvantisTrader:
                     logger.error(f"❌ Trade execution failed: {e}")
                     # Generate a simulation transaction hash for testing
                     tx_hash = f"0x{''.join([format(random.randint(0, 15), 'x') for _ in range(64)])}"
-                    logger.info(f"🔄 Using simulation mode due to error – Generated TX: {tx_hash}"
+                    logger.info(f"🔄 Using simulation mode due to error – Generated TX: {tx_hash}")
 
            
 
