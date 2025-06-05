@@ -1751,6 +1751,8 @@ def webhook():
 
         logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
 
+        time.sleep(2)  # 🚫 Prevent duplicate trades from rapid webhooks
+     
         logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
 
        
