@@ -1264,8 +1264,8 @@ class AvantisTrader:
                         {"name": "isLong", "type": "bool"},
                         {"name": "slippage", "type": "uint256"},
                         {"name": "orderType", "type": "uint8"},
-                        {"name": "maxExecutionFee", "type": "uint256"},
-                        {"name": "maxExecutionFee", "type": "uint256"}  # ← ADD THIS LINE
+                        {"name": "takeProfit", "type": "uint256"},
+                        {"name": "stopLoss", "type": "uint256"}
                     ],
                     "name": "openTrade",
                     "outputs": [],
@@ -1318,7 +1318,8 @@ class AvantisTrader:
                     is_long,  # True for long, False for short
                     int(verified_slippage * 10000),  # Slippage in basis points
                     0,
-                    0                                # ← ADD THIS: maxExecutionFee (0 for now)
+                    0,                                   # takeProfit (0 = no TP)
+                    0                                    # stopLoss (0 = no SL)
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
