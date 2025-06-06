@@ -1315,7 +1315,7 @@ class AvantisTrader:
                     position_usdc,  # Position size in USDC wei (6 decimals)
                     leverage,  # Leverage amount
                     is_long,  # True for long, False for short
-                    int(verified_slippage * 10000)  # Slippage in basis points
+                    int(verified_slippage * 10000),  # Slippage in basis points
                     0                              # ← ADD THIS: orderType (0 = market order)
                  ).build_transaction({
                     'from': trader_address,
