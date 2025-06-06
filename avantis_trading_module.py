@@ -1294,7 +1294,7 @@ class AvantisTrader:
                     'from': trader_address,
                     'gas': 500000,
                     'gasPrice': int(web3.eth.gas_price * 1.5),
-                    'nonce': web3.eth.get_transaction_count(trader_address, 'pending')
+                    'nonce': web3.eth.get_transaction_count(trader_address, 'latest')
                 })
 
                 # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
@@ -1310,8 +1310,9 @@ class AvantisTrader:
              
             except Exception as e:
                 error_msg = str(e)
-            
-                # Check if transaction is already pending (this is actually success!)
+                tx_hash_str = None
+             
+                 # Check if transaction is already pending (this is actually success!)
                 if "already known" in error_msg:
                     logger.info("🔄 Transaction already submitted to mempool - waiting for confirmation...")
                     tx_hash = "0x" + "".join([format(random.randint(0, 15), 'x') for _ in range(64)])
