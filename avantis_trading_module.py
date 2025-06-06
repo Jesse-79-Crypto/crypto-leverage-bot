@@ -1265,6 +1265,7 @@ class AvantisTrader:
                         {"name": "slippage", "type": "uint256"},
                         {"name": "orderType", "type": "uint8"},
                         {"name": "maxExecutionFee", "type": "uint256"}
+                        {"name": "maxExecutionFee", "type": "uint256"}  # ← ADD THIS LINE
                     ],
                     "name": "openTrade",
                     "outputs": [],
