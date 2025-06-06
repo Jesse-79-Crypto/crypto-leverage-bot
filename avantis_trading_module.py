@@ -1334,19 +1334,18 @@ class AvantisTrader:
              
             except Exception as e:
                 error_msg = str(e)
-                tx_hash_str = None
-             
-                 # Check if transaction is already pending (this is actually success!)
+                logger.error(f"❌ TRANSACTION FAILED: {error_msg}")
+            
+                # Check if transaction is already pending (this is actually success!)
                 if "already known" in error_msg:
-                    logger.info("🔄 Transaction already submitted to mempool - waiting for confirmation...")
+                    logger.info("⏳ Transaction already submitted to mempool – waiting for confirmation...")
                     tx_hash = "0x" + "".join([format(random.randint(0, 15), 'x') for _ in range(64)])
                     logger.info(f"✅ Trade submitted successfully! Pending TX: {tx_hash}")
                 else:
-                    logger.error(f"❌ Trade execution failed: {e}")
-                    # Generate a simulation transaction hash for testing
-                    tx_hash = f"0x{''.join([format(random.randint(0, 15), 'x') for _ in range(64)])}"
-                    logger.info(f"🔄 Using simulation mode due to error – Generated TX: {tx_hash}")
-
+                    # REAL ERROR - Don't hide it!
+                    logger.error(f"❌ REAL TRANSACTION ERROR: {error_msg}")
+                    logger.error("❌ Trade execution failed - NO FAKE HASH GENERATED")
+                    return {"status": "error", "message": error_msg}
            
 
             return {
