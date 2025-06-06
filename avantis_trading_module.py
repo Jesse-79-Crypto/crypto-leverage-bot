@@ -1255,21 +1255,23 @@ class AvantisTrader:
 
            
 
-            # Basic ABI for trading (we'll need the real one, but this structure works)
             AVANTIS_TRADING_ABI = [
                 {
                     "inputs": [
                         {"name": "pairIndex", "type": "uint256"},
-                        {"name": "positionSizeUsdc", "type": "uint256"}, 
+                        {"name": "positionSizeUsdc", "type": "uint256"},
                         {"name": "leverage", "type": "uint256"},
                         {"name": "isLong", "type": "bool"},
-                        {"name": "slippage", "type": "uint256"}
+                        {"name": "slippage", "type": "uint256"},
+                        {"name": "orderType", "type": "uint8"},
+                        {"name": "maxExecutionFee", "type": "uint256"}
                     ],
                     "name": "openTrade",
                     "outputs": [],
+                    "stateMutability": "nonpayable",
                     "type": "function"
-                }
-            ]
+            }
+        ]
          
             # REAL Avantis trade execution using verified contract address
             AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address("0x8a311d70ea1e9e2f6e1936b4d6c27fb53a5f7422")
@@ -1314,7 +1316,8 @@ class AvantisTrader:
                     leverage,  # Leverage amount
                     is_long,  # True for long, False for short
                     int(verified_slippage * 10000)  # Slippage in basis points
-                ).build_transaction({
+                    0                              # ← ADD THIS: orderType (0 = market order)
+                 ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
                     'gasPrice': int(web3.eth.gas_price * 1.5),
