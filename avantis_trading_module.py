@@ -1328,7 +1328,7 @@ class AvantisTrader:
 
                 'status': 'success',
 
-                'tx_hash': tx_hash,
+                'tx_hash': tx_hash_str,
 
                 'position_size': f"${position_usdc/1_000_000:.2f}",
 
