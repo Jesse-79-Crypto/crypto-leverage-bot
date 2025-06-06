@@ -1303,10 +1303,11 @@ class AvantisTrader:
             
                 # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
                 tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            
+                tx_hash_str = tx_hash.hex()
+             
                 logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
-                logger.info(f"📝 Transaction Hash: {tx_hash.hex()}")
-
+                logger.info(f"📝 Transaction Hash: {tx_hash_str}")
+             
             except Exception as e:
                 error_msg = str(e)
             
