@@ -1316,8 +1316,9 @@ class AvantisTrader:
                     leverage,  # Leverage amount
                     is_long,  # True for long, False for short
                     int(verified_slippage * 10000),  # Slippage in basis points
-                    0                              # ← ADD THIS: orderType (0 = market order)
-                 ).build_transaction({
+                    0,
+                    0                                # ← ADD THIS: maxExecutionFee (0 for now)
+                ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
                     'gasPrice': int(web3.eth.gas_price * 1.5),
