@@ -1284,6 +1284,30 @@ class AvantisTrader:
 
             try:
                 # Execute real trade - FULLY AUTOMATED SIGNING
+                 # 🔑 APPROVE USDC SPENDING FIRST
+                logger.info("🔑 Checking USDC approval for Avantis...")
+                usdc_contract = web3.eth.contract(
+                    address="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",  # USDC on Base
+                    abi=[{"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}]
+                )
+
+                # Approve unlimited USDC spending
+                approval_tx = usdc_contract.functions.approve(
+                    "0x8a311d70Ea1E9e2f6e1936b4d6C27FB53A5F7422",  # Avantis contract
+                    2**256 - 1  # Unlimited approval
+                ).build_transaction({
+                    'from': trader_address,
+                    'gas': 100000,
+                    'gasPrice': web3.eth.gas_price,
+                    'nonce': web3.eth.get_transaction_count(trader_address, 'latest')
+                })
+
+                signed_approval = web3.eth.account.sign_transaction(approval_tx, TradingConfig.PRIVATE_KEY)
+                approval_hash = web3.eth.send_raw_transaction(signed_approval.raw_transaction)
+                logger.info(f"✅ USDC Approved: {approval_hash.hex()}")
+
+                # Small delay for confirmation
+                time.sleep(2)                
                 transaction = trading_contract.functions.openTrade(
                     0,  # BTC pair index
                     position_usdc,  # Position size in USDC wei (6 decimals)
