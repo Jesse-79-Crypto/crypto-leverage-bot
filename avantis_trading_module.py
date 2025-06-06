@@ -1334,18 +1334,18 @@ class AvantisTrader:
              
             except Exception as e:
                 error_msg = str(e)
-                logger.error(f"❌ TRANSACTION FAILED: {error_msg}")
+                logger.error(f"🚨 TRANSACTION FAILED - REAL ERROR: {error_msg}")
+                logger.error(f"🚨 ERROR TYPE: {type(e).__name__}")
+                logger.error(f"🚨 FULL ERROR DETAILS: {repr(e)}")
             
-                # Check if transaction is already pending (this is actually success!)
-                if "already known" in error_msg:
-                    logger.info("⏳ Transaction already submitted to mempool – waiting for confirmation...")
-                    tx_hash = "0x" + "".join([format(random.randint(0, 15), 'x') for _ in range(64)])
-                    logger.info(f"✅ Trade submitted successfully! Pending TX: {tx_hash}")
-                else:
-                    # REAL ERROR - Don't hide it!
-                    logger.error(f"❌ REAL TRANSACTION ERROR: {error_msg}")
-                    logger.error("❌ Trade execution failed - NO FAKE HASH GENERATED")
-                    return {"status": "error", "message": error_msg}
+                # NO MORE FAKE HASHES!
+                logger.error("❌ TRADE FAILED - NOT GENERATING FAKE SUCCESS MESSAGES")
+            
+                return {
+                    "status": "error", 
+                    "message": f"Transaction failed: {error_msg}",
+                    "error_type": type(e).__name__
+                }
            
 
             return {
