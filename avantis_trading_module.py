@@ -1337,7 +1337,6 @@ class AvantisTrader:
 
                 # ADD THIS CRITICAL DEBUGGING:
                 logger.info(f"📡 Transaction sent, waiting for receipt...")
-        try:
                 receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
             
                 if receipt.status == 1:
