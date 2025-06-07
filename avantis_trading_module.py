@@ -764,8 +764,15 @@ class AvantisTrader:
 
             logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
 
-           
-
+            # ADD THIS NETWORK CHECK HERE:
+            chain_id = web3.eth.chain_id  
+            logger.info(f"🔗 NETWORK CHECK: Connected to Chain ID: {chain_id}")
+            logger.info(f"🔗 EXPECTED: Base mainnet = 8453")
+            if chain_id != 8453:
+                logger.error(f"❌ WRONG NETWORK! You're on chain {chain_id}, not Base!")
+                return {'status': 'error', 'error': f'Wrong network: {chain_id}'}
+            else:
+                logger.info(f"✅ CORRECT NETWORK: Base mainnet confirmed!")
             # Enhanced debugging for entry price detection
 
             logger.info(f"🔍 DEBUGGING entry price detection:")
