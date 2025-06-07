@@ -1,5 +1,7 @@
 import os
 
+from pathlib import Path
+
 from web3 import Web3
 
 import random
@@ -1829,12 +1831,28 @@ def webhook():
         logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
 
         time.sleep(5)  # 🚫 Prevent duplicate trades from rapid webhooks
-        # 🔒 Trading lock to ensure only one trade at a time
-        if globals().get('trading_in_progress', False):
-            logger.warning("⚠️ Trade already in progress - skipping this signal")
-            return jsonify({'status': 'skipped', 'reason': 'Trade in progress'})
+        # 🔒 File-based trading lock (persistent across app restarts)
+        lock_file = Path("/tmp/trading_lock.txt")
 
-        globals()['trading_in_progress'] = True        
+        # Check if trade is in progress
+        if lock_file.exists():
+            try:
+                lock_age = time.time() - lock_file.stat().st_mtime
+                if lock_age < 60:  # Lock expires after 60 seconds
+                    logger.warning("⚠️ Trade already in progress - skipping this signal")
+                    return jsonify({'status': 'skipped', 'reason': 'Trade in progress'})
+                else:
+                    # Old lock, remove it
+                    lock_file.unlink()
+            except:
+                # If file is corrupted, remove it
+                try:
+                    lock_file.unlink()
+                except:
+                    pass
+
+        # Create trading lock
+        lock_file.write_text(str(time.time()))       
         logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
 
        
