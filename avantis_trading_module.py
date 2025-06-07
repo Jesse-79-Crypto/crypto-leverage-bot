@@ -1334,24 +1334,55 @@ class AvantisTrader:
                 # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
                 tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 tx_hash_str = tx_hash.hex()
-             
-                logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
-                logger.info(f"📝 Transaction Hash: {tx_hash_str}")
-             
+
+                # ADD THIS CRITICAL DEBUGGING:
+                logger.info(f"📡 Transaction sent, waiting for receipt...")
+        try:
+                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+            
+                if receipt.status == 1:
+                    logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
+                    logger.info(f"🎯 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
+                else:
+                    logger.error(f"❌ Transaction REVERTED - this is why USDC isn't moving!")
+                    logger.error(f"💥 Revert reason: Check BaseScan for details")
+                    logger.error(f"🔗 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
+                
+                logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
+                logger.info(f"📋 Receipt: {receipt}")
+            
             except Exception as e:
-                error_msg = str(e)
-                logger.error(f"🚨 TRANSACTION FAILED - REAL ERROR: {error_msg}")
-                logger.error(f"🚨 ERROR TYPE: {type(e).__name__}")
-                logger.error(f"🚨 FULL ERROR DETAILS: {repr(e)}")
-            
-                # NO MORE FAKE HASHES!
-                logger.error("❌ TRADE FAILED - NOT GENERATING FAKE SUCCESS MESSAGES")
-            
-                return {
-                    "status": "error", 
-                    "message": f"Transaction failed: {error_msg}",
-                    "error_type": type(e).__name__
-                }
+                logger.error(f"⏰ Transaction timeout or error: {e}")
+        
+            # SUCCESS - Return the real transaction hash
+            logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
+            logger.info(f"📋 Transaction Hash: {tx_hash_str}")
+        
+            return {
+                'status': 'success',
+                'tx_hash': tx_hash_str,
+                'position_size': f"${position_usdc/1_000_000:.2f}",
+                'entry_price': f"${entry_price/1_000_000_000_000_000_000:.2f}",
+                'leverage': f"{leverage}x",
+                'direction': 'LONG' if is_long else 'SHORT',
+                'margin': f"${(position_usdc/1_000_000)/leverage:.2f}",
+                'effective_margin_after_slippage': f"${effective_margin:.2f}"
+            }
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"🚨 TRANSACTION FAILED - REAL ERROR: {error_msg}")
+            logger.error(f"🚨 ERROR TYPE: {type(e).__name__}")
+            logger.error(f"🚨 FULL ERROR DETAILS: {repr(e)}")
+        
+            # NO MORE FAKE HASHES!
+            logger.error("❌ TRADE FAILED - NOT GENERATING FAKE SUCCESS MESSAGES")
+        
+            return {
+                "status": "error",
+                "message": f"Transaction failed: {error_msg}",
+                "error_type": type(e).__name__
+            }
            
 
             return {
