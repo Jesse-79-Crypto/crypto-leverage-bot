@@ -773,6 +773,12 @@ class AvantisTrader:
                 return {'status': 'error', 'error': f'Wrong network: {chain_id}'}
             else:
                 logger.info(f"✅ CORRECT NETWORK: Base mainnet confirmed!")
+                 # 🚨 ADD THIS NEW DEBUGGING:
+                logger.info(f"🔍 RPC PROVIDER DEBUG:")
+                logger.info(f"🔍 Provider type: {type(self.w3.provider)}")
+                logger.info(f"🔍 Provider endpoint: {getattr(self.w3.provider, 'endpoint_uri', 'Unknown')}")
+                logger.info(f"🔍 Latest block number: {self.w3.eth.block_number}")
+                logger.info(f"🔍 Your ETH balance: {self.w3.eth.get_balance(self.wallet_address) / 1e18:.6f} ETH")
             # Enhanced debugging for entry price detection
 
             logger.info(f"🔍 DEBUGGING entry price detection:")
