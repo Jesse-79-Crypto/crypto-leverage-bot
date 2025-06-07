@@ -1828,11 +1828,11 @@ def webhook():
 
         logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
 
-        time.sleep(2)  # 🚫 Prevent duplicate trades from rapid webhooks
+        time.sleep(5)  # 🚫 Prevent duplicate trades from rapid webhooks
         # 🔒 Trading lock to ensure only one trade at a time
         if hasattr(webhook, 'trading_in_progress') and webhook.trading_in_progress:
-        logger.warning("⚠️ Trade already in progress - skipping this signal")
-        return jsonify({'status': 'skipped', 'reason': 'Trade in progress'})
+            logger.warning("⚠️ Trade already in progress - skipping this signal")
+            return jsonify({'status': 'skipped', 'reason': 'Trade in progress'})
 
         webhook.trading_in_progress = True        
         logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
