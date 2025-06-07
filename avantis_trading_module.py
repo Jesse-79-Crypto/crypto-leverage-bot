@@ -1352,7 +1352,7 @@ class AvantisTrader:
 
                 # ADD THIS CRITICAL DEBUGGING:
                 logger.info(f"📡 Transaction sent, waiting for receipt...")
-                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=20)
+                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
             
                 if receipt.status == 1:
                     logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
@@ -1365,18 +1365,43 @@ class AvantisTrader:
                 logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
                 logger.info(f"📋 Receipt: {receipt}")
             
-            except Exception as e:
-                logger.error(f"⏰ Transaction timeout or error: {e}")
-                # 🔒 Clear trading lock on error
+    except Exception as e:
+        logger.error(f"⏰ Transaction timeout or error: {e}")
+    
+        # Check if transaction actually went through
+        try:
+            receipt = self.w3.eth.get_transaction_receipt(tx_hash)
+            if receipt and receipt.status == 1:
+                logger.info(f"✅ Transaction found after timeout: {tx_hash_str}")
+                logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
+                logger.info(f"📋 Receipt: {receipt}")
+            
+                # Clear trading lock on success
                 try:
                     Path("/tmp/trading_lock.txt").unlink()
                 except:
-                    pass                
-                 
+                    pass
+                
                 return {
-                    'status': 'error',
-                    'message': f'Transaction failed: {e}'
-                }         
+                    'status': 'success',
+                    'tx_hash': tx_hash_str,
+                    'position_size': f"${position_usdc/1_000_000:.2f} USDC"
+                }
+            else:
+                logger.warning(f"❌ Transaction failed or not found: {tx_hash_str}")
+        except:
+            logger.warning(f"❌ Could not verify transaction: {tx_hash_str}")
+    
+        # 🔒 Clear trading lock on error
+        try:
+            Path("/tmp/trading_lock.txt").unlink()
+        except:
+            pass
+    
+        return {
+            'status': 'error',
+            'message': f'Transaction failed: {e}'
+        }
             # SUCCESS - Return the real transaction hash
             logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
             logger.info(f"📋 Transaction Hash: {tx_hash_str}")
