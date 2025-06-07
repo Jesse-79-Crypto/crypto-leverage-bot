@@ -1337,7 +1337,7 @@ class AvantisTrader:
 
                 # ADD THIS CRITICAL DEBUGGING:
                 logger.info(f"📡 Transaction sent, waiting for receipt...")
-                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=20)
             
                 if receipt.status == 1:
                     logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
