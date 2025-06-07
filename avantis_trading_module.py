@@ -1367,9 +1367,15 @@ class AvantisTrader:
             
             except Exception as e:
                 logger.error(f"⏰ Transaction timeout or error: {e}")
+                # 🔒 Clear trading lock on error
+                try:
+                    Path("/tmp/trading_lock.txt").unlink()
+                except:
+                    pass                
+                 
                 return {
-                'status': 'error',
-                'message': f'Transaction failed: {e}'
+                    'status': 'error',
+                    'message': f'Transaction failed: {e}'
                 }         
             # SUCCESS - Return the real transaction hash
             logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
