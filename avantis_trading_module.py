@@ -1352,18 +1352,19 @@ class AvantisTrader:
 
                 # ADD THIS CRITICAL DEBUGGING:
                 logger.info(f"📡 Transaction sent, waiting for receipt...")
-                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-            
-                if receipt.status == 1:
-                    logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
-                    logger.info(f"🎯 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
-                else:
-                    logger.error(f"❌ Transaction REVERTED - this is why USDC isn't moving!")
-                    logger.error(f"💥 Revert reason: Check BaseScan for details")
-                    logger.error(f"🔗 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
+                try:
+                    receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+              
+                    if receipt.status == 1:
+                        logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
+                        logger.info(f"🎯 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
+                    else:
+                        logger.error(f"❌ Transaction REVERTED - this is why USDC isn't moving!")
+                        logger.error(f"💥 Revert reason: Check BaseScan for details")
+                        logger.error(f"🔗 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
                 
-                logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
-                logger.info(f"📋 Receipt: {receipt}")
+                    logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
+                    logger.info(f"📋 Receipt: {receipt}")
             
     except Exception as e:
         logger.error(f"⏰ Transaction timeout or error: {e}")
