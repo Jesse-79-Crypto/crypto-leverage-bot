@@ -1350,7 +1350,7 @@ class AvantisTrader:
             
                 # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
                 tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                tx_hash_str = tx_hash.hex()
+                tx_hash_str = '0x' + tx_hash.hex() 
 
                 # ADD THESE DEBUG LINES HERE ⬇️
                 logger.info(f"🔍 Raw tx_hash type: {type(tx_hash)}")
