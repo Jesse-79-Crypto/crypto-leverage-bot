@@ -1352,6 +1352,13 @@ class AvantisTrader:
                 tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 tx_hash_str = tx_hash.hex()
 
+                # ADD THESE DEBUG LINES HERE ⬇️
+                logger.info(f"🔍 Raw tx_hash type: {type(tx_hash)}")
+                logger.info(f"🔍 Raw tx_hash value: {tx_hash}")
+                logger.info(f"🔍 Hash string: {tx_hash_str}")
+                logger.info(f"🔍 Hash length: {len(tx_hash_str)}")
+                logger.info(f"🔍 Is hash valid format: {tx_hash_str.startswith('0x') and len(tx_hash_str) == 66}")  
+
                 # ADD THIS CRITICAL DEBUGGING:
                 logger.info(f"📡 Transaction sent, waiting for receipt...")
                 receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=20)
