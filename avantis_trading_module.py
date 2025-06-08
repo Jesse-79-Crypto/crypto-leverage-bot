@@ -1316,7 +1316,8 @@ class AvantisTrader:
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 100000,
-                    'gasPrice': self.w3.eth.gas_price,
+                    'maxFeePerGas': self.w3.eth.gas_price,
+                    'maxPriorityFeePerGas': 1000000000,
                     'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
                 })
 
@@ -1338,7 +1339,8 @@ class AvantisTrader:
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
-                    'gasPrice': int(self.w3.eth.gas_price * 3),
+                    ''maxFeePerGas': int(self.w3.eth.gas_price * 1.5),
+                    'maxPriorityFeePerGas': 2000000000,
                     'nonce': current_nonce + 1
                 })
 
