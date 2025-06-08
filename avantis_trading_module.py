@@ -1084,6 +1084,8 @@ class AvantisTrader:
 
         try:
 
+            current_nonce = self.w3.eth.get_transaction_count(trader_address, 'pending')
+         
             logger.info(f"🎯 Preparing trade parameters...")
 
            
@@ -1337,7 +1339,7 @@ class AvantisTrader:
                     'from': trader_address,
                     'gas': 500000,
                     'gasPrice': int(self.w3.eth.gas_price * 3),
-                    'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
+                    'nonce': current_nonce + 1
                 })
 
                 # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
@@ -1366,20 +1368,6 @@ class AvantisTrader:
             except Exception as e:
                 logger.error(f"⏰ Transaction timeout or error: {e}")
         
-            # SUCCESS - Return the real transaction hash
-            logger.info(f"🎯 REAL TRADE EXECUTED: {'LONG' if is_long else 'SHORT'} ${position_usdc/1_000_000:.2f} USDC")
-            logger.info(f"📋 Transaction Hash: {tx_hash_str}")
-        
-            return {
-                'status': 'success',
-                'tx_hash': tx_hash_str,
-                'position_size': f"${position_usdc/1_000_000:.2f}",
-                'entry_price': f"${entry_price/1_000_000_000_000_000_000:.2f}",
-                'leverage': f"{leverage}x",
-                'direction': 'LONG' if is_long else 'SHORT',
-                'margin': f"${(position_usdc/1_000_000)/leverage:.2f}",
-                'effective_margin_after_slippage': f"${effective_margin:.2f}"
-            }
 
         except Exception as e:
             error_msg = str(e)
