@@ -1366,8 +1366,8 @@ class AvantisTrader:
                     logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
                     logger.info(f"📋 Receipt: {receipt}")
             
-    except Exception as e:
-        logger.error(f"⏰ Transaction timeout or error: {e}")
+        except Exception as e:
+            logger.error(f"⏰ Transaction timeout or error: {e}")
     
         # Clear trading lock on error
         try:
