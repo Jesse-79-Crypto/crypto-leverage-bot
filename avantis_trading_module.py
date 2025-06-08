@@ -1359,14 +1359,22 @@ class AvantisTrader:
                 if receipt.status == 1:
                     logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
                     logger.info(f"🎯 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
+
+                    return {
+                        'status': 'success',
+                        'tx_hash': tx_hash_str,
+                        'gas_used': receipt.gasUsed,
+                        'block_number': receipt.blockNumber
+                    }
+
                 else:
                     logger.error(f"❌ Transaction REVERTED - this is why USDC isn't moving!")
                     logger.error(f"💥 Revert reason: Check BaseScan for details")
-                    logger.error(f"🔗 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
-                
-                logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
-                logger.info(f"📋 Receipt: {receipt}")
-            
+                    logger.error(f"🔗 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")                 
+                    logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
+                    logger.info(f"📋 Receipt: {receipt}")
+                    raise Exception(f"Transaction reverted: {tx_hash_str}")
+             
             except Exception as e:
                 logger.error(f"⏰ Transaction timeout or error: {e}")
         
