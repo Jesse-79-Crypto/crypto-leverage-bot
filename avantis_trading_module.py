@@ -1339,7 +1339,7 @@ class AvantisTrader:
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
-                    ''maxFeePerGas': int(self.w3.eth.gas_price * 1.5),
+                    'maxFeePerGas': int(self.w3.eth.gas_price * 1.5),
                     'maxPriorityFeePerGas': 2000000000,
                     'nonce': current_nonce + 1
                 })
