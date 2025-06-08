@@ -26,7 +26,9 @@ import traceback
 
 import sys
 
- 
+import threading
+TRADE_IN_PROGRESS = False
+TRADE_LOCK = threading.Lock()
 
 # Flask and web framework imports
 
@@ -1834,7 +1836,14 @@ def webhook():
      
         logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
 
-       
+        # ADD THESE 6 LINES HERE ⬇️
+        global TRADE_IN_PROGRESS
+        with TRADE_LOCK:
+            if TRADE_IN_PROGRESS:
+                logger.warning("🚫 TRADE REJECTED - Another trade in progress!")
+                return jsonify({'status': 'rejected'}), 429
+            TRADE_IN_PROGRESS = True
+     
 
         # Parse incoming request
 
@@ -1889,7 +1898,7 @@ def webhook():
             logger.warning(f"⚠️ Webhook processing failed: {result.get('error', 'Unknown error')}")
 
            
-
+        TRADE_IN_PROGRESS = False
         return jsonify(result)
 
        
