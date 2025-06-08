@@ -1395,7 +1395,19 @@ class AvantisTrader:
                         'message': f'Transaction failed: {e}'
                     }
 
- 
+                except Exception as e:
+                    logger.error(f"❌ Avantis trade execution failed: {str(e)}")
+        
+                    # Clear trading lock on error
+                    try:
+                        Path("/tmp/trading_lock.txt").unlink()
+                    except:
+                        pass
+            
+                    return {
+                        'status': 'error',
+                        'message': f'Transaction failed: {e}'
+                    } 
 
 # Initialize Avantis trader
 
