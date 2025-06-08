@@ -1380,8 +1380,8 @@ class AvantisTrader:
                         'margin': f"${(position_usdc/1_000_000)/leverage:.2f}",
                         'effective_margin_after_slippage': f"${effective_margin:.2f}"
                     }
-            
-                except Exception as e:
+                    except Exception as e:
+                        
                     logger.error(f"🚨 Transaction timeout or error: {e}")
             
                     # Clear trading lock on error
