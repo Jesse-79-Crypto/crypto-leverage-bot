@@ -1317,8 +1317,8 @@ class AvantisTrader:
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 100000,
-                    'maxFeePerGas': max(int(self.w3.eth.gas_price * 2.0), 100000000),  # At least 25 Gwei
-                    'maxPriorityFeePerGas': 50000000,
+                    'maxFeePerGas': max(int(self.w3.eth.gas_price * 2.0), 100000000), # 0.1 Gwei  
+                    'maxPriorityFeePerGas': 50000000, # 0.05 Gwei
                     'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
                 })
 
@@ -1340,8 +1340,8 @@ class AvantisTrader:
                 ).build_transaction({
                     'from': trader_address,
                     'gas': 500000,
-                    'maxFeePerGas': max(int(self.w3.eth.gas_price * 2.0), 100000000),  # At least 25 Gwei
-                    'maxPriorityFeePerGas': 50000000,  # 5 Gwei,
+                    'maxFeePerGas': max(int(self.w3.eth.gas_price * 2.0), 100000000), # 0.1 Gwei
+                    'maxPriorityFeePerGas': 50000000, # 0.05 Gwei
                     'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
                 })
 
