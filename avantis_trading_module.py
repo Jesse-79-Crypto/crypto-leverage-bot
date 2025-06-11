@@ -747,7 +747,7 @@ class AvantisTrader:
 
             'AVAXUSD': 4,
 
-            'AVAX': 4
+            'AVAX': 4,
 
             # USDT mappings for signal compatibility
             'BTC/USDT': 0,
