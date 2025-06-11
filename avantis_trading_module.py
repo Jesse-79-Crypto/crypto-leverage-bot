@@ -731,11 +731,11 @@ class AvantisTrader:
 
             'ETH': 1,
 
-            'MATIC/USD': 2,
+            'SOL/USD': 2,
 
-            'MATICUSD': 2,
+            'SOLUSD': 2,
 
-            'MATIC': 2,
+            'SOL': 2,
 
             'LINK/USD': 3,
 
@@ -749,6 +749,17 @@ class AvantisTrader:
 
             'AVAX': 4
 
+            # USDT mappings for signal compatibility
+            'BTC/USDT': 0,
+            
+            'ETH/USDT': 1,
+            
+            'SOL/USDT': 2,    # Map SOL signals to index 2
+            
+            'LINK/USDT': 3,   # Future LINK trading
+            
+            'AVAX/USDT': 4,
+            
         }
 
        
