@@ -27,20 +27,9 @@ import traceback
 import sys
 
 import threading
-return jsonify(result)
 
-except Exception as e:
-    logger.error(f"❌ Webhook error: {str(e)}")
-    logger.error(f"Traceback: {traceback.format_exc()}")
-    return jsonify({
-        'status': 'error',
-        'error': f'Webhook processing failed: {str(e)}'
-    }), 500
-
-finally:
-    TRADE_IN_PROGRESS = False  # Always reset, even on error
-
-# Flask and web framework imports
+TRADE_IN_PROGRESS = False
+TRADE_LOCK = threading.Lock()# Flask and web framework imports
 
 from flask import Flask, request, jsonify
 
@@ -1908,7 +1897,7 @@ def webhook():
             logger.warning(f"⚠️ Webhook processing failed: {result.get('error', 'Unknown error')}")
 
            
-        TRADE_IN_PROGRESS = False
+        
         return jsonify(result)
 
        
@@ -1927,8 +1916,9 @@ def webhook():
 
         }), 500
 
- 
-
+    finally:  # ✅ ADD this after line 1917
+        TRADE_IN_PROGRESS = False  # Always reset, even on error
+    
 @app.route('/balance', methods=['GET'])
 
 def get_balance():
