@@ -27,8 +27,18 @@ import traceback
 import sys
 
 import threading
-TRADE_IN_PROGRESS = False
-TRADE_LOCK = threading.Lock()
+return jsonify(result)
+
+except Exception as e:
+    logger.error(f"❌ Webhook error: {str(e)}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    return jsonify({
+        'status': 'error',
+        'error': f'Webhook processing failed: {str(e)}'
+    }), 500
+
+finally:
+    TRADE_IN_PROGRESS = False  # Always reset, even on error
 
 # Flask and web framework imports
 
@@ -1343,7 +1353,7 @@ class AvantisTrader:
                     'gas': 500000,
                     'maxFeePerGas': max(int(self.w3.eth.gas_price * 2.0), 100000000),  # At least 25 Gwei
                     'maxPriorityFeePerGas': 50000000,  # 5 Gwei,
-                    'nonce': current_nonce + 1
+                    'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
                 })
 
                 # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
