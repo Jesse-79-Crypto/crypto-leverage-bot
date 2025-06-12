@@ -113,8 +113,8 @@ load_dotenv()
 # 📅 Business Mode Fix - Load official Avantis contract from SDK EARLY
 from avantis_trader_sdk import TraderClient
 
-client = TraderClient
-avantis_contract_address = client.trading_contract.address
+client = TraderClient("Trading")
+avantis_contract_address = trading_contract.address 
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
 
 # Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
