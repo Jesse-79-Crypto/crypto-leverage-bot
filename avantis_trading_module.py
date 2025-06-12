@@ -114,6 +114,10 @@ load_dotenv()
 from avantis_trader_sdk import TraderClient  # REMOVE AvantisContract for now
 
 client = TraderClient()  # ✅ No argument
+provider_url=TradingConfig.RPC_URL,
+    private_key=TradingConfig.PRIVATE_KEY,
+    chain_id=TradingConfig.CHAIN_ID
+)
 trading_contract = client.load_contract("Trading")  # ✅ Correct way to load the Trading contract in 0.8.2
 avantis_contract_address = trading_contract.address
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
