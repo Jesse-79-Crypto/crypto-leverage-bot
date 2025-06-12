@@ -31,6 +31,9 @@ import threading
 TRADE_IN_PROGRESS = False
 TRADE_LOCK = threading.Lock()# Flask and web framework imports
 
+ACTIVE_TRADES = {}  # symbol -> bool  
+ACTIVE_TRADES_LOCK = threading.Lock()
+
 from flask import Flask, request, jsonify
 
 # flask_cors import CORS
@@ -1859,14 +1862,28 @@ def webhook():
            
 
         signal_data = request.get_json()
-
-       
-
         if not signal_data:
 
             logger.error("❌ Empty request body")
 
             return jsonify({'error': 'Empty request body'}), 400
+
+        
+       # NEW CODE - Add symbol checking
+        symbol = signal_data.get('symbol', '').upper()
+        if not symbol:
+            logger.error("❌ No symbol in signal!")
+            return jsonify({'error': 'Missing symbol in signal'}), 400
+    
+        # Check if symbol already has active trade
+        with ACTIVE_TRADES_LOCK:
+            if ACTIVE_TRADES.get(symbol, False):
+                logger.warning(f"🚫 Trade REJECTED - Trade already active for {symbol}!")
+                return jsonify({'status': 'rejected', 'reason': f'Trade already active for {symbol}'})
+    
+            # Mark this symbol as active
+            ACTIVE_TRADES[symbol] = True
+            logger.info(f"✅ {symbol} marked as ACTIVE")
 
            
 
@@ -1920,8 +1937,15 @@ def webhook():
 
         }), 500
 
-    finally:  # ✅ ADD this after line 1917
-        TRADE_IN_PROGRESS = False  # Always reset, even on error
+    finally:  
+        # Release symbol lock
+            if 'symbol' in locals():
+                with ACTIVE_TRADES_LOCK:
+                    ACTIVE_TRADES[symbol] = False
+                    logger.info(f"🔓 {symbol} marked as INACTIVE")
+
+        
+            TRADE_IN_PROGRESS = False  # Always reset, even on error
     
 @app.route('/balance', methods=['GET'])
 
