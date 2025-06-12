@@ -106,13 +106,19 @@ import numpy as np
 
 from dotenv import load_dotenv
 
- 
-
 # Load environment variables
 
 load_dotenv()
 
- 
+# 📅 Business Mode Fix - Load official Avantis contract from SDK EARLY
+from avantis_trader_sdk import TraderClient
+
+client = TraderClient(chain="base")
+avantis_contract_address = client.contract.address
+print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
+
+# Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
+TradingConfig.AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
 
 # Configure logging with enhanced formatting
 
