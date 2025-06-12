@@ -113,7 +113,7 @@ load_dotenv()
 # ✅ Business Mode Fix - Load official Avantis contract from SDK EARLY
 from avantis_trader_sdk import TraderClient  # REMOVE AvantisContract for now
 
-client = TraderClient()  # ✅ No argument
+client = TraderClient(  # ✅ No argument
 provider_url=TradingConfig.RPC_URL,
     private_key=TradingConfig.PRIVATE_KEY,
     chain_id=TradingConfig.CHAIN_ID
