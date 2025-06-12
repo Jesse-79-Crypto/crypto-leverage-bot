@@ -113,7 +113,7 @@ load_dotenv()
 # 📅 Business Mode Fix - Load official Avantis contract from SDK EARLY
 from avantis_trader_sdk import TraderClient
 
-client = TraderClient(chain="base")
+client = TraderClient
 avantis_contract_address = client.contract.address
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
 
