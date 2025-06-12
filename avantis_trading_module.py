@@ -2789,7 +2789,18 @@ def initialize_application():
 
         logger.info("🚀 ELITE CRYPTO TRADING BOT v214-MARGIN-FIX STARTING UP...")
 
-       
+        # ✅ Fetch official Avantis contract from SDK
+        from avantis_trader_sdk import TraderClient
+        
+        client = TraderClient(chain="base")
+        
+        avantis_contract_address = client.contract.address
+        
+        logger.info(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
+
+        # Set the correct contract address in TradingConfig
+        TradingConfig.AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
+
 
         # Check Web3 connection
 
