@@ -176,7 +176,7 @@ class TradingConfig:
 
     CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))  # Base network
 
-
+    PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
     # 🎯 Dynamic Position Sizing Configuration
     TIER_POSITION_PERCENTAGES = {
@@ -196,12 +196,6 @@ class TradingConfig:
     # 🔐 Security Configuration
 
     PRIVATE_KEY = os.getenv('PRIVATE_KEY')
-
-    if not PRIVATE_KEY:
-
-        logger.warning("⚠️ PRIVATE_KEY not found in environment variables")
-
-   
 
     # 🎯 Avantis Protocol Configuration
 
@@ -258,7 +252,22 @@ class TradingConfig:
 
 # ============================================================================
 
- 
+# 🚀 Business Mode Fix - Load official Avantis contract from SDK EARLY
+from avantis_trader_sdk import TraderClient
+
+client = TraderClient(
+    provider_url=TradingConfig.RPC_URL,
+    private_key=TradingConfig.PRIVATE_KEY,
+    chain_id=TradingConfig.CHAIN_ID
+)
+
+trading_contract = client.load_contract("Trading")
+avantis_contract_address = trading_contract.address
+
+logger.info(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
+
+# Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
+TradingConfig.AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
 
 class Web3Manager:
 
@@ -2799,18 +2808,6 @@ def initialize_application():
     try:
 
         logger.info("🚀 ELITE CRYPTO TRADING BOT v214-MARGIN-FIX STARTING UP...")
-
-        # ✅ Fetch official Avantis contract from SDK
-        from avantis_trader_sdk import TraderClient
-        
-        client = TraderClient(chain="base")
-        
-        avantis_contract_address = client.contract.address
-        
-        logger.info(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
-
-        # Set the correct contract address in TradingConfig
-        TradingConfig.AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
 
 
         # Check Web3 connection
