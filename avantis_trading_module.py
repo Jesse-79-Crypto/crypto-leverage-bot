@@ -118,7 +118,6 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 from avantis_trader_sdk import TraderClient
 
 client = TraderClient(provider_url=RPC_URL)
-)
 
 trading_contract = client.load_contract("Trading")
 avantis_contract_address = trading_contract.address
