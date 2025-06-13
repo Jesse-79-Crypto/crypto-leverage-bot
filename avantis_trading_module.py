@@ -262,12 +262,6 @@ class TradingConfig:
 # 🚀 Business Mode Fix - Load official Avantis contract from SDK EARLY
 from avantis_trader_sdk import TraderClient
 
-client = TraderClient(
-    provider_url=TradingConfig.RPC_URL,
-    private_key=TradingConfig.PRIVATE_KEY,
-    chain_id=TradingConfig.CHAIN_ID
-)
-
 trading_contract = client.load_contract("Trading")
 avantis_contract_address = trading_contract.address
 
