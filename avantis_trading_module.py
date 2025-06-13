@@ -112,13 +112,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+RPC_URL = os.getenv('BASE_RPC_URL')
+CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
+PRIVATE_KEY = os.getenv('PRIVATE_KEY')
+
 # ✅ Business Mode Fix - Load official Avantis contract from SDK EARLY
 from avantis_trader_sdk import TraderClient  # REMOVE AvantisContract for now
 
-client = TraderClient(  # ✅ No argument
-provider_url=TradingConfig.RPC_URL,
-    private_key=TradingConfig.PRIVATE_KEY,
-    chain_id=TradingConfig.CHAIN_ID
+client = TraderClient(
+    provider_url=RPC_URL,
+    private_key=PRIVATE_KEY,
+    chain_id=CHAIN_ID
 )
 trading_contract = client.load_contract("Trading")  # ✅ Correct way to load the Trading contract in 0.8.2
 avantis_contract_address = trading_contract.address
