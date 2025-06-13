@@ -117,8 +117,7 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 # 🚀 Business Mode Fix – Load official Avantis contract from SDK EARLY
 from avantis_trader_sdk import TraderClient
 
-client = TraderClient(
-    provider_url=RPC_URL,
+client = TraderClient(provider_url=RPC_URL)
 )
 
 trading_contract = client.load_contract("Trading")
