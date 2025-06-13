@@ -119,7 +119,6 @@ from avantis_trader_sdk import TraderClient
 
 client = TraderClient(
     provider_url=RPC_URL,
-    chain_id=CHAIN_ID
 )
 
 trading_contract = client.load_contract("Trading")
