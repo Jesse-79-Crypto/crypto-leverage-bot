@@ -1362,7 +1362,7 @@ class AvantisTrader:
                     int(time.time())        # timestamp
                 )
 
-                transaction = trading_contract.functions.openTrade(
+                transaction = trading_contract.functions.increasePosition(
                     trade_struct,                           # TradeStruct tuple
                     0,                                      # orderType
                     int(slippage_decimal * 10**10)         # slippageP
