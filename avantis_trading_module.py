@@ -6,8 +6,6 @@ import random
 
 import logging
 
-from trading_config import TradingConfig
-
 from avantis_trader_sdk import TraderClient
 
 import asyncio
@@ -129,7 +127,8 @@ avantis_contract_address = trading_contract.address
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
 
 # Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
-TradingConfig.AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
+AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
+print(f"\U0001F4CC Using Avantis contract address: {AVANTIS_TRADING_CONTRACT}")
 
 # Configure logging with enhanced formatting
 
