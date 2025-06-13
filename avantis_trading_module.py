@@ -114,17 +114,22 @@ RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
-# ✅ Business Mode Fix - Load official Avantis contract from SDK EARLY
-from avantis_trader_sdk import TraderClient  # REMOVE AvantisContract for now
+# 🚀 Business Mode Fix – Load official Avantis contract from SDK EARLY
+from avantis_trader_sdk import TraderClient
 
 client = TraderClient(
     provider_url=RPC_URL,
-    private_key=PRIVATE_KEY,
     chain_id=CHAIN_ID
 )
-trading_contract = client.load_contract("Trading")  # ✅ Correct way to load the Trading contract in 0.8.2
+
+trading_contract = client.load_contract("Trading")
 avantis_contract_address = trading_contract.address
+
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
+
+# Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
+AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
+print(f"📄 Using Avantis contract address: {AVANTIS_TRADING_CONTRACT}")
 
 # Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
 AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
