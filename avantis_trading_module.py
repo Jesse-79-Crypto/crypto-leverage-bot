@@ -1880,6 +1880,15 @@ def webhook():
 
     try:
 
+        trade_data = request.get_json()
+        if not trade_data:
+
+            logger.error("❌ Empty request body")
+
+            return jsonify({'error': 'Empty request body'}), 400
+
+
+        
         # Version tracking - MARGIN FIX VERSION
 
         logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
@@ -1904,15 +1913,6 @@ def webhook():
             logger.error("❌ Request is not JSON")
 
             return jsonify({'error': 'Request must be JSON'}), 400
-
-           
-
-        trade_data = request.get_json()
-        if not trade_data:
-
-            logger.error("❌ Empty request body")
-
-            return jsonify({'error': 'Empty request body'}), 400
 
         
        # NEW CODE - Add symbol checking
