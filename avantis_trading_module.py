@@ -1570,16 +1570,17 @@ class SignalProcessor:
            
 
             if 'sheets' in source or 'google' in source:
-
                 processed_signal = self.sheets_manager.process_sheets_signal(trade_data)
-
             else:
-
                 processed_signal = self._process_generic_signal(trade_data)
 
-               
+            # ✅ Protect against None or invalid signal
+            if not isinstance(processed_signal, dict) or not processed_signal:
+                logger.error("❌ processed_signal is invalid or None")
+                return jsonify({'status': 'failed', 'error': 'Invalid processed signal'}), 400
 
-            # Validate the processed signal
+               
+             # Validate the processed signal
 
             validation_result = self._validate_signal(processed_signal)
 
