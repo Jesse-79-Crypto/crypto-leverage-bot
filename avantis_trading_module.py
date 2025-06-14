@@ -113,7 +113,7 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 from avantis_trader_sdk import TraderClient
 
 # Manually define the official Avantis Trading contract (confirmed)
-AVANTIS_TRADING_CONTRACT = "0xFC00000000000000000000000000000000000000"  # Replace with real contract
+AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address("0xfc00000000000000000000000000000000000000")  # Replace with real contract
 
 # Manually define the correct ABI
 AVANTIS_TRADING_ABI = [
