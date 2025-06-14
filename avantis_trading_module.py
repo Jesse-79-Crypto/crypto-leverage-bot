@@ -148,10 +148,6 @@ AVANTIS_TRADING_ABI = [
     }
 ]
 
-
-AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
-print(f"📄 Using Avantis contract address: {AVANTIS_TRADING_CONTRACT}")
-
 # Configure logging with enhanced formatting
 
 logging.basicConfig(
