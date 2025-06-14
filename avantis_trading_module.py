@@ -1579,18 +1579,6 @@ class SignalProcessor:
 
                
 
-            if not processed_signal:
-
-                return {
-
-                    'status': 'error',
-
-                    'error': 'Failed to process signal data'
-
-                }
-
-               
-
             # Validate the processed signal
 
             validation_result = self._validate_signal(processed_signal)
@@ -1605,7 +1593,7 @@ class SignalProcessor:
 
                 }
 
-               if not processed_signal:
+            if not processed_signal:
                     logger.error("🚨 processed_signal is None — aborting trade")
                     return {"status": "failed", "reason": "Invalid signal"}
                    
