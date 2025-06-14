@@ -1375,6 +1375,8 @@ class AvantisTrader:
                 # Set required variables
                 initial_pos_token = 0  
 
+                side = signal_data.get('side', 'LONG').upper()  # ensures 'side' is always defined
+
                 trade_struct = (
                     pair_index,
                     0,                                       # position index
