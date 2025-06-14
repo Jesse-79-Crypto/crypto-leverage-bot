@@ -1372,6 +1372,9 @@ class AvantisTrader:
                     int(time.time())        # timestamp
                 )
 
+                # Set required variables
+                initial_pos_token = 0  
+
                 trade_struct = (
                     pair_index,
                     0,                                       # position index
