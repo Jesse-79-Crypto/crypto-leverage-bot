@@ -1634,10 +1634,10 @@ class SignalProcessor:
 
         if not trade_data:
             logging.error("❌ No signal data received.")
-            return {"status": "failed", "reason": "Empty trade_data"}
+            return None  # ✅ Return None so upper logic can handle it cleanly
 
-        
-        """Process generic signal format"""
+
+         """Process generic signal format"""
 
         try:
 
