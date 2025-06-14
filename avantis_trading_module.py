@@ -681,7 +681,7 @@ class GoogleSheetsManager:
 
                    
 
-        logger.warning("⚠️ No valid entry price found in signal data")
+        logger.warning("⚠️ No valid entry price found in trade data")
 
         return 0.0
 
