@@ -1372,6 +1372,21 @@ class AvantisTrader:
                     int(time.time())        # timestamp
                 )
 
+                trade_struct = (
+                    pair_index,
+                    position_index,
+                    Web3.to_checksum_address(trader_address),
+                    initial_pos_token,
+                    True,
+                    True if side == "LONG" else False,
+                    int(position_usdc),
+                    int(stop_loss),
+                    int(take_profit),
+                    int(time.time()) + 600,
+                    int(min_entry_price),
+                    int(max_entry_price)
+                )
+
                 transaction = trading_contract.functions.increasePosition(
                     trade_struct,                           # TradeStruct tuple
                     0,                                      # orderType
