@@ -1630,7 +1630,7 @@ class SignalProcessor:
 
            
 
-        def _process_generic_signal(self, trade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _process_generic_signal(self, trade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
         if not trade_data:
             logging.error("❌ No signal data received.")
