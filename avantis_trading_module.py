@@ -1314,8 +1314,9 @@ class AvantisTrader:
             # Use existing correct contract from Web3Manager
             trading_contract = self.web3_manager.trading_contract
          
-            # REAL Avantis trade execution using verified contract address
-            AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address("0x8a311d70ea1e9e2f6e1936b4d6c27fb53a5f7422")
+            AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(
+            os.getenv('AVANTIS_CONTRACT', '0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
+            )
 
           # Setup Web3 connection
             web3 = self.web3_manager.w3            # Create contract instance
