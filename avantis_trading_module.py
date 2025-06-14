@@ -1374,7 +1374,7 @@ class AvantisTrader:
 
                 trade_struct = (
                     pair_index,
-                    position_index,
+                    0,                                       # position index
                     Web3.to_checksum_address(trader_address),
                     initial_pos_token,
                     True,
@@ -1636,6 +1636,11 @@ class SignalProcessor:
 
     def _process_generic_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
 
+        if not signal_data:
+            logging.error("❌ No signal data received.")
+            return {"status": "failed", "reason": "Empty signal_data"}
+
+        
         """Process generic signal format"""
 
         try:
