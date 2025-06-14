@@ -45,9 +45,6 @@ import requests
 # USDC Contract on Base Network (CONFIRMED)
 USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 
-# PLACEHOLDER - We'll find the real Avantis contract later
-AVANTIS_TRADING_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Using USDC for now
-
 # USDC ABI (minimal for balance checking)
 USDC_ABI = [
     {
@@ -69,8 +66,6 @@ USDC_ABI = [
     }
 ]
 
-# Placeholder ABI - we'll add real Avantis functions later
-AVANTIS_TRADING_ABI = USDC_ABI  # Using USDC ABI for now
 
 # ========== END CONSTANTS ==========
 
@@ -114,15 +109,27 @@ RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
-# 🚀 Business Mode Fix – Load official Avantis contract from SDK EARLY
+# ✅ Load official Avantis Trading contract using SDK
 from avantis_trader_sdk import TraderClient
 
 client = TraderClient(provider_url=RPC_URL)
-
 trading_contract = client.load_contract("PositionManager")
 avantis_contract_address = trading_contract.address
 
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
+
+AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
+print(f"📄 Using Avantis contract address: {AVANTIS_TRADING_CONTRACT}")
+
+# 🚀 Business Mode Fix – Load official Avantis contract from SDK EARLY
+from avantis_trader_sdk import TraderClient
+
+# ✅ Load official Avantis Trading contract using SDK
+client = TraderClient(provider_url=RPC_URL)
+trading_contract = client.load_contract("PositionManager")
+avantis_contract_address = trading_contract.address
+print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
+
 
 # Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
 AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
@@ -258,17 +265,6 @@ class TradingConfig:
 # 🌐 WEB3 AND BLOCKCHAIN UTILITIES
 
 # ============================================================================
-
-# 🚀 Business Mode Fix - Load official Avantis contract from SDK EARLY
-from avantis_trader_sdk import TraderClient
-
-trading_contract = client.load_contract("Trading")
-avantis_contract_address = trading_contract.address
-
-logger.info(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
-
-# Set TradingConfig to use this official contract BEFORE Web3Manager is initialized
-TradingConfig.AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(avantis_contract_address)
 
 class Web3Manager:
 
