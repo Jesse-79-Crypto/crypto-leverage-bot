@@ -119,7 +119,7 @@ from avantis_trader_sdk import TraderClient
 
 client = TraderClient(provider_url=RPC_URL)
 
-trading_contract = client.load_contract("Trading")
+trading_contract = client.load_contract("PositionManager")
 avantis_contract_address = trading_contract.address
 
 print(f"✅ OFFICIAL Avantis contract from SDK: {avantis_contract_address}")
