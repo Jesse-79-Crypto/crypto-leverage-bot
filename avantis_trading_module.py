@@ -559,7 +559,7 @@ class GoogleSheetsManager:
 
        
 
-    def process_sheets_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
+    def process_sheets_signal(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
 
         """Process incoming signal from Google Sheets webhook"""
 
@@ -571,17 +571,17 @@ class GoogleSheetsManager:
 
             # Extract signal information with multiple field name attempts
 
-            symbol = signal_data.get('symbol', signal_data.get('Symbol', ''))
+            symbol = trade_data.get('symbol', trade_data.get('Symbol', ''))
 
-            direction = signal_data.get('direction', signal_data.get('Direction', ''))
+            direction = trade_data.get('direction', trade_data.get('Direction', ''))
 
-            tier = signal_data.get('tier', signal_data.get('Tier', 1))
+            tier = trade_data.get('tier', trade_data.get('Tier', 1))
 
            
 
             # Extract entry price with multiple field attempts
 
-            entry_price = self._extract_entry_price(signal_data)
+            entry_price = self._extract_entry_price(trade_data)
 
            
 
@@ -593,11 +593,11 @@ class GoogleSheetsManager:
 
             # Extract additional parameters
 
-            leverage = signal_data.get('leverage', signal_data.get('Leverage', TradingConfig.DEFAULT_LEVERAGE))
+            leverage = trade_data.get('leverage', trade_data.get('Leverage', TradingConfig.DEFAULT_LEVERAGE))
 
-            stop_loss = signal_data.get('stop_loss', signal_data.get('stopLoss', 0))
+            stop_loss = trade_data.get('stop_loss', trade_data.get('stopLoss', 0))
 
-            take_profit = signal_data.get('take_profit', signal_data.get('takeProfit', 0))
+            take_profit = trade_data.get('take_profit', trade_data.get('takeProfit', 0))
 
            
 
@@ -623,7 +623,7 @@ class GoogleSheetsManager:
 
                 'source': 'Google Sheets',
 
-                'signal_quality': signal_data.get('quality', 85)
+                'signal_quality': trade_data.get('quality', 85)
 
             }
 
@@ -645,7 +645,7 @@ class GoogleSheetsManager:
 
            
 
-    def _extract_entry_price(self, signal_data: Dict[str, Any]) -> float:
+    def _extract_entry_price(self, trade_data: Dict[str, Any]) -> float:
 
         """Extract entry price from signal data with multiple field attempts"""
 
@@ -663,11 +663,11 @@ class GoogleSheetsManager:
 
         for field in price_fields:
 
-            if field in signal_data and signal_data[field]:
+            if field in trade_data and trade_data[field]:
 
                 try:
 
-                    price = float(signal_data[field])
+                    price = float(trade_data[field])
 
                     if price > 0:
 
@@ -1553,7 +1553,7 @@ class SignalProcessor:
 
        
 
-    async def process_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_signal(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
 
         """Process incoming trading signal from any source"""
 
@@ -1565,17 +1565,17 @@ class SignalProcessor:
 
             # Determine signal source and process accordingly
 
-            source = signal_data.get('source', 'unknown').lower()
+            source = trade_data.get('source', 'unknown').lower()
 
            
 
             if 'sheets' in source or 'google' in source:
 
-                processed_signal = self.sheets_manager.process_sheets_signal(signal_data)
+                processed_signal = self.sheets_manager.process_sheets_signal(trade_data)
 
             else:
 
-                processed_signal = self._process_generic_signal(signal_data)
+                processed_signal = self._process_generic_signal(trade_data)
 
                
 
@@ -1639,11 +1639,11 @@ class SignalProcessor:
 
            
 
-    def _process_generic_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_generic_signal(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
 
-        if not signal_data:
+        if not trade_data:
             logging.error("❌ No signal data received.")
-            return {"status": "failed", "reason": "Empty signal_data"}
+            return {"status": "failed", "reason": "Empty trade_data"}
 
         
         """Process generic signal format"""
@@ -1652,29 +1652,29 @@ class SignalProcessor:
 
             # Extract core signal components
 
-            symbol = signal_data.get('symbol', signal_data.get('pair', 'BTC/USD'))
+            symbol = trade_data.get('symbol', trade_data.get('pair', 'BTC/USD'))
 
-            direction = signal_data.get('direction', signal_data.get('side', 'LONG')).upper()
+            direction = trade_data.get('direction', trade_data.get('side', 'LONG')).upper()
 
            
 
             # Extract entry price
 
-            entry_price = self._extract_entry_price_generic(signal_data)
+            entry_price = self._extract_entry_price_generic(trade_data)
 
            
 
             # Extract position parameters
 
-            tier = signal_data.get('tier', signal_data.get('size_tier', 1))
+            tier = trade_data.get('tier', trade_data.get('size_tier', 1))
 
-            position_size = signal_data.get('position_size',
+            position_size = trade_data.get('position_size',
 
                                           TradingConfig.POSITION_SIZES.get(tier, TradingConfig.DEFAULT_POSITION_SIZE))
 
            
 
-            leverage = signal_data.get('leverage', TradingConfig.DEFAULT_LEVERAGE)
+            leverage = trade_data.get('leverage', TradingConfig.DEFAULT_LEVERAGE)
 
            
 
@@ -1696,7 +1696,7 @@ class SignalProcessor:
 
                 'source': 'Generic Signal',
 
-                'signal_quality': signal_data.get('quality', signal_data.get('confidence', 80))
+                'signal_quality': trade_data.get('quality', trade_data.get('confidence', 80))
 
             }
 
@@ -1710,7 +1710,7 @@ class SignalProcessor:
 
            
 
-    def _extract_entry_price_generic(self, signal_data: Dict[str, Any]) -> float:
+    def _extract_entry_price_generic(self, trade_data: Dict[str, Any]) -> float:
 
         """Extract entry price from generic signal format"""
 
@@ -1726,11 +1726,11 @@ class SignalProcessor:
 
         for field in price_fields:
 
-            if field in signal_data:
+            if field in trade_data:
 
                 try:
 
-                    price = float(signal_data[field])
+                    price = float(trade_data[field])
 
                     if price > 0:
 
@@ -1917,8 +1917,8 @@ def webhook():
 
            
 
-        signal_data = request.get_json()
-        if not signal_data:
+        trade_data = request.get_json()
+        if not trade_data:
 
             logger.error("❌ Empty request body")
 
@@ -1926,7 +1926,7 @@ def webhook():
 
         
        # NEW CODE - Add symbol checking
-        symbol = signal_data.get('symbol', '').upper()
+        symbol = trade_data.get('symbol', '').upper()
         if not symbol:
             logger.error("❌ No symbol in signal!")
             return jsonify({'error': 'Missing symbol in signal'}), 400
@@ -1943,7 +1943,7 @@ def webhook():
 
            
 
-        logger.info(f"📨 Received signal data: {json.dumps(signal_data, indent=2)}")
+        logger.info(f"📨 Received signal data: {json.dumps(trade_data, indent=2)}")
 
        
 
@@ -1951,7 +1951,7 @@ def webhook():
 
         async def process_webhook():
 
-            return await signal_processor.process_signal(signal_data)
+            return await signal_processor.process_signal(trade_data)
 
            
 
