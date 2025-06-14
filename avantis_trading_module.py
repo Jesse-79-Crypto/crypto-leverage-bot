@@ -1605,8 +1605,10 @@ class SignalProcessor:
 
                 }
 
-               
-
+               if not processed_signal:
+                    logger.error("🚨 processed_signal is None — aborting trade")
+                    return {"status": "failed", "reason": "Invalid signal"}
+                   
             # Execute the trade
 
             trade_result = await self.trader.execute_trade(processed_signal)
