@@ -1119,7 +1119,9 @@ class AvantisTrader:
 
         entry_price_source: str,
 
-        position_usdc_dollars: float
+        position_usdc_dollars: float,
+
+        trade_data: Dict[str, Any]        
 
     ) -> Dict[str, Any]:
 
@@ -1375,7 +1377,7 @@ class AvantisTrader:
                 # Set required variables
                 initial_pos_token = 0  
 
-                side = trade_data.get('side', 'LONG').upper()
+                side = "LONG" if is_long else "SHORT"
 
                 trade_struct = (
                     pair_index,
