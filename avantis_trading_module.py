@@ -1888,7 +1888,8 @@ def webhook():
 
             return jsonify({'error': 'Empty request body'}), 400
 
-
+        source = trade_data.get('source', 'unknown').lower()
+        
         
         # Version tracking - MARGIN FIX VERSION
 
