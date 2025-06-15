@@ -1874,7 +1874,7 @@ def health_check():
 
         }
 
-    })
+    }
 
  
 
