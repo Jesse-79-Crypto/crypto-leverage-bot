@@ -1073,7 +1073,7 @@ class AvantisTrader:
 
                 position_usdc_dollars=position_usdc_dollars,
 
-                trade_data
+                trade_data=trade_data
             )
 
            
