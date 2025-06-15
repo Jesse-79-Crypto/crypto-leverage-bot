@@ -2028,7 +2028,7 @@ def get_balance():
 
             'timestamp': datetime.now(timezone.utc).isoformat()
 
-        })
+        }
 
        
 
