@@ -2096,7 +2096,7 @@ def test_trade():
 
             'error': f'Test trade failed: {str(e)}'
 
-        }), 500
+        }, 500
 
  
 
