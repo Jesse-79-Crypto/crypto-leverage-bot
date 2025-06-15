@@ -1379,6 +1379,11 @@ class AvantisTrader:
 
                 side = "LONG" if is_long else "SHORT"
 
+                stop_loss = int(trade_data.get("stop_loss", 0))
+                take_profit = int(trade_data.get("take_profit", 0))
+                min_entry_price = int(entry_price * 0.95)
+                max_entry_price = int(entry_price * 1.05)
+                
                 trade_struct = (
                     pair_index,
                     0,                                       # position index
@@ -1579,7 +1584,7 @@ class SignalProcessor:
             # ✅ Protect against None or invalid signal
             if not isinstance(processed_signal, dict) or not processed_signal:
                 logger.error("❌ processed_signal is invalid or None")
-                return jsonify({'status': 'failed', 'error': 'Invalid processed signal'}), 400
+                return {'status': 'failed', 'error': 'Invalid processed signal'}, 400
 
                
              # Validate the processed signal
@@ -1888,7 +1893,7 @@ def webhook():
 
             logger.error("❌ Empty request body")
 
-            return jsonify({'error': 'Empty request body'}), 400
+            return {'error': 'Empty request body'}, 400
 
         source = trade_data.get('source', 'unknown').lower()
         
@@ -1906,7 +1911,7 @@ def webhook():
         with TRADE_LOCK:
             if TRADE_IN_PROGRESS:
                 logger.warning("🚫 TRADE REJECTED - Another trade in progress!")
-                return jsonify({'status': 'rejected'}), 429
+                return {'status': 'rejected'}, 429
             TRADE_IN_PROGRESS = True
      
 
@@ -1916,20 +1921,20 @@ def webhook():
 
             logger.error("❌ Request is not JSON")
 
-            return jsonify({'error': 'Request must be JSON'}), 400
+            return {'error': 'Request must be JSON'}, 400
 
         
        # NEW CODE - Add symbol checking
         symbol = trade_data.get('symbol', '').upper()
         if not symbol:
             logger.error("❌ No symbol in signal!")
-            return jsonify({'error': 'Missing symbol in signal'}), 400
+            return {'error': 'Missing symbol in signal'}, 400
     
         # Check if symbol already has active trade
         with ACTIVE_TRADES_LOCK:
             if ACTIVE_TRADES.get(symbol, False):
                 logger.warning(f"🚫 Trade REJECTED - Trade already active for {symbol}!")
-                return jsonify({'status': 'rejected', 'reason': f'Trade already active for {symbol}'})
+                return {'status': 'rejected', 'reason': f'Trade already active for {symbol}'}, 400
     
             # Mark this symbol as active
             ACTIVE_TRADES[symbol] = True
@@ -2007,7 +2012,7 @@ def get_balance():
 
         if not web3_manager.account:
 
-            return jsonify({'error': 'No account configured'}), 400
+            return {'error': 'No account configured'}, 400
 
            
 
@@ -2031,7 +2036,7 @@ def get_balance():
 
         logger.error(f"❌ Balance check failed: {str(e)}")
 
-        return jsonify({'error': f'Balance check failed: {str(e)}'}), 500
+        return {'error': f'Balance check failed: {str(e)}'}, 500
 
  
 
@@ -2914,7 +2919,7 @@ def initialize_application():
 
 def not_found(error):
 
-    return jsonify({'error': 'Endpoint not found'}), 404
+    return {'error': 'Endpoint not found'}, 404
 
  
 
@@ -2924,7 +2929,7 @@ def internal_error(error):
 
     logger.error(f"❌ Internal server error: {str(error)}")
 
-    return jsonify({'error': 'Internal server error'}), 500
+    return {'error': 'Internal server error'}, 500
 
  
 
