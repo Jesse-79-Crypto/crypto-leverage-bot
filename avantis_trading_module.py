@@ -1098,7 +1098,7 @@ class AvantisTrader:
 
             }
 
-           
+    from avantis_trader_sdk import TraderClient, TradeInput
 
     async def _execute_avantis_trade(
 
@@ -1140,47 +1140,32 @@ class AvantisTrader:
 
             # FIXED: Use decimal slippage for SDK (addresses slippage/fee issue)
 
-            market_order_type = int(0)           # uint8 - MARKET order (ensure int)
+            order_type = 0  # MARKET
 
-            slippage_decimal = TradingConfig.DEFAULT_SLIPPAGE  # 3% slippage (was 5% - less fees deducted)
-
+            slippage = TradingConfig.DEFAULT_SLIPPAGE
            
 
             # Force all trade_params to be integers (addresses decimal precision issue)
 
-            trade_params = [
+            trade_input = TradeInput(
+                
+                trader_address=trader_address,
+                
+                pair_index=pair_index,
+                
+                margin=position_usdc,
+                
+                leverage=leverage,
+                
+                buy=is_long,
+                
+                slippage=slippage,
+                
+                order_type=order_type,
+                
+                timestamp=int(time.time())
+            )
 
-                trader_address,                     # address
-
-                int(pair_index),                   # uint256
-
-                int(position_usdc),                # uint256 - position size in USDC (6 decimals)
-
-                int(entry_price),                  # uint256 - entry price (18 decimals)
-
-                int(leverage),                     # uint256 - leverage multiplier
-
-                int(0),                           # uint256 - tp1 (take profit 1)
-
-                bool(is_long),                    # bool - direction
-
-                int(0),                           # uint256 - tp2 (take profit 2) 
-
-                int(0),                           # uint256 - tp3 (take profit 3)
-
-                int(0),                           # uint256 - sl (stop loss)
-
-                int(0)                            # uint256 - limit price (0 for market)
-
-            ]
-
-           
-
-            logger.info(f"🔍 MARGIN-FOCUSED verification:")
-
-            logger.info(f"  - trade_params types: {[type(p).__name__ for p in trade_params]}")
-
-            logger.info(f"  - market_order_type: {market_order_type} (type: {type(market_order_type).__name__})")
 
             logger.info(f"  - slippage_decimal: {slippage_decimal} (type: {type(slippage_decimal).__name__}) - Reduced to 3%")
 
@@ -1234,218 +1219,66 @@ class AvantisTrader:
 
                 logger.warning(f"⚠️ Effective margin ${effective_margin:.2f} might be below Avantis minimum!")
 
-                logger.warning(f"⚠️ Consider increasing position size or reducing leverage")
+                logger.warning(f"⚠️ Consider increasing position size or reducing leverage"
+
+
+                logger.info(f"🎯 Attempting Avantis trade execution...")
+
+                logger.info(f"  - Entry price: ${entry_price/1_000_000_000_000_000_000:.2f}")
+
+                logger.info(f"  - Position size: ${position_usdc/1_000_000:.2f} USDC")
+
+                logger.info(f"  - Leverage: {leverage}x")
+
+                logger.info(f"  - Direction: {'LONG' if is_long else 'SHORT'}")
+
+                logger.info(f"  - Market order type: {market_order_type} ({type(market_order_type).__name__})")
+
+                logger.info(f"  - Slippage: {slippage_decimal} ({type(slippage_decimal).__name__})")
 
            
+            # ✅ Use Avantis SDK to build and sign the trade transaction
+            sdk_client = TraderClient(web3=self.w3)
 
-            # Execute the trade
+            trade_input = TradeInput(
+                trader=trader_address,
+                pair_index=pair_index,
+                position_size=position_usdc,
+                entry_price=entry_price,
+                leverage=leverage,
+                is_long=is_long,
+                slippage=slippage_decimal,  # SDK takes float
+                tp=0,
+                sl=0
+            )
 
-            trading_contract = self.web3_manager.trading_contract
+            transaction = sdk_client.build_trade_open_tx(
+                trade_input=trade_input,
+                private_key=TradingConfig.PRIVATE_KEY
+            )
 
-            if not trading_contract:
+            # 🚀 Send transaction and wait for confirmation
+            tx_hash = self.w3.eth.send_raw_transaction(transaction.rawTransaction)
+            tx_hash_str = tx_hash.hex()
 
+            logger.info(f"📨 Sent trade tx: {tx_hash_str}")
+            logger.info(f"⏳ Waiting for confirmation...")
+
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=20)
+
+            if receipt.status == 1:
+                logger.info(f"✅ Trade executed successfully! Gas used: {receipt.gasUsed}")
+                logger.info(f"🔗 BaseScan: https://basescan.org/tx/{tx_hash_str}")
                 return {
-
-                    'status': 'error',
-
-                    'error': 'Trading contract not initialized'
-
+                    "status": "success",
+                    "tx_hash": tx_hash_str,
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber
                 }
+            else:
+                raise Exception(f"Transaction reverted: {tx_hash_str}")
 
-           
-
-            logger.info(f"🎯 Attempting Avantis trade execution...")
-
-            logger.info(f"  - Entry price: ${entry_price/1_000_000_000_000_000_000:.2f}")
-
-            logger.info(f"  - Position size: ${position_usdc/1_000_000:.2f} USDC")
-
-            logger.info(f"  - Leverage: {leverage}x")
-
-            logger.info(f"  - Direction: {'LONG' if is_long else 'SHORT'}")
-
-            logger.info(f"  - Market order type: {market_order_type} ({type(market_order_type).__name__})")
-
-            logger.info(f"  - Slippage: {slippage_decimal} ({type(slippage_decimal).__name__})")
-
-           
-
-            # FINAL TYPE VERIFICATION - Use decimal slippage for SDK
-
-            verified_trade_params = [
-
-                str(trader_address),                # address (string)
-
-                int(pair_index),                   # uint256
-
-                int(position_usdc),                # uint256
-
-                int(entry_price),                  # uint256
-
-                int(leverage),                     # uint256
-
-                int(0),                           # uint256 - tp1
-
-                bool(is_long),                    # bool
-
-                int(0),                           # uint256 - tp2
-
-                int(0),                           # uint256 - tp3
-
-                int(0),                           # uint256 - sl
-
-                int(0)                            # uint256 - limit price
-
-            ]
-
-           
-
-            verified_order_type = int(market_order_type)  # uint8
-
-            verified_slippage = int(slippage_decimal * 10**10)  # Convert to uint256 (3% = 3000000000)
-
-           
-
-            logger.info(f"🔍 VERIFIED parameter types:")
-
-            logger.info(f"  - trade_params: {[type(p).__name__ for p in verified_trade_params]}")
-
-            logger.info(f"  - order_type: {verified_order_type} ({type(verified_order_type).__name__})")
-
-            logger.info(f"  - slippage: {verified_slippage} ({type(verified_slippage).__name__}) - Decimal for SDK")
-
-            logger.info(f"  - position_size: ${position_usdc/1_000_000:.2f} (raw: {position_usdc})")
-
-           
-
-            # Use existing correct contract from Web3Manager
-            trading_contract = self.web3_manager.trading_contract
-         
-            AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(
-            os.getenv('AVANTIS_CONTRACT', '0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
-            )
-
-          # Setup Web3 connection
-            web3 = self.web3_manager.w3            # Create contract instance
-         
-            trading_contract = self.w3.eth.contract(
-                address=AVANTIS_TRADING_CONTRACT,
-                abi=AVANTIS_TRADING_ABI
-            )
-
-            try:
-                # Execute real trade - FULLY AUTOMATED SIGNING
-                 # 🔑 APPROVE USDC SPENDING FIRST
-                logger.info("🔑 Checking USDC approval for Avantis...")
-                usdc_contract = self.w3.eth.contract(
-                    address="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",  # USDC on Base
-                    abi=[{"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}]
-                )
-
-                # Approve unlimited USDC spending
-                approval_tx = usdc_contract.functions.approve(
-                    "0x8a311d70Ea1E9e2f6e1936b4d6C27FB53A5F7422",  # Avantis contract
-                    2**256 - 1  # Unlimited approval
-                ).build_transaction({
-                    'from': trader_address,
-                    'gas': 100000,
-                    'maxFeePerGas': max(int(self.w3.eth.gas_price * 5.0), 500000000), # 0.5 Gwei (much higher) 
-                    'maxPriorityFeePerGas': 200000000, # 0.2 Gwei (much higher)
-                    'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
-                })
-
-                signed_approval = self.w3.eth.account.sign_transaction(approval_tx, TradingConfig.PRIVATE_KEY)
-                approval_hash = self.w3.eth.send_raw_transaction(signed_approval.raw_transaction)
-                logger.info(f"✅ USDC Approved: {approval_hash.hex()}")
-
-                # Small delay for confirmation
-                time.sleep(2)                
-                # Build TradeStruct tuple
-                trade_struct = (
-                    trader_address,          # trader
-                    pair_index,             # pairIndex  
-                    0,                      # index
-                    0,                      # initialPosToken
-                    position_usdc,          # positionSizeUsdc
-                    entry_price,            # openPrice
-                    is_long,                # buy
-                    leverage,               # leverage
-                    0,                      # tp
-                    0,                      # sl
-                    int(time.time())        # timestamp
-                )
-
-                # Set required variables
-                initial_pos_token = 0  
-
-                side = "LONG" if is_long else "SHORT"
-
-                stop_loss = int(trade_data.get("stop_loss", 0))
-                take_profit = int(trade_data.get("take_profit", 0))
-                min_entry_price = int(entry_price * 0.95)
-                max_entry_price = int(entry_price * 1.05)
-                
-                trade_struct = (
-                    pair_index,
-                    0,                                       # position index
-                    Web3.to_checksum_address(trader_address),
-                    initial_pos_token,
-                    True,
-                    True if side == "LONG" else False,
-                    int(position_usdc),
-                    int(stop_loss),
-                    int(take_profit),
-                    int(time.time()) + 600,
-                    int(min_entry_price),
-                    int(max_entry_price)
-                )
-
-                transaction = trading_contract.functions.increasePosition(
-                    trade_struct,                           # TradeStruct tuple
-                    0,                                      # orderType
-                    int(slippage_decimal * 10**10)         # slippageP
-                ).build_transaction({
-                    'from': trader_address,
-                    'gas': 500000,
-                    'maxFeePerGas': max(int(self.w3.eth.gas_price * 5.0), 500000000),
-                    'maxPriorityFeePerGas': 200000000,
-                    'nonce': self.w3.eth.get_transaction_count(trader_address, 'latest')
-                })
-                # 🤖 AUTOMATED SIGNING - NO HUMAN INTERACTION NEEDED
-                private_key = TradingConfig.PRIVATE_KEY
-                signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key)
             
-                # 🚀 AUTOMATED BROADCAST TO BLOCKCHAIN
-                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                tx_hash_str = '0x' + tx_hash.hex() 
-
-                # ADD THESE DEBUG LINES HERE ⬇️
-                logger.info(f"🔍 Raw tx_hash type: {type(tx_hash)}")
-                logger.info(f"🔍 Raw tx_hash value: {tx_hash}")
-                logger.info(f"🔍 Hash string: {tx_hash_str}")
-                logger.info(f"🔍 Hash length: {len(tx_hash_str)}")
-                logger.info(f"🔍 Is hash valid format: {tx_hash_str.startswith('0x') and len(tx_hash_str) == 66}")  
-
-                # ADD THIS CRITICAL DEBUGGING:
-                logger.info(f"📡 Transaction sent, waiting for receipt...")
-                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=20)
-            
-                if receipt.status == 1:
-                    logger.info(f"✅ Transaction SUCCESS - USDC should be deducted!")
-                    logger.info(f"🎯 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")
-
-                    return {
-                        'status': 'success',
-                        'tx_hash': tx_hash_str,
-                        'gas_used': receipt.gasUsed,
-                        'block_number': receipt.blockNumber
-                    }
-
-                else:
-                    logger.error(f"❌ Transaction REVERTED - this is why USDC isn't moving!")
-                    logger.error(f"💥 Revert reason: Check BaseScan for details")
-                    logger.error(f"🔗 BaseScan Link: https://basescan.org/tx/{tx_hash_str}")                 
-                    logger.info(f"⛽ Gas Used: {receipt.gasUsed}")
                     logger.info(f"📋 Receipt: {receipt}")
                     raise Exception(f"Transaction reverted: {tx_hash_str}")
              
