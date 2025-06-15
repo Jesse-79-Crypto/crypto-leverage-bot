@@ -2122,7 +2122,7 @@ def get_config():
 
         'version': 'v214-MARGIN-FIX'
 
-    })
+    }
 
  
 
