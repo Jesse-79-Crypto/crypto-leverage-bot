@@ -1850,7 +1850,7 @@ def health_check():
 
     """Health check endpoint"""
 
-    return jsonify({
+    return {
 
         'status': 'healthy',
 
@@ -1974,7 +1974,7 @@ def webhook():
 
            
         
-        return jsonify(result)
+        return result
 
        
 
@@ -1984,7 +1984,7 @@ def webhook():
 
         logger.error(f"Traceback: {traceback.format_exc()}")
 
-        return jsonify({
+        return {
 
             'status': 'error',
 
@@ -2020,7 +2020,7 @@ def get_balance():
 
        
 
-        return jsonify({
+        return {
 
             'address': web3_manager.account.address,
 
@@ -2082,7 +2082,7 @@ def test_trade():
 
        
 
-        return jsonify(result)
+        return result
 
        
 
@@ -2090,7 +2090,7 @@ def test_trade():
 
         logger.error(f"❌ Test trade failed: {str(e)}")
 
-        return jsonify({
+        return {
 
             'status': 'error',
 
@@ -2106,7 +2106,7 @@ def get_config():
 
     """Get current bot configuration"""
 
-    return jsonify({
+    return {
 
         'position_sizes': TradingConfig.POSITION_SIZES,
 
