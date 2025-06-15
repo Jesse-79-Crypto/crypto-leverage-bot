@@ -1990,7 +1990,7 @@ def webhook():
 
             'error': f'Webhook processing failed: {str(e)}'
 
-        }), 500
+        }, 500
 
     finally:  
         # Release symbol lock
