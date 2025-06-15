@@ -1071,8 +1071,9 @@ class AvantisTrader:
 
                 entry_price_source=entry_price_source,
 
-                position_usdc_dollars=position_usdc_dollars
+                position_usdc_dollars=position_usdc_dollars,
 
+                trade_data,
             )
 
            
