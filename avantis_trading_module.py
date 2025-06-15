@@ -1219,7 +1219,7 @@ class AvantisTrader:
 
                 logger.warning(f"⚠️ Effective margin ${effective_margin:.2f} might be below Avantis minimum!")
 
-                logger.warning(f"⚠️ Consider increasing position size or reducing leverage"
+                logger.warning(f"⚠️ Consider increasing position size or reducing leverage")
 
 
                 logger.info(f"🎯 Attempting Avantis trade execution...")
