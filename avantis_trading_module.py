@@ -1142,8 +1142,8 @@ class AvantisTrader:
 
             order_type = 0  # MARKET
 
-            slippage = TradingConfig.DEFAULT_SLIPPAGE
-           
+            slippage_pct = TradingConfig.DEFAULT_SLIPPAGE
+            slippage = int(slippage_pct * 10**10)
 
             # Force all trade_params to be integers (addresses decimal precision issue)
 
