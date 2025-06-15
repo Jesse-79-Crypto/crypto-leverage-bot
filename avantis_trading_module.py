@@ -1637,7 +1637,7 @@ class SignalProcessor:
             return None  # ✅ Return None so upper logic can handle it cleanly
 
 
-         """Process generic signal format"""
+        """Process generic signal format"""
 
         try:
 
