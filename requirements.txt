@@ -1,4 +1,3 @@
-avantis-trader-sdk
 flask
 web3
 python-dotenv
