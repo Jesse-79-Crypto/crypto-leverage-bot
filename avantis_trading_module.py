@@ -1276,11 +1276,8 @@ class AvantisTrader:
                     "block_number": receipt.blockNumber
                 }
             else:
+                logger.info(f"📋 Receipt: {receipt}")
                 raise Exception(f"Transaction reverted: {tx_hash_str}")
-
-            
-                    logger.info(f"📋 Receipt: {receipt}")
-                    raise Exception(f"Transaction reverted: {tx_hash_str}")
              
             except Exception as e:
                 logger.error(f"⏰ Transaction timeout or error: {e}")
