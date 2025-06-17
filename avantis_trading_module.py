@@ -115,6 +115,7 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
 # ✅ Load official Avantis Trading contract using SDK
 from avantis_trader_sdk import TraderClient
+from avantis_trader_sdk.models.trade import TradeInput
 
 # Manually define the official Avantis Trading contract (confirmed)
 avantis_contract_address = "0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6"  # <-- This is the real one from earlier
