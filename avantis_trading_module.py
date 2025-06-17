@@ -1102,8 +1102,6 @@ class AvantisTrader:
 
             }
 
-    from avantis_trader_sdk import TraderClient, TradeInput
-
     async def _execute_avantis_trade(
 
         self,
