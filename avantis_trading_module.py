@@ -1278,9 +1278,6 @@ class AvantisTrader:
             else:
                 logger.info(f"📋 Receipt: {receipt}")
                 raise Exception(f"Transaction reverted: {tx_hash_str}")
-             
-            except Exception as e:
-                logger.error(f"⏰ Transaction timeout or error: {e}")
         
 
         except Exception as e:
@@ -1288,8 +1285,6 @@ class AvantisTrader:
             logger.error(f"🚨 TRANSACTION FAILED - REAL ERROR: {error_msg}")
             logger.error(f"🚨 ERROR TYPE: {type(e).__name__}")
             logger.error(f"🚨 FULL ERROR DETAILS: {repr(e)}")
-        
-            # NO MORE FAKE HASHES!
             logger.error("❌ TRADE FAILED - NOT GENERATING FAKE SUCCESS MESSAGES")
         
             return {
@@ -1297,29 +1292,7 @@ class AvantisTrader:
                 "message": f"Transaction failed: {error_msg}",
                 "error_type": type(e).__name__
             }
-           
-
-            return {
-
-                'status': 'success',
-
-                'tx_hash': tx_hash_str,
-
-                'position_size': f"${position_usdc/1_000_000:.2f}",
-
-                'entry_price': f"${entry_price/1_000_000_000_000_000_000:.2f}",
-
-                'leverage': f"{leverage}x",
-
-                'direction': 'LONG' if is_long else 'SHORT',
-
-                'margin': f"${(position_usdc/1_000_000)/leverage:.2f}",
-
-                'effective_margin_after_slippage': f"${effective_margin:.2f}"
-
-            }
-
-           
+  
 
         except Exception as e:
 
