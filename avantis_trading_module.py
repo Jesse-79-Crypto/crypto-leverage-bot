@@ -9,6 +9,9 @@ import logging
 from avantis_trader_sdk import TraderClient
 from avantis_trader_sdk.types import TradeInput
 
+import avantis_trader_sdk
+print("🔍 Avantis SDK version:", avantis_trader_sdk.__version__)
+
 import asyncio
 
 import aiohttp
