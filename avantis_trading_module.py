@@ -7,6 +7,7 @@ import random
 import logging
 
 from avantis_trader_sdk import TraderClient
+from avantis_trader_sdk.types import TradeInput
 
 import asyncio
 
