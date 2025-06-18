@@ -1,4 +1,3 @@
---upgrade
 flask
 web3
 python-dotenv
