@@ -1,1 +1,1 @@
-echo "python-3.10.12" > runtime.txt
+echo "3.10" > .python-version
