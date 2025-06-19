@@ -20,7 +20,7 @@ import json
 
 import time
 
-from decimal import Decimal
+from decimal import Decimal, getcontext
 
 from typing import Dict, Any, Optional, List, Union
 
@@ -987,7 +987,7 @@ class AvantisTrader:
 
             # Convert entry price to Wei (18 decimals)
 
-            entry_price = int(entry_price_dollars * 1_000_000_000_000_000_000)  # 18 decimals
+            entry_price = int(Decimal(str(entry_price_dollars)) * (10**18))  # 18 decimals - exact precision
 
            
 
