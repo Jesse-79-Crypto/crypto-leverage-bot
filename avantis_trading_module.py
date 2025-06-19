@@ -1238,7 +1238,7 @@ class AvantisTrader:
 
                 logger.info(f"  - Direction: {'LONG' if is_long else 'SHORT'}")
 
-                logger.info(f"  - Market order type: {market_order_type} ({type(market_order_type).__name__})")
+                logger.info(f"  - Market order type: {order_type} ({type(order_type).__name__})")
 
                 logger.info(f"  - Slippage: {slippage_pct} ({type(slippage_pct).__name__})")
 
