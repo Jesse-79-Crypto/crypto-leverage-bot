@@ -1243,16 +1243,36 @@ class AvantisTrader:
                 logger.info(f"  - Slippage: {slippage_pct} ({type(slippage_pct).__name__})")
 
            
-            # ✅ Use Avantis SDK to build and sign the trade transaction
-            sdk_client = TraderClient(TradingConfig.RPC_URL)
-            
-            transaction = sdk_client.build_trade_open_tx(
-                trade_input=trade_input,
-                private_key=TradingConfig.PRIVATE_KEY
+            # ✅ Use direct contract interaction (SDK method removed in v0.8.0)
+            logger.info("🔄 Building transaction with direct contract call")
+
+            # Build trade struct
+            trade_struct = (
+                trader_address, pair_index, 0, 0, position_usdc, 
+                entry_price, is_long, leverage, 0, 0, int(time.time())
             )
 
-            # 🚀 Send transaction and wait for confirmation
-            tx_hash = self.w3.eth.send_raw_transaction(transaction.rawTransaction)
+            # Build transaction
+            nonce = self.w3.eth.get_transaction_count(trader_address)
+            gas_price = self.w3.eth.gas_price
+
+            transaction_data = self.avantis_contract.functions.openTrade(
+                trade_struct, order_type, slippage
+            ).build_transaction({
+                'from': trader_address,
+                'gas': TradingConfig.GAS_LIMIT,
+                'gasPrice': gas_price,
+                'nonce': nonce,
+                'value': 0
+            })
+
+            # Sign transaction
+            signed_txn = self.w3.eth.account.sign_transaction(
+                transaction_data, TradingConfig.PRIVATE_KEY
+            )
+
+            # 🚀 Send transaction and wait for confirmation            
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
             tx_hash_str = tx_hash.hex()
 
             logger.info(f"📨 Sent trade tx: {tx_hash_str}")
