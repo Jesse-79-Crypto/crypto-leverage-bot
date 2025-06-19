@@ -6,6 +6,8 @@ import random
 
 import logging
 
+from decimal import Decimal
+
 from avantis_trader_sdk import TraderClient
 from avantis_trader_sdk.types import TradeInput
 
@@ -1156,6 +1158,10 @@ class AvantisTrader:
                 pair_index=pair_index,
                 
                 margin=position_usdc,
+
+                open_collateral=Decimal(trade_data.get("open_collateral", 0)),
+                
+                collateral_in_trade=Decimal(trade_data.get("collateral_in_trade", 0)),
                 
                 leverage=leverage,
                 
@@ -1241,18 +1247,6 @@ class AvantisTrader:
            
             # ✅ Use Avantis SDK to build and sign the trade transaction
             sdk_client = TraderClient(web3=self.w3)
-
-            trade_input = TradeInput(
-                trader=trader_address,
-                pair_index=pair_index,
-                position_size=position_usdc,
-                entry_price=entry_price,
-                leverage=leverage,
-                is_long=is_long,
-                slippage=slippage_decimal,  # SDK takes float
-                tp=0,
-                sl=0
-            )
 
             transaction = sdk_client.build_trade_open_tx(
                 trade_input=trade_input,
