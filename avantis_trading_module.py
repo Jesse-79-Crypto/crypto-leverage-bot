@@ -1246,10 +1246,20 @@ class AvantisTrader:
             # ✅ Use direct contract interaction (SDK method removed in v0.8.0)
             logger.info("🔄 Building transaction with direct contract call")
 
-            # Build trade struct
+            # Build trade struct in correct order for increasePosition ABI
             trade_struct = (
-                trader_address, pair_index, 0, 0, position_usdc, 
-                entry_price, is_long, leverage, 0, 0, int(time.time())
+                position_usdc,        # margin (uint256) - calculated margin
+                leverage,             # leverage (uint256) 
+                trader_address,       # trader (address)
+                pair_index,           # pairIndex (uint256)
+                True,                 # open (bool) - true for opening position
+                is_long,              # buy (bool) - long/short direction
+                entry_price,          # openPrice (uint256)
+                0,                    # tp (uint256) - take profit
+                0,                    # sl (uint256) - stop loss  
+                0,                    # spreadReductionId (uint256)
+                position_usdc,        # positionSizeUsdc (uint256)
+                int(time.time())      # timestamp (uint256)
             )
 
             # Build transaction
