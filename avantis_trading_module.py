@@ -1244,8 +1244,8 @@ class AvantisTrader:
 
            
             # ✅ Use Avantis SDK to build and sign the trade transaction
-            sdk_client = TraderClient(web3=self.w3)
-
+            sdk_client = TraderClient(TradingConfig.RPC_URL)
+            
             transaction = sdk_client.build_trade_open_tx(
                 trade_input=trade_input,
                 private_key=TradingConfig.PRIVATE_KEY
