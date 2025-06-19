@@ -1173,7 +1173,7 @@ class AvantisTrader:
             )
 
 
-            logger.info(f"  - slippage_decimal: {slippage_decimal} (type: {type(slippage_decimal).__name__}) - Reduced to 3%")
+            logger.info(f"  - slippage_pct: {slippage_pct} (type: {type(slippage_pct).__name__}) - Reduced to 3%")
 
             logger.info(f"  - entry_price value: {entry_price} (${entry_price/1_000_000_000_000_000_000:.2f})")
 
@@ -1205,7 +1205,7 @@ class AvantisTrader:
 
             # Calculate effective position after slippage/fees
 
-            effective_position = position_usdc_dollars * (1 - slippage_decimal)
+            effective_position = position_usdc_dollars * (1 - slippage_pct)
 
             effective_margin = effective_position / leverage
 
@@ -1215,7 +1215,7 @@ class AvantisTrader:
 
             logger.info(f"  - Original position: ${position_usdc_dollars:.2f}")
 
-            logger.info(f"  - After {slippage_decimal*100}% slippage: ${effective_position:.2f}")
+            logger.info(f"  - After {slippage_pct*100}% slippage: ${effective_position:.2f}")
 
             logger.info(f"  - Effective margin: ${effective_margin:.2f}")
 
@@ -1240,7 +1240,7 @@ class AvantisTrader:
 
                 logger.info(f"  - Market order type: {market_order_type} ({type(market_order_type).__name__})")
 
-                logger.info(f"  - Slippage: {slippage_decimal} ({type(slippage_decimal).__name__})")
+                logger.info(f"  - Slippage: {slippage_pct} ({type(slippage_pct).__name__})")
 
            
             # ✅ Use Avantis SDK to build and sign the trade transaction
