@@ -1256,7 +1256,7 @@ class AvantisTrader:
             nonce = self.w3.eth.get_transaction_count(trader_address)
             gas_price = self.w3.eth.gas_price
 
-            transaction_data = self.avantis_contract.functions.openTrade(
+            transaction_data = self.avantis_contract.functions.increasePosition(
                 trade_struct, order_type, slippage
             ).build_transaction({
                 'from': trader_address,
