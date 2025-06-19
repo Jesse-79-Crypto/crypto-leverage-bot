@@ -6,8 +6,6 @@ import random
 
 import logging
 
-from decimal import Decimal
-
 from avantis_trader_sdk import TraderClient
 from avantis_trader_sdk.types import TradeInput
 
