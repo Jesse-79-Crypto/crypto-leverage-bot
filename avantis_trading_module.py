@@ -1024,6 +1024,12 @@ class AvantisTrader:
 
             # Get pair index
 
+            # Convert USDT pairs to USDC pairs for Avantis  
+            original_symbol = symbol
+            if "/USDT" in symbol:
+                symbol = symbol.replace("/USDT", "/USDC")
+                logger.info(f"🔄 Converted pair: {original_symbol} → {symbol}")
+
             pair_index = self.get_pair_index(symbol)
 
             logger.info(f"🔍 DEBUG: pair_index = {pair_index}, symbol = {symbol}")
