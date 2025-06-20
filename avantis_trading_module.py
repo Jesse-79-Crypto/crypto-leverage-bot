@@ -45,26 +45,26 @@ from flask import Flask, request, jsonify
 import requests
 
 async def get_real_avantis_contract():
-    """Get the REAL Avantis contract from the SDK"""
+    """DEBUG: See what the SDK actually has"""
     try:
         from avantis_trader_sdk import TraderClient
         provider_url = "https://mainnet.base.org"
         trader_client = TraderClient(provider_url)
         
-        # Try different methods to get the contract
-        if hasattr(trader_client, 'trading_contract_address'):
-            return trader_client.trading_contract_address
-        elif hasattr(trader_client, 'contract_address'):
-            return trader_client.contract_address
-        elif hasattr(trader_client, 'trading_contract'):
-            contract = await trader_client.trading_contract()
-            return contract.address if hasattr(contract, 'address') else None
-        else:
-            # Let's inspect what methods are available
-            methods = [method for method in dir(trader_client) if not method.startswith('_')]
-            print(f"🔍 Available SDK methods: {methods[:10]}...")  # Show first 10
-            return None
-            
+        # List ALL methods available
+        all_methods = [method for method in dir(trader_client) if not method.startswith('_')]
+        print(f"🔍 ALL SDK METHODS: {all_methods}")
+        
+        # Look for contract-related attributes
+        contract_attrs = [attr for attr in all_methods if 'contract' in attr.lower()]
+        print(f"🔍 CONTRACT METHODS: {contract_attrs}")
+        
+        # Look for trading-related methods
+        trade_methods = [attr for attr in all_methods if any(word in attr.lower() for word in ['trade', 'open', 'close', 'place', 'execute', 'position'])]
+        print(f"🔍 TRADING METHODS: {trade_methods}")
+        
+        return None
+        
     except Exception as e:
         print(f"❌ SDK Error: {e}")
         return None
