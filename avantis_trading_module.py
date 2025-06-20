@@ -51,13 +51,23 @@ async def get_real_avantis_contract():
         provider_url = "https://mainnet.base.org"
         trader_client = TraderClient(provider_url)
         
-        # SDK knows the real contract addresses
-        real_contract = await trader_client.get_trading_contract_address()
-        print(f"🎯 REAL Avantis Contract: {real_contract}")
-        return real_contract
+        # Try different methods to get the contract
+        if hasattr(trader_client, 'trading_contract_address'):
+            return trader_client.trading_contract_address
+        elif hasattr(trader_client, 'contract_address'):
+            return trader_client.contract_address
+        elif hasattr(trader_client, 'trading_contract'):
+            contract = await trader_client.trading_contract()
+            return contract.address if hasattr(contract, 'address') else None
+        else:
+            # Let's inspect what methods are available
+            methods = [method for method in dir(trader_client) if not method.startswith('_')]
+            print(f"🔍 Available SDK methods: {methods[:10]}...")  # Show first 10
+            return None
+            
     except Exception as e:
         print(f"❌ SDK Error: {e}")
-        return None# ========== AVANTIS TRADING CONSTANTS (BASE NETWORK) ==========
+        return None
 
 # USDC Contract on Base Network (CONFIRMED)
 USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -127,7 +137,7 @@ try:
     REAL_CONTRACT = asyncio.run(get_real_avantis_contract())
     AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(REAL_CONTRACT or '0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
 except:
-    AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
+    AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x8a2efd9a790199f4c94c6effe210fce0b4724f52')
 
 RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
