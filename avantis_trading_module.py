@@ -1026,6 +1026,11 @@ class AvantisTrader:
 
             pair_index = self.get_pair_index(symbol)
 
+            logger.info(f"🔍 DEBUG: pair_index = {pair_index}, symbol = {symbol}")
+            if pair_index == 0:
+                logger.error(f"❌ INVALID PAIR! Symbol {symbol} not found in mappings")
+                return None
+                
             logger.info(f"🎯 Trading pair: {symbol} -> Index {pair_index}")
 
            
@@ -1306,7 +1311,7 @@ class AvantisTrader:
             transaction_data = self.avantis_contract.functions.openTrade(
                 trade_input,              # TradeInput struct
                 0,                        # order type (uint8) - 0 for market
-                int(3 * 1e10)            # slippage (uint256) - 3% with 10 decimals
+                int(300)                  # slippage (uint256) - 3% with 10 decimals
             ).build_transaction({
                 'from': trader_address,
                 'gas': TradingConfig.GAS_LIMIT,
