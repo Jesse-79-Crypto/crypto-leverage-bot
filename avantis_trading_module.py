@@ -1020,22 +1020,16 @@ class AvantisTrader:
 
             logger.info(f"💰 Entry price source field: {entry_price_source}")
 
-           
-
-            # Get pair index
 
             # Convert USDT pairs to USDC pairs for Avantis  
-            original_symbol = symbol
-            if "/USDT" in symbol:
-                symbol = symbol.replace("/USDT", "/USDC")
-                logger.info(f"🔄 Converted pair: {original_symbol} → {symbol}")
-
+            # Get pair index
+            # DEBUG: Show what's in pair_mappings
             logger.info(f"🔍 DEBUG: Available pair_mappings = {self.pair_mappings}")
-            
+
             pair_index = self.get_pair_index(symbol)
 
             logger.info(f"🔍 DEBUG: pair_index = {pair_index}, symbol = {symbol}")
-            if pair_index == 0:
+            if pair_index is None or pair_index == -1:
                 logger.error(f"❌ INVALID PAIR! Symbol {symbol} not found in mappings")
                 return None
                 
