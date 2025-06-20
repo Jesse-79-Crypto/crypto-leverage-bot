@@ -1287,28 +1287,29 @@ class AvantisTrader:
 
             logger.info(f"🔄 Step 2: Building transaction with direct contract call")
 
-            # Build trade struct in correct order for increasePosition ABI
-            trade_struct = (
-                position_usdc,        # margin (uint256) - calculated margin
-                leverage,             # leverage (uint256) 
-                trader_address,       # trader (address)
-                pair_index,           # pairIndex (uint256)
-                True,                 # open (bool) - true for opening position
-                is_long,              # buy (bool) - long/short direction
-                entry_price,          # openPrice (uint256)
-                0,                    # tp (uint256) - take profit
-                0,                    # sl (uint256) - stop loss  
-                0,                    # spreadReductionId (uint256)
-                position_usdc,        # positionSizeUsdc (uint256)
-                int(time.time())      # timestamp (uint256)
+            # Build trade struct in correct order for openTrade ABI
+            trade_input = (
+                trader_address,           # trader (address)
+                pair_index,               # pairIndex (uint256) - 1 for your pair
+                0,                        # index (uint256)
+                0,                        # initialPosToken (uint256)
+                position_usdc,            # positionSizeUSDC (uint256)
+                0,                        # openPrice (uint256) - 0 for market price
+                is_long,                  # buy (bool)
+                leverage,                 # leverage (uint256)
+                0,                        # tp (uint256) - take profit
+                0,                        # sl (uint256) - stop loss
+                int(time.time())         # timestamp (uint256)
             )
 
             # Build transaction
             nonce = self.w3.eth.get_transaction_count(trader_address)
             gas_price = self.w3.eth.gas_price
 
-            transaction_data = self.avantis_contract.functions.increasePosition(
-                trade_struct, order_type, slippage
+            transaction_data = self.avantis_contract.functions.openTrade(
+                trade_input,              # TradeInput struct
+                0,                        # order type (uint8) - 0 for market
+                int(3 * 1e10)            # slippage (uint256) - 3% with 10 decimals
             ).build_transaction({
                 'from': trader_address,
                 'gas': TradingConfig.GAS_LIMIT,
@@ -1316,7 +1317,6 @@ class AvantisTrader:
                 'nonce': nonce,
                 'value': 0
             })
-
             # Sign transaction
             signed_txn = self.w3.eth.account.sign_transaction(
                 transaction_data, TradingConfig.PRIVATE_KEY
