@@ -751,7 +751,7 @@ class AvantisTrader:
             logging.error(f"❌ Contract initialization failed: {e}")
             raise
             
-            async def fetch_avantis_pairs(self):
+        async def fetch_avantis_pairs(self):
                 """Fetch correct pair indices from Avantis SDK"""
                 try:
                     provider_url = "https://mainnet.base.org"
@@ -776,7 +776,7 @@ class AvantisTrader:
                     logger.error(f"❌ Failed to fetch pairs: {e}")
                     return None
 
-            def get_pair_index(self, symbol):
+        def get_pair_index(self, symbol):
                 """Get correct pair index with dynamic fetching"""
                 if not hasattr(self, 'dynamic_pairs') or not self.dynamic_pairs:
                     try:
@@ -791,7 +791,7 @@ class AvantisTrader:
                 # Fallback to your existing mappings
                 return self.pair_mappings.get(symbol, 0) 
         
-            def _initialize_pair_mappings(self) -> Dict[str, int]:
+        def _initialize_pair_mappings(self) -> Dict[str, int]:
 
                 """Initialize trading pair mappings for Avantis"""
 
