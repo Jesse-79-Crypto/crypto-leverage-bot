@@ -118,39 +118,36 @@ from avantis_trader_sdk import TraderClient
 # Manually define the official Avantis Trading contract (confirmed)
 avantis_contract_address = "0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6"  # <-- This is the real one from earlier
 
-# Manually define the correct ABI
+# Correct Avantis ABI with openTrade function
 AVANTIS_TRADING_ABI = [
     {
         "inputs": [
             {
                 "components": [
-                    {"internalType": "uint256", "name": "margin", "type": "uint256"},
-                    {"internalType": "uint256", "name": "leverage", "type": "uint256"},
-                    {"internalType": "address", "name": "trader", "type": "address"},
-                    {"internalType": "uint256", "name": "pairIndex", "type": "uint256"},
-                    {"internalType": "bool", "name": "open", "type": "bool"},
-                    {"internalType": "bool", "name": "buy", "type": "bool"},
-                    {"internalType": "uint256", "name": "openPrice", "type": "uint256"},
-                    {"internalType": "uint256", "name": "tp", "type": "uint256"},
-                    {"internalType": "uint256", "name": "sl", "type": "uint256"},
-                    {"internalType": "uint256", "name": "spreadReductionId", "type": "uint256"},
-                    {"internalType": "uint256", "name": "positionSizeUsdc", "type": "uint256"},
-                    {"internalType": "uint256", "name": "timestamp", "type": "uint256"}
+                    {"name": "trader", "type": "address"},
+                    {"name": "pairIndex", "type": "uint256"},
+                    {"name": "index", "type": "uint256"},
+                    {"name": "initialPosToken", "type": "uint256"},
+                    {"name": "positionSizeUSDC", "type": "uint256"},
+                    {"name": "openPrice", "type": "uint256"},
+                    {"name": "buy", "type": "bool"},
+                    {"name": "leverage", "type": "uint256"},
+                    {"name": "tp", "type": "uint256"},
+                    {"name": "sl", "type": "uint256"},
+                    {"name": "timestamp", "type": "uint256"}
                 ],
-                "internalType": "struct TradeLib.Trade",
-                "name": "trade",
+                "name": "t",
                 "type": "tuple"
             },
-            {"internalType": "uint8", "name": "orderType", "type": "uint8"},
-            {"internalType": "uint256", "name": "slippageP", "type": "uint256"}
+            {"name": "_type", "type": "uint8"},
+            {"name": "_slippageP", "type": "uint256"}
         ],
-        "name": "increasePosition",
+        "name": "openTrade",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
     }
 ]
-
 # Configure logging with enhanced formatting
 
 logging.basicConfig(
