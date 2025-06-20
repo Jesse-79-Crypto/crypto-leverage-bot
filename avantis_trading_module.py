@@ -793,52 +793,52 @@ class AvantisTrader:
         
             def _initialize_pair_mappings(self) -> Dict[str, int]:
 
-        """Initialize trading pair mappings for Avantis"""
+                """Initialize trading pair mappings for Avantis"""
 
-        return {
+                return {
 
-            'BTC/USD': 0,
+                'BTC/USD': 0,
 
-            'BTCUSD': 0,
+                'BTCUSD': 0,
 
-            'BTC': 0,
+                'BTC': 0,
 
-            'ETH/USD': 1,
+                'ETH/USD': 1,
 
-            'ETHUSD': 1,
+                'ETHUSD': 1,
 
-            'ETH': 1,
+                'ETH': 1,
 
-            'SOL/USD': 2,
+                'SOL/USD': 2,
 
-            'SOLUSD': 2,
+                'SOLUSD': 2,
 
-            'SOL': 2,
+                'SOL': 2,
 
-            'LINK/USD': 3,
+                'LINK/USD': 3,
 
-            'LINKUSD': 3,
+                'LINKUSD': 3,
 
-            'LINK': 3,
+                'LINK': 3,
 
-            'AVAX/USD': 4,
+                'AVAX/USD': 4,
 
-            'AVAXUSD': 4,
+                'AVAXUSD': 4,
 
-            'AVAX': 4,
+                'AVAX': 4,
 
-            # USDT mappings for signal compatibility
-            'BTC/USDT': 0,
+                # USDT mappings for signal compatibility
+                'BTC/USDT': 0,
             
-            'ETH/USDT': 1,
+                'ETH/USDT': 1,
             
-            'SOL/USDT': 2,    # Map SOL signals to index 2
+                'SOL/USDT': 2,    # Map SOL signals to index 2
             
-            'LINK/USDT': 3,   # Future LINK trading
+                'LINK/USDT': 3,   # Future LINK trading
             
-            'AVAX/USDT': 4,
+                'AVAX/USDT': 4,
             
-        }
+            }
 
        
 
