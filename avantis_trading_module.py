@@ -1030,6 +1030,8 @@ class AvantisTrader:
                 symbol = symbol.replace("/USDT", "/USDC")
                 logger.info(f"🔄 Converted pair: {original_symbol} → {symbol}")
 
+            logger.info(f"🔍 DEBUG: Available pair_mappings = {self.pair_mappings}")
+            
             pair_index = self.get_pair_index(symbol)
 
             logger.info(f"🔍 DEBUG: pair_index = {pair_index}, symbol = {symbol}")
