@@ -791,7 +791,7 @@ class AvantisTrader:
                 # Fallback to your existing mappings
                 return self.pair_mappings.get(symbol, 0) 
         
-        def _initialize_pair_mappings(self) -> Dict[str, int]:
+            def _initialize_pair_mappings(self) -> Dict[str, int]:
 
         """Initialize trading pair mappings for Avantis"""
 
