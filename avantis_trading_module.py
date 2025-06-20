@@ -750,7 +750,46 @@ class AvantisTrader:
         except Exception as e:
             logging.error(f"❌ Contract initialization failed: {e}")
             raise
-    def _initialize_pair_mappings(self) -> Dict[str, int]:
+            
+            async def fetch_avantis_pairs(self):
+        """Fetch correct pair indices from Avantis SDK"""
+        try:
+            provider_url = "https://mainnet.base.org"
+            trader_client = TraderClient(provider_url)
+            
+            logger.info("🔍 Fetching Avantis pair mappings...")
+            pairs_info = await trader_client.pairs_cache.get_pairs_info()
+            
+            logger.info(f"✅ Got pairs info: {pairs_info}")
+            
+            # Build dynamic mapping
+            pair_mapping = {}
+            for pair_data in pairs_info:
+                symbol = f"{pair_data.get('from', 'UNKNOWN')}/{pair_data.get('to', 'USDT')}"
+                pair_index = pair_data.get('pairIndex', 0)
+                pair_mapping[symbol] = pair_index
+                
+            logger.info(f"🎯 Built pair mapping: {pair_mapping}")
+            return pair_mapping
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch pairs: {e}")
+            return None
+
+    def get_pair_index(self, symbol):
+        """Get correct pair index with dynamic fetching"""
+        if not hasattr(self, 'dynamic_pairs') or not self.dynamic_pairs:
+            try:
+                self.dynamic_pairs = asyncio.run(self.fetch_avantis_pairs())
+            except Exception as e:
+                logger.error(f"❌ Failed to fetch dynamic pairs: {e}")
+                self.dynamic_pairs = None
+        
+        if self.dynamic_pairs and symbol in self.dynamic_pairs:
+            return self.dynamic_pairs[symbol]
+        
+        # Fallback to your existing mappings
+        return self.pair_mappings.get(symbol, 0)    def _initialize_pair_mappings(self) -> Dict[str, int]:
 
         """Initialize trading pair mappings for Avantis"""
 
@@ -1001,7 +1040,7 @@ class AvantisTrader:
 
             # Get pair index
 
-            pair_index = self.pair_mappings.get(symbol.upper(), 0)
+            pair_index = self.get_pair_index(symbol)
 
             logger.info(f"🎯 Trading pair: {symbol} -> Index {pair_index}")
 
