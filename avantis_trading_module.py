@@ -777,19 +777,9 @@ class AvantisTrader:
                     return None
 
     def get_pair_index(self, symbol):
-                """Get correct pair index with dynamic fetching"""
-                if not hasattr(self, 'dynamic_pairs') or not self.dynamic_pairs:
-                    try:
-                        self.dynamic_pairs = await self.fetch_avantis_pairs()
-                    except Exception as e:
-                        logger.error(f"❌ Failed to fetch dynamic pairs: {e}")
-                        self.dynamic_pairs = None
-        
-                if self.dynamic_pairs and symbol in self.dynamic_pairs:
-                    return self.dynamic_pairs[symbol]
-        
-                # Fallback to your existing mappings
-                return self.pair_mappings.get(symbol, 0) 
+        """Get correct pair index with static fallback"""
+        # Use static mappings for now (we'll fix dynamic later)
+        return self.pair_mappings.get(symbol, 0)
         
     def _initialize_pair_mappings(self) -> Dict[str, int]:
 
