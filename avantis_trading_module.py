@@ -780,7 +780,7 @@ class AvantisTrader:
                 """Get correct pair index with dynamic fetching"""
                 if not hasattr(self, 'dynamic_pairs') or not self.dynamic_pairs:
                     try:
-                        self.dynamic_pairs = asyncio.run(self.fetch_avantis_pairs())
+                        self.dynamic_pairs = await self.fetch_avantis_pairs()
                     except Exception as e:
                         logger.error(f"❌ Failed to fetch dynamic pairs: {e}")
                         self.dynamic_pairs = None
