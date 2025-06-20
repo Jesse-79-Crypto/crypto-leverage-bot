@@ -44,7 +44,20 @@ from flask import Flask, request, jsonify
 
 import requests
 
-# ========== AVANTIS TRADING CONSTANTS (BASE NETWORK) ==========
+async def get_real_avantis_contract():
+    """Get the REAL Avantis contract from the SDK"""
+    try:
+        from avantis_trader_sdk import TraderClient
+        provider_url = "https://mainnet.base.org"
+        trader_client = TraderClient(provider_url)
+        
+        # SDK knows the real contract addresses
+        real_contract = await trader_client.get_trading_contract_address()
+        print(f"🎯 REAL Avantis Contract: {real_contract}")
+        return real_contract
+    except Exception as e:
+        print(f"❌ SDK Error: {e}")
+        return None# ========== AVANTIS TRADING CONSTANTS (BASE NETWORK) ==========
 
 # USDC Contract on Base Network (CONFIRMED)
 USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -109,9 +122,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(
-    os.getenv('AVANTIS_CONTRACT', '0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
-)
+# Get the REAL contract address from SDK
+try:
+    REAL_CONTRACT = asyncio.run(get_real_avantis_contract())
+    AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address(REAL_CONTRACT or '0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
+except:
+    AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
 
 RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
