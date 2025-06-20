@@ -1,0 +1,29 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {"name": "trader", "type": "address"},
+          {"name": "pairIndex", "type": "uint256"},
+          {"name": "index", "type": "uint256"},
+          {"name": "initialPosToken", "type": "uint256"},
+          {"name": "positionSizeUSDC", "type": "uint256"},
+          {"name": "openPrice", "type": "uint256"},
+          {"name": "buy", "type": "bool"},
+          {"name": "leverage", "type": "uint256"},
+          {"name": "tp", "type": "uint256"},
+          {"name": "sl", "type": "uint256"},
+          {"name": "timestamp", "type": "uint256"}
+        ],
+        "name": "t",
+        "type": "tuple"
+      },
+      {"name": "_type", "type": "uint8"},
+      {"name": "_slippageP", "type": "uint256"}
+    ],
+    "name": "openTrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
