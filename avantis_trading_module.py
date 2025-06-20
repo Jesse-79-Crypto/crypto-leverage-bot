@@ -1274,6 +1274,8 @@ class AvantisTrader:
                 logger.info(f"  - Slippage: {slippage_pct} ({type(slippage_pct).__name__})")
 
            
+            balance_before = self.usdc_contract.functions.balanceOf(trader_address).call() / 1e6
+            logger.info(f"🔍 USDC Balance BEFORE trade: ${balance_before:.6f}") 
             # 🔑 APPROVE USDC FIRST (THE MISSING PIECE!)
             logger.info("🔑 Step 1: Approving USDC spending...")
             approve_amount = position_usdc  # Amount to approve
@@ -1337,6 +1339,10 @@ class AvantisTrader:
             if receipt.status == 1:
                 logger.info(f"✅ Trade executed successfully! Gas used: {receipt.gasUsed}")
                 logger.info(f"🔗 BaseScan: https://basescan.org/tx/{tx_hash_str}")
+                # CHECK USDC BALANCE AFTER
+                balance_after = self.usdc_contract.functions.balanceOf(trader_address).call() / 1e6
+                logger.info(f"🔍 USDC Balance AFTER trade: ${balance_after:.6f}")
+                logger.info(f"🔍 USDC MOVED: ${balance_before - balance_after:.6f}")                
                 return {
                     "status": "success",
                     "tx_hash": tx_hash_str,
