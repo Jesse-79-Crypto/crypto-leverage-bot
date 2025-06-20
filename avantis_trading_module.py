@@ -1284,8 +1284,21 @@ class AvantisTrader:
                 logger.info(f"  - Slippage: {slippage_pct} ({type(slippage_pct).__name__})")
 
            
-            # ✅ Use direct contract interaction (SDK method removed in v0.8.0)
-            logger.info("🔄 Building transaction with direct contract call")
+            # 🔑 APPROVE USDC FIRST (THE MISSING PIECE!)
+            logger.info("🔑 Step 1: Approving USDC spending...")
+            approve_amount = position_usdc  # Amount to approve
+            approve_txn = self.usdc_contract.functions.approve(AVANTIS_TRADING_CONTRACT, approve_amount).build_transaction({
+                'from': trader_address,
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price,
+                'nonce': self.w3.eth.get_transaction_count(trader_address),
+            })
+            signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
+            approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
+            approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=10)
+            logger.info(f"✅ USDC approved! Hash: {approve_hash.hex()}")
+
+            logger.info(f"🔄 Step 2: Building transaction with direct contract call")
 
             # Build trade struct in correct order for increasePosition ABI
             trade_struct = (
@@ -1342,8 +1355,7 @@ class AvantisTrader:
                 }
             else:
                 logger.info(f"📋 Receipt: {receipt}")
-                raise Exception(f"Transaction reverted: {tx_hash_str}")
-        
+                raise Exception(f"Transaction reverted: {tx_hash_str}")        
 
         except Exception as e:
             error_msg = str(e)
