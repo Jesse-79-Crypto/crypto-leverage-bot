@@ -946,7 +946,7 @@ class AvantisTrader:
                 calculated_position = current_balance * percentage
     
                 # Ensure minimum position size is met
-                = TradingConfig.MIN_TIER_POSITIONS[tier]
+                min_position = TradingConfig.MIN_TIER_POSITIONS[tier]
                 position_usdc_dollars = max(calculated_position, min_position)
     
                 logger.info(f"💰 DYNAMIC POSITION SIZING - ELITE STRATEGY:")
