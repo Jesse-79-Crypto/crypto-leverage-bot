@@ -1313,7 +1313,7 @@ class AvantisTrader:
             transaction_data = self.avantis_contract.functions.openTrade(
                 trade_input,              # TradeInput struct
                 0,                        # order type (uint8) - 0 for market
-                int(300)                  # slippage (uint256) - 3% with 10 decimals
+                int(1000)                  # slippage (uint256) - 3% with 10 decimals
             ).build_transaction({
                 'from': trader_address,
                 'gas': TradingConfig.GAS_LIMIT,
