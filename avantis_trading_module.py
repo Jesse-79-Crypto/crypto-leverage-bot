@@ -769,17 +769,17 @@ class AvantisTrader:
                     return None
 
     def get_pair_index(self, symbol):
-    """Get correct pair index with validation"""
-    pair_index = self.pair_mappings.get(symbol)
-    if pair_index is None:
-        logger.error(f"❌ Symbol {symbol} not found in mappings!")
-        return None
+        """Get correct pair index with validation"""
+        pair_index = self.pair_mappings.get(symbol)
+        if pair_index is None:
+            logger.error(f"❌ Symbol {symbol} not found in mappings!")
+            return None
     
-    # Warn about potentially unsupported pairs
-    if symbol in ['AVAX/USDT', 'LINK/USDT'] and pair_index > 2:
-        logger.warning(f"⚠️ {symbol} might not be supported yet on Avantis!")
+        # Warn about potentially unsupported pairs
+        if symbol in ['AVAX/USDT', 'LINK/USDT'] and pair_index > 2:
+        l    ogger.warning(f"⚠️ {symbol} might not be supported yet on Avantis!")
     
-    return pair_index
+        return pair_index
     
     def _initialize_pair_mappings(self) -> Dict[str, int]:
 
