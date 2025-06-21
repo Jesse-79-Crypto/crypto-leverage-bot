@@ -209,9 +209,9 @@ class TradingConfig:
     }
 
     MIN_TIER_POSITIONS = {
-    1: 100,  # $100 minimum for Tier 1
-    2: 75,   # $75 minimum for Tier 2
-    3: 50    # $50 minimum for Tier 3
+    1: 130,  # $130 minimum for Tier 1
+    2: 130,  # $130 minimum for Tier 2
+    3: 130   # $130 minimum for Tier 3
     }   
 
 
@@ -946,7 +946,7 @@ class AvantisTrader:
                 calculated_position = current_balance * percentage
     
                 # Ensure minimum position size is met
-                min_position = TradingConfig.MIN_TIER_POSITIONS[tier]
+                = TradingConfig.MIN_TIER_POSITIONS[tier]
                 position_usdc_dollars = max(calculated_position, min_position)
     
                 logger.info(f"💰 DYNAMIC POSITION SIZING - ELITE STRATEGY:")
@@ -1938,7 +1938,7 @@ def test_trade():
 
             'entry_price': 50000.0,
 
-            'position_size': 100,
+            'position_size': 130,
 
             'leverage': 5,
 
@@ -2216,7 +2216,7 @@ function calculatePositionSize(tier) {
 
   const positionSizes = {
 
-    1: 100,    // Tier 1: $100 USDC (margin: $100/5 = $20)
+    1: 130,    // Tier 1: $130 USDC (margin: $130/5 = $26)
 
     2: 150,    // Tier 2: $150 USDC (margin: $150/5 = $30) 
 
@@ -2224,7 +2224,7 @@ function calculatePositionSize(tier) {
 
   };
 
-  return positionSizes[tier] || 100; // Default $100 (margin: $20)
+  return positionSizes[tier] || 130; // Default $130 (margin: $26)
 
 }
 
@@ -2466,7 +2466,7 @@ function testIntegration() {
 
       tier: 1,
 
-      position_size: 100,
+      position_size: 130,
 
       leverage: 5,
 
