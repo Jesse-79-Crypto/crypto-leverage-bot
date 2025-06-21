@@ -1322,7 +1322,7 @@ class AvantisTrader:
                 pair_index,               # pairIndex (uint256) - 1 for your pair
                 0,                        # index (uint256)
                 0,                        # initialPosToken (uint256)
-                collateral_usdc,          # positionSizeUSDC (uint256)
+                position_usdc,            # positionSizeUSDC (uint256)
                 0,                        # openPrice (uint256) - 0 for market price
                 is_long,                  # buy (bool)
                 leverage,                 # leverage (uint256)
