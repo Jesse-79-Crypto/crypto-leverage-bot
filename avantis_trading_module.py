@@ -933,7 +933,7 @@ class AvantisTrader:
             # Get current USDC balance for dynamic position sizing
             trader_address = self.web3_manager.account.address if self.web3_manager.account else None
             if trader_address:
-                current_balance = self.usdc_contract.functions.balanceOf(self.wallet_address).call() / 1e6  # Convert from wei
+                usdc_balance = self.web3_manager.get_usdc_balance(trader_address)
             else:
                 current_balance = 1000  # Default for testing when no account
 
@@ -974,8 +974,9 @@ class AvantisTrader:
 
             required_margin = position_usdc_dollars / leverage
 
-           
-
+            collateral_usdc_dollars = required_margin  # This is what Avantis contract needs
+            collateral_usdc = int(collateral_usdc_dollars * 1_000_000)  # Convert to 6 decimals
+            logger.info(f"💰 COLLATERAL (what contract gets): ${collateral_usdc_dollars:.2f} USDC")
             # Ensure minimum MARGIN for Avantis (likely $20+ required margin)
 
             min_margin_required = TradingConfig.MIN_MARGIN_REQUIRED  # $25
@@ -996,7 +997,7 @@ class AvantisTrader:
 
                
 
-            position_usdc = int(position_usdc_dollars * 1_000_000)  # Convert to 6 decimals
+            collateral_usdc = int((position_usdc_dollars / leverage) * 1_000_000)  # $26 * 1M = 26,000,000
 
            
 
@@ -1211,7 +1212,7 @@ class AvantisTrader:
 
             logger.info(f"  - slippage_pct: {slippage_pct} (type: {type(slippage_pct).__name__}) - Reduced to 3%")
 
-            logger.info(f"  - entry_price value: {entry_price} (${entry_price/1_000_000_000_000_000_000:.2f})")
+            logger.info(f"  - entry_price value: {entry_price} (${entry_price/100_000_000:.2f})")
 
             logger.info(f"  - position_usdc value: {position_usdc} (${position_usdc/1_000_000:.2f})")
 
@@ -1283,7 +1284,7 @@ class AvantisTrader:
             logger.info(f"🔍 USDC Balance BEFORE trade: ${balance_before:.6f}") 
             # 🔑 APPROVE USDC FIRST (THE MISSING PIECE!)
             logger.info("🔑 Step 1: Approving USDC spending...")
-            approve_amount = position_usdc  # Amount to approve
+            approve_amount = collateral_usdc  # Amount to approve
             approve_txn = self.usdc_contract.functions.approve(AVANTIS_TRADING_CONTRACT, approve_amount).build_transaction({
                 'from': trader_address,
                 'gas': 100000,
@@ -1303,7 +1304,7 @@ class AvantisTrader:
                 pair_index,               # pairIndex (uint256) - 1 for your pair
                 0,                        # index (uint256)
                 0,                        # initialPosToken (uint256)
-                position_usdc,            # positionSizeUSDC (uint256)
+                collateral_usdc,          # positionSizeUSDC (uint256)
                 0,                        # openPrice (uint256) - 0 for market price
                 is_long,                  # buy (bool)
                 leverage,                 # leverage (uint256)
