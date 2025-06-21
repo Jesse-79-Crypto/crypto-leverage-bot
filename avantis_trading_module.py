@@ -1008,7 +1008,7 @@ class AvantisTrader:
 
             logger.info(f"  - Required Margin: ${required_margin:.2f} USDC")
 
-            logger.info(f"  - Position Size (6 decimals): {position_usdc}")
+            logger.info(f"  - Collateral (6 decimals): {collateral_usdc}")
 
             logger.info(f"  - Minimum Margin Required: ${min_margin_required}")
 
