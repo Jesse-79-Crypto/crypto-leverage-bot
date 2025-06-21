@@ -457,7 +457,7 @@ class Web3Manager:
 
             self.trading_contract = self.w3.eth.contract(
 
-                address=TradingConfig.AVANTIS_TRADING_CONTRACT,
+                address=TradingConfig.AVANTIS_CONTRACT_ADDRESS,
 
                 abi=trading_abi
 
