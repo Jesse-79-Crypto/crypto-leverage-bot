@@ -933,8 +933,19 @@ class AvantisTrader:
         
             if trader_address:
                 try:
+                    logger.info(f"🔍 DEBUG: Checking balance for address: {trader_address}")
+                    logger.info(f"🔍 DEBUG: USDC contract address: {self.usdc_contract.address}")                    
                     current_balance = self.web3_manager.get_usdc_balance(trader_address)
                     logger.info(f"✅ REAL Balance from blockchain: ${current_balance:.2f} USDC")
+
+                    # Double-check with direct contract call
+                    raw_balance = self.usdc_contract.functions.balanceOf(trader_address).call()
+                    direct_balance = raw_balance / 1e6
+                    logger.info(f"🔍 DIRECT balance check: ${direct_balance:.2f} USDC (raw: {raw_balance})")
+                
+                    # Use the higher of the two readings
+                    current_balance = max(current_balance, direct_balance)
+                    logger.info(f"🔍 FINAL balance used: ${current_balance:.2f} USDC")                
                 except Exception as e:
                     logger.error(f"❌ Failed to read balance: {e}")
                     current_balance = 250  # Realistic fallback
@@ -1107,7 +1118,7 @@ class AvantisTrader:
 
                 pair_index=pair_index,
 
-                position_usdc=position_usdc,
+                position_usdc=collateral_usdc,
 
                 entry_price=entry_price,
 
