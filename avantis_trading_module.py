@@ -777,7 +777,7 @@ class AvantisTrader:
     
         # Warn about potentially unsupported pairs
         if symbol in ['AVAX/USDT', 'LINK/USDT'] and pair_index > 2:
-        l    ogger.warning(f"⚠️ {symbol} might not be supported yet on Avantis!")
+            logger.warning(f"⚠️ {symbol} might not be supported yet on Avantis!")
     
         return pair_index
     
