@@ -925,17 +925,24 @@ class AvantisTrader:
 
             leverage = int(trade_data.get('leverage', TradingConfig.DEFAULT_LEVERAGE))
 
-           
-
             # Calculate position size in USDC (with 6 decimals) - FOCUS ON MARGIN
-            
-            current_balance = 1000  # Default value
-            trader_address = self.web3_manager.account.address if self.web3_manager.account else None
-            if trader_address:
-                usdc_balance = self.web3_manager.get_usdc_balance(trader_address)
-            else:
-                logger.info(f"💰 Using default balance for testing: ${current_balance:.2f}")
 
+            # 🚀 DYNAMIC POSITION SIZING - ELITE STRATEGY!
+            # Get current USDC balance for dynamic position sizing
+            trader_address = self.web3_manager.account.address if self.web3_manager.account else None
+        
+            if trader_address:
+                try:
+                    current_balance = self.web3_manager.get_usdc_balance(trader_address)
+                    logger.info(f"✅ REAL Balance from blockchain: ${current_balance:.2f} USDC")
+                except Exception as e:
+                    logger.error(f"❌ Failed to read balance: {e}")
+                    current_balance = 250  # Realistic fallback
+                    logger.warning(f"⚠️ Using fallback balance: ${current_balance:.2f}")
+            else:
+                logger.error("❌ No trader address found!")
+                current_balance = 250  # Realistic fallback instead of 1000
+            
             # Calculate position size based on account balance and tier
             tier = int(trade_data.get('tier', 2))  # Default to tier 2 if not specified
 
@@ -967,10 +974,11 @@ class AvantisTrader:
                 position_usdc_dollars = float(trade_data.get('position_size', 100))
                 logger.warning(f"⚠️ Unknown tier {tier}, using signal position: ${position_usdc_dollars}")
 
-           
-
-            # Calculate required margin based on leverage
-
+            if position_usdc_dollars > current_balance * 0.9:  # Don't use more than 90% of balance
+                logger.warning(f"⚠️ Position ${position_usdc_dollars:.2f} too large for balance ${current_balance:.2f}")
+                position_usdc_dollars = current_balance * 0.8  # Use 80% of balance instead
+                logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
+                
             required_margin = position_usdc_dollars / leverage
 
             collateral_usdc_dollars = required_margin  # This is what Avantis contract needs
@@ -1020,7 +1028,7 @@ class AvantisTrader:
 
            
 
-            logger.info(f"💰 FINAL Position size: ${position_usdc_dollars:.2f} USDC (raw: {position_usdc})")
+            logger.info(f"💰 FINAL Position size: ${position_usdc_dollars:.2f} USDC (collateral: {collateral_usdc})")
 
             logger.info(f"💰 FINAL Entry price: ${entry_price_dollars:.2f} (raw: {entry_price})")
 
