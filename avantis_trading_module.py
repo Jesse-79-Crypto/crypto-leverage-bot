@@ -107,7 +107,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x44914408af82bC9983bbb330e3578E1105e11d4e')
+AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
 RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
@@ -769,10 +769,18 @@ class AvantisTrader:
                     return None
 
     def get_pair_index(self, symbol):
-        """Get correct pair index with static fallback"""
-        # Use static mappings for now (we'll fix dynamic later)
-        return self.pair_mappings.get(symbol, 0)
-        
+    """Get correct pair index with validation"""
+    pair_index = self.pair_mappings.get(symbol)
+    if pair_index is None:
+        logger.error(f"❌ Symbol {symbol} not found in mappings!")
+        return None
+    
+    # Warn about potentially unsupported pairs
+    if symbol in ['AVAX/USDT', 'LINK/USDT'] and pair_index > 2:
+        logger.warning(f"⚠️ {symbol} might not be supported yet on Avantis!")
+    
+    return pair_index
+    
     def _initialize_pair_mappings(self) -> Dict[str, int]:
 
                 """Initialize trading pair mappings for Avantis"""
