@@ -107,7 +107,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6')
+AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x44914408af82bC9983bbb330e3578E1105e11d4e')
 RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
