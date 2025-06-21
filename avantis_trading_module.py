@@ -928,14 +928,13 @@ class AvantisTrader:
            
 
             # Calculate position size in USDC (with 6 decimals) - FOCUS ON MARGIN
-
-            # 🚀 DYNAMIC POSITION SIZING - ELITE STRATEGY!
-            # Get current USDC balance for dynamic position sizing
+            
+            current_balance = 1000  # Default value
             trader_address = self.web3_manager.account.address if self.web3_manager.account else None
             if trader_address:
                 usdc_balance = self.web3_manager.get_usdc_balance(trader_address)
             else:
-                current_balance = 1000  # Default for testing when no account
+                logger.info(f"💰 Using default balance for testing: ${current_balance:.2f}")
 
             # Calculate position size based on account balance and tier
             tier = int(trade_data.get('tier', 2))  # Default to tier 2 if not specified
