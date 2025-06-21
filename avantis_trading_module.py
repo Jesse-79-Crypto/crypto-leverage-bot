@@ -1016,7 +1016,7 @@ class AvantisTrader:
 
             # Convert entry price to Wei (18 decimals)
 
-            entry_price = int(Decimal(str(entry_price_dollars)) * (10**18))  # 18 decimals - exact precision
+            entry_price = int(Decimal(str(entry_price_dollars)) * (10**8))  # 8 decimals - exact precision
 
            
 
