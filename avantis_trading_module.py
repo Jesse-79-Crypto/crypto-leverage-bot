@@ -1674,13 +1674,13 @@ class SignalProcessor:
 
         # Validate position size
 
-        if signal['position_size'] < 10:  # Minimum $10
+        if signal['position_size'] < 50:  # Minimum $50 (matches tier 3 minimum)
 
             return {
 
                 'valid': False,
 
-                'reason': 'Position size too small (minimum $10)'
+                'reason': 'Position size too small (minimum $50)'
 
             }
 
