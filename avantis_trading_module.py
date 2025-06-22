@@ -1289,12 +1289,12 @@ class AvantisTrader:
             logger.info(f"   - margin_required: ${(position_usdc/1e6)/leverage:.2f}")
             
             # Calculate what Avantis contract will see
-            effective_position_after_slippage = position_usdc_dollars * (1 - slippage_pct)
+            effective_position_after_slippage = position_usdc_dollars * (1 - TradingConfig.DEFAULT_SLIPPAGE)
             effective_margin_after_slippage = effective_position_after_slippage / leverage
             
             logger.info(f"🔍 AVANTIS CONTRACT ANALYSIS:")
             logger.info(f"   - Position before slippage: ${position_usdc_dollars:.2f}")
-            logger.info(f"   - Position after {slippage_pct*100}% slippage: ${effective_position_after_slippage:.2f}")
+            logger.info(f"   - Position after {TradingConfig.DEFAULT_SLIPPAGE*100}% slippage: ${effective_position_after_slippage:.2f}")
             logger.info(f"   - Margin after slippage: ${effective_margin_after_slippage:.2f}")
             logger.info(f"   - Minimum margin needed: $25.00")
             logger.info(f"   - Margin buffer: ${effective_margin_after_slippage - 25:.2f}")
