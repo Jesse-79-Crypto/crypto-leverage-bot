@@ -1046,7 +1046,9 @@ class AvantisTrader:
                 logger.info(f"✅ ADJUSTED: Position now fits within available balance")
                 original_position = position_usdc_dollars
             position_usdc_dollars = position_usdc_dollars * slippage_adjustment
-            
+
+            # Store original position before any adjustments
+            original_position = position_usdc_dollars            
             logger.info(f"💡 ENHANCED SLIPPAGE PROTECTION:")
             logger.info(f"   - Original position: ${original_position:.2f}")
             logger.info(f"   - With 15% buffer: ${position_usdc_dollars:.2f}")
