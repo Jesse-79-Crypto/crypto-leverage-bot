@@ -1302,7 +1302,7 @@ class AvantisTrader:
             logger.info(f"🔍 USDC Balance BEFORE trade: ${balance_before:.6f}") 
             # 🔑 APPROVE USDC FIRST (THE MISSING PIECE!)
             logger.info("🔑 Step 1: Approving USDC spending...")
-            approve_amount = collateral_usdc  # Amount to approve
+            approve_amount = position_usdc  # Amount to approve
             approve_txn = self.usdc_contract.functions.approve(AVANTIS_TRADING_CONTRACT, approve_amount).build_transaction({
                 'from': trader_address,
                 'gas': 100000,
