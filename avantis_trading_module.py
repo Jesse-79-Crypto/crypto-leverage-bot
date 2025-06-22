@@ -1263,7 +1263,31 @@ class AvantisTrader:
          
             logger.info(f"🎯 Preparing trade parameters...")
 
-           
+                        # 🔍 ENHANCED DEBUGGING: Log all transaction parameters in detail
+                        logger.info(f"🔍 RAW TRANSACTION PAYLOAD DEBUG:")
+                        logger.info(f"   - trader_address: {trader_address}")
+                        logger.info(f"   - pair_index: {pair_index} (0=BTC, 1=ETH, 2=SOL)")
+                        logger.info(f"   - position_usdc: {position_usdc} (${position_usdc/1e6:.2f} USDC)")
+                        logger.info(f"   - entry_price: {entry_price} (${entry_price/1e8:.2f})")
+                        logger.info(f"   - leverage: {leverage}x")
+                        logger.info(f"   - is_long: {is_long} ({'LONG' if is_long else 'SHORT'})")
+                        logger.info(f"   - margin_required: ${(position_usdc/1e6)/leverage:.2f}")
+            
+                        # Calculate what Avantis contract will see
+                        effective_position_after_slippage = position_usdc_dollars * (1 - slippage_pct)
+                        effective_margin_after_slippage = effective_position_after_slippage / leverage
+            
+                        logger.info(f"🔍 AVANTIS CONTRACT ANALYSIS:")
+                        logger.info(f"   - Position before slippage: ${position_usdc_dollars:.2f}")
+                        logger.info(f"   - Position after {slippage_pct*100}% slippage: ${effective_position_after_slippage:.2f}")
+                        logger.info(f"   - Margin after slippage: ${effective_margin_after_slippage:.2f}")
+                        logger.info(f"   - Minimum margin needed: $25.00")
+                        logger.info(f"   - Margin buffer: ${effective_margin_after_slippage - 25:.2f}")
+            
+                        if effective_margin_after_slippage < 25:
+                            logger.error(f"🚨 PROBLEM DETECTED: Margin {effective_margin_after_slippage:.2f} < $25 minimum!")
+                            logger.error(f"🚨 This will likely cause transaction revert!")
+                            logger.error(f"💡 Solution: Increase position to ${25 * leverage * 1.1:.0f} or reduce leverage")            
 
             # FIXED: Use decimal slippage for SDK (addresses slippage/fee issue)
 
