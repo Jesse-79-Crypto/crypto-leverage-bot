@@ -107,6 +107,44 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# 🔍 LIVE PRICE FETCHING - NEW DEBUGGING FEATURE
+def get_live_price(symbol):
+    """Get live price from CoinGecko API"""
+    try:
+        # Map symbols to CoinGecko IDs
+        symbol_map = {
+            'BTC/USDT': 'bitcoin',
+            'BTC/USD': 'bitcoin', 
+            'BTCUSD': 'bitcoin',
+            'BTC': 'bitcoin',
+            'ETH/USDT': 'ethereum',
+            'ETH/USD': 'ethereum',
+            'ETHUSD': 'ethereum', 
+            'ETH': 'ethereum',
+            'SOL/USDT': 'solana',
+            'SOL/USD': 'solana',
+            'SOLUSD': 'solana',
+            'SOL': 'solana'
+        }
+        
+        coingecko_id = symbol_map.get(symbol, 'bitcoin')  # Default to bitcoin
+        
+        url = "https://api.coingecko.com/api/v3/simple/price"
+        params = {"ids": coingecko_id, "vs_currencies": "usd"}
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        live_price = data[coingecko_id]["usd"]
+        
+        logger.info(f"🌐 LIVE PRICE from CoinGecko: ${live_price:.2f}")
+        return live_price
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get live price: {e}")
+        return None
+        
 AVANTIS_TRADING_CONTRACT = Web3.to_checksum_address('0x44914408af82bC9983bbb330e3578E1105e11d4e')
 RPC_URL = os.getenv('RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
