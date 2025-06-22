@@ -991,8 +991,8 @@ class AvantisTrader:
                 logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
 
             # 💡 SLIPPAGE ADJUSTMENT - Ensure minimum margin after slippage
-            slippage_adjustment = 1.0 + TradingConfig.DEFAULT_SLIPPAGE  # 1.03
-            position_usdc_dollars = position_usdc_dollars * slippage_adjustment  # $200 → $206
+            slippage_adjustment = 1.05  # 5% buffer instead of 3%
+            position_usdc_dollars = position_usdc_dollars * slippage_adjustment  # $200 → $210
             logger.info(f"💡 SLIPPAGE ADJUSTED: Position increased to ${position_usdc_dollars:.2f} to account for {TradingConfig.DEFAULT_SLIPPAGE*100}% slippage")
             
             required_margin = position_usdc_dollars / leverage
