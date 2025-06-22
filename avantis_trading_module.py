@@ -1082,20 +1082,38 @@ class AvantisTrader:
 
             logger.info(f"  - Minimum Margin Required: ${min_margin_required}")
 
-           
-
-            # Convert entry price to Wei (18 decimals)
-
-            entry_price = int(Decimal(str(entry_price_dollars)) * (10**8))  # 8 decimals - exact precision
-
-           
-
-            logger.info(f"💰 FINAL Position size: ${position_usdc_dollars:.2f} USDC (collateral: {collateral_usdc})")
-
+            # 🔍 DEBUGGING: Get live price and compare
+            webhook_price = entry_price_dollars
+            logger.info(f"📊 PRICE COMPARISON DEBUG:")
+            logger.info(f"   - Webhook price: ${webhook_price:.2f}")
+            
+            # Get live price from API
+            live_price = get_live_price(symbol)
+            
+            if live_price:
+                price_diff = abs(live_price - webhook_price) / webhook_price * 100
+                logger.info(f"   - Live API price: ${live_price:.2f}")
+                logger.info(f"   - Price difference: {price_diff:.2f}%")
+                
+                # Use live price if webhook price seems stale (>2% difference)
+                if price_diff > 2.0:
+                    logger.warning(f"⚠️ Webhook price stale! Using live price instead")
+                    entry_price_dollars = live_price
+                    entry_price_source = "Live API (CoinGecko)"
+                else:
+                    logger.info(f"✅ Webhook price fresh, using original")
+            else:
+                logger.warning(f"⚠️ Could not get live price, using webhook price")
+            
+            # 🧪 HARDCODED PRICE TEST MODE (uncomment to test specific price)
+            # entry_price_dollars = 99224.91  # <-- Uncomment this line to test hardcoded price
+            # logger.info(f"🧪 HARDCODED TEST MODE: Using price ${entry_price_dollars}")
+            
+            # Convert entry price to format Avantis expects (8 decimals)
+            entry_price = int(Decimal(str(entry_price_dollars)) * (10**8))
+            
             logger.info(f"💰 FINAL Entry price: ${entry_price_dollars:.2f} (raw: {entry_price})")
-
-            logger.info(f"💰 Entry price source field: {entry_price_source}")
-
+            logger.info(f"💰 Entry price source: {entry_price_source}")
 
             # Convert USDT pairs to USDC pairs for Avantis  
             # Get pair index
