@@ -1311,7 +1311,7 @@ class AvantisTrader:
             })
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
-            approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=10)
+            approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=60)
             logger.info(f"✅ USDC approved! Hash: {approve_hash.hex()}")
 
             logger.info(f"🔄 Step 2: Building transaction with direct contract call")
@@ -1358,7 +1358,7 @@ class AvantisTrader:
             logger.info(f"📨 Sent trade tx: {tx_hash_str}")
             logger.info(f"⏳ Waiting for confirmation...")
 
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=20)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
 
             if receipt.status == 1:
                 logger.info(f"✅ Trade executed successfully! Gas used: {receipt.gasUsed}")
