@@ -125,6 +125,14 @@ def get_live_price(symbol):
             'SOL/USD': 'solana',
             'SOLUSD': 'solana',
             'SOL': 'solana'
+            'AVAX/USDT': 'avalanche-2',
+            'AVAX/USD': 'avalanche-2',
+            'AVAXUSD': 'avalanche-2',
+            'AVAX': 'avalanche-2',
+            'LINK/USDT': 'chainlink',
+            'LINK/USD': 'chainlink',
+            'LINKUSD': 'chainlink',
+            'LINK': 'chainlink'        
         }
         
         coingecko_id = symbol_map.get(symbol, 'bitcoin')  # Default to bitcoin
