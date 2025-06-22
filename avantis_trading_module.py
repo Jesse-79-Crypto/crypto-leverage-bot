@@ -989,7 +989,12 @@ class AvantisTrader:
                 logger.warning(f"⚠️ Position ${position_usdc_dollars:.2f} too large for balance ${current_balance:.2f}")
                 position_usdc_dollars = current_balance * 0.8  # Use 80% of balance instead
                 logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
-                
+
+            # 💡 SLIPPAGE ADJUSTMENT - Ensure minimum margin after slippage
+            slippage_adjustment = 1.0 + TradingConfig.DEFAULT_SLIPPAGE  # 1.03
+            position_usdc_dollars = position_usdc_dollars * slippage_adjustment  # $200 → $206
+            logger.info(f"💡 SLIPPAGE ADJUSTED: Position increased to ${position_usdc_dollars:.2f} to account for {TradingConfig.DEFAULT_SLIPPAGE*100}% slippage")
+            
             required_margin = position_usdc_dollars / leverage
 
             collateral_usdc_dollars = required_margin  # This is what Avantis contract needs
