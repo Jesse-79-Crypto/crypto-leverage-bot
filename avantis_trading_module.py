@@ -1036,9 +1036,24 @@ class AvantisTrader:
                 position_usdc_dollars = current_balance * 0.8  # Use 80% of balance instead
                 logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
 
-            # 💡 SLIPPAGE ADJUSTMENT - Ensure minimum margin after slippage
-            slippage_adjustment = 1.05  # 5% buffer instead of 3%
-            position_usdc_dollars = position_usdc_dollars * slippage_adjustment  # $200 → $210
+            # 💡 CONSERVATIVE SLIPPAGE ADJUSTMENT - Increased buffer to prevent failures
+            slippage_adjustment = 1.15  # 15% buffer to ensure margin stays above $25
+            original_position = position_usdc_dollars
+            position_usdc_dollars = position_usdc_dollars * slippage_adjustment
+            
+            logger.info(f"💡 ENHANCED SLIPPAGE PROTECTION:")
+            logger.info(f"   - Original position: ${original_position:.2f}")
+            logger.info(f"   - With 15% buffer: ${position_usdc_dollars:.2f}")
+            logger.info(f"   - Buffer amount: ${position_usdc_dollars - original_position:.2f}")
+            logger.info(f"   - Final margin: ${position_usdc_dollars/leverage:.2f}")
+            
+            # Double-check margin will be sufficient
+            final_margin_after_slippage = (position_usdc_dollars * (1 - TradingConfig.DEFAULT_SLIPPAGE)) / leverage
+            if final_margin_after_slippage >= 25:
+                logger.info(f"✅ MARGIN CHECK PASSED: ${final_margin_after_slippage:.2f} >= $25")
+            else:
+                logger.error(f"🚨 MARGIN CHECK FAILED: ${final_margin_after_slippage:.2f} < $25")
+                position_usdc_dollars = position_usdc_dollars * slippage_adjustment  # $200 → $210
             logger.info(f"💡 SLIPPAGE ADJUSTED: Position increased to ${position_usdc_dollars:.2f} to account for {TradingConfig.DEFAULT_SLIPPAGE*100}% slippage")
             
             required_margin = position_usdc_dollars / leverage
