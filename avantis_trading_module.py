@@ -209,9 +209,9 @@ class TradingConfig:
     }
 
     MIN_TIER_POSITIONS = {
-    1: 130,  # $130 minimum for Tier 1
-    2: 130,  # $130 minimum for Tier 2
-    3: 130   # $130 minimum for Tier 3
+    1: 200,  # $200 minimum for Tier 1
+    2: 200,  # $200 minimum for Tier 2
+    3: 200   # $200 minimum for Tier 3
     }   
 
 
@@ -2235,15 +2235,15 @@ function calculatePositionSize(tier) {
 
   const positionSizes = {
 
-    1: 130,    // Tier 1: $130 USDC (margin: $130/5 = $26)
+    1: 130,    // Tier 1: $200 USDC (margin: $200/5 = $40)
 
-    2: 150,    // Tier 2: $150 USDC (margin: $150/5 = $30) 
+    2: 150,    // Tier 2: $200 USDC (margin: $200/5 = $40) 
 
     3: 250     // Tier 3: $250 USDC (margin: $250/5 = $50)
 
   };
 
-  return positionSizes[tier] || 130; // Default $130 (margin: $26)
+  return positionSizes[tier] || 200; // Default $200 (margin: $40)
 
 }
 
