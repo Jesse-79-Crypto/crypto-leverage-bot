@@ -1311,7 +1311,24 @@ class AvantisTrader:
             })
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
-            approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=60)
+            try:
+                approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=180)
+                logger.info("✅ USDC approval confirmed after waiting!")
+            except Exception as e:
+                if "TimeExhausted" in str(e):
+                    logger.info("⏰ Checking if approval completed anyway...")
+                    try:
+                        approve_receipt = self.w3.eth.get_transaction_receipt(approve_hash)
+                        if approve_receipt and approve_receipt.status == 1:
+                            logger.info("🎉 SUCCESS! USDC approval completed despite timeout!")
+                        else:
+                            logger.info("❌ USDC approval still pending - network very slow today")
+                            raise e
+                    except:
+                        logger.info("❌ USDC approval failed - will retry on next signal")
+                        raise e
+                else:
+                    raise e            
             logger.info(f"✅ USDC approved! Hash: {approve_hash.hex()}")
 
             logger.info(f"🔄 Step 2: Building transaction with direct contract call")
@@ -1358,8 +1375,24 @@ class AvantisTrader:
             logger.info(f"📨 Sent trade tx: {tx_hash_str}")
             logger.info(f"⏳ Waiting for confirmation...")
 
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-
+            try:
+                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+                logger.info("✅ Trade confirmed after waiting!")
+            except Exception as e:
+                if "TimeExhausted" in str(e):
+                    logger.info("⏰ Checking if trade completed anyway...")
+                    try:
+                        receipt = self.w3.eth.get_transaction_receipt(tx_hash)
+                        if receipt and receipt.status == 1:
+                            logger.info("🎉 SUCCESS! Trade completed despite timeout!")
+                        else:
+                            logger.info("❌ Trade still pending - network very slow today")
+                            raise e
+                    except:
+                        logger.info("❌ Trade failed - will retry on next signal")
+                        raise e
+                else:
+                    raise e
             if receipt.status == 1:
                 logger.info(f"✅ Trade executed successfully! Gas used: {receipt.gasUsed}")
                 logger.info(f"🔗 BaseScan: https://basescan.org/tx/{tx_hash_str}")
