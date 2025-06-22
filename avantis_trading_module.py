@@ -1037,8 +1037,14 @@ class AvantisTrader:
                 logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
 
             # 💡 CONSERVATIVE SLIPPAGE ADJUSTMENT - Increased buffer to prevent failures
-            slippage_adjustment = 1.15  # 15% buffer to ensure margin stays above $25
-            original_position = position_usdc_dollars
+            slippage_adjustment = 1.10  # 10% buffer to ensure margin stays above $25
+            # 🔍 BALANCE-AWARE ADJUSTMENT: Ensure we don't exceed available funds
+            max_affordable = current_balance * 0.95  # Use 95% of balance for safety
+            if position_usdc_dollars > max_affordable:
+                logger.warning(f"💰 BALANCE LIMIT: Reducing position from ${position_usdc_dollars:.2f} to ${max_affordable:.2f}")
+                position_usdc_dollars = max_affordable
+                logger.info(f"✅ ADJUSTED: Position now fits within available balance")
+                original_position = position_usdc_dollars
             position_usdc_dollars = position_usdc_dollars * slippage_adjustment
             
             logger.info(f"💡 ENHANCED SLIPPAGE PROTECTION:")
