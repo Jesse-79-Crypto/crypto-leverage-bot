@@ -1111,14 +1111,15 @@ class AvantisTrader:
            
 
             # Execute the trade
-
+            position_usdc_full = int(position_usdc_dollars * 1_000_000)  # Convert $200 to 200,000,000
+            
             result = await self._execute_avantis_trade(
 
                 trader_address=trader_address,
 
                 pair_index=pair_index,
 
-                position_usdc=collateral_usdc,
+                position_usdc=position_usdc_full,
 
                 entry_price=entry_price,
 
