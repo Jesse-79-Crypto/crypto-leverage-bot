@@ -1977,15 +1977,16 @@ def background_trade_processor(trade_data):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    trade_data = request.get_json()
-    if not trade_data:
-        logger.error("❌ Empty request body")
-        return {'error': 'Empty request body'}, 400
+    try:
+        trade_data = request.get_json()
+        if not trade_data:
+            logger.error("❌ Empty request body")
+            return {'error': 'Empty request body'}, 400
 
-    logger.info("🚀 ELITE BOT v214 - Webhook received")
+        logger.info("🚀 ELITE BOT v214 - Webhook received")
 
-    threading.Thread(target=background_trade_processor, args=(trade_data,)).start()
-    return jsonify({"status": "processing"}), 200
+        threading.Thread(target=background_trade_processor, args=(trade_data,)).start()
+        return jsonify({"status": "processing"}), 200
        
 
     except Exception as e:
@@ -2003,7 +2004,7 @@ def webhook():
         }, 500
 
     finally:  
-        # Release symbol lock
+            # Release symbol lock
             if 'symbol' in locals():
                 with ACTIVE_TRADES_LOCK:
                     ACTIVE_TRADES[symbol] = False
