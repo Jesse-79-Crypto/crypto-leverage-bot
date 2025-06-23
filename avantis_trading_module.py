@@ -1025,53 +1025,36 @@ class AvantisTrader:
                 else:
                     future_1k = 1000 * percentage
                     logger.info(f"📈 FUTURE: At $1K balance, Tier {tier} = ${future_1k:.0f} position")
+        
             else:
                 # Fallback to signal's position_size if tier not recognized
                 position_usdc_dollars = float(trade_data.get('position_size', 100))
                 logger.warning(f"⚠️ Unknown tier {tier}, using signal position: ${position_usdc_dollars}")
 
-            # 🔒 SAFETY CHECK: Don't use more than 90% of balance
-            if position_usdc_dollars > current_balance * 0.9:
+            if position_usdc_dollars > current_balance * 0.9:  # Don't use more than 90% of balance
                 logger.warning(f"⚠️ Position ${position_usdc_dollars:.2f} too large for balance ${current_balance:.2f}")
                 position_usdc_dollars = current_balance * 0.8  # Use 80% of balance instead
                 logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
 
-            # 🎯 SMART SLIPPAGE PROTECTION WITH DYNAMIC CALCULATION
-            margin_after_slippage = (position_usdc_dollars * (1 - TradingConfig.DEFAULT_SLIPPAGE)) / leverage
-            margin_buffer_needed = 25.0 - margin_after_slippage  # $25 minimum margin
-
-            if margin_buffer_needed > 0:
-                # Need to increase position to maintain minimum margin after slippage
-                safety_factor = 1.2  # 20% safety margin
-                position_increase = (margin_buffer_needed * leverage * safety_factor)
-                position_usdc_dollars += position_increase
-                logger.info(f"📈 MARGIN SAFETY: Added ${position_increase:.2f} buffer")
-                logger.info(f"   - Margin after slippage would be: ${margin_after_slippage:.2f}")
-                logger.info(f"   - Increased position to ensure margin stays above $25")
-
-            # 🛡️ ABSOLUTE MINIMUM ENFORCEMENT
-            MIN_SAFE_POSITION = 220  # $220 ensures $42.68 margin after 3% slippage at 5x leverage
-            if position_usdc_dollars < MIN_SAFE_POSITION:
-                logger.info(f"⚠️ MINIMUM POSITION ENFORCEMENT:")
-                logger.info(f"   - Current position: ${position_usdc_dollars:.2f}")
-                logger.info(f"   - Minimum safe position: ${MIN_SAFE_POSITION}")
-                position_usdc_dollars = MIN_SAFE_POSITION
-                logger.info(f"   - Position increased to: ${position_usdc_dollars:.2f}")
+            # 💡 CONSERVATIVE SLIPPAGE ADJUSTMENT - Increased buffer to prevent failures
+            slippage_adjustment = 1.10  # 10% buffer to ensure margin stays above $25
+            # 🔍 BALANCE-AWARE ADJUSTMENT: Ensure we don't exceed available funds
+            max_affordable = current_balance * 0.95  # Use 95% of balance for safety
+            if position_usdc_dollars > max_affordable:
+                logger.warning(f"💰 BALANCE LIMIT: Reducing position from ${position_usdc_dollars:.2f} to ${max_affordable:.2f}")
+                position_usdc_dollars = max_affordable
+                logger.info(f"✅ ADJUSTED: Position now fits within available balance")
+                original_position = position_usdc_dollars
+            position_usdc_dollars = position_usdc_dollars * slippage_adjustment
 
             # Store original position before any adjustments
-            original_position = position_usdc_dollars
-
-            logger.info(f"💡 FINAL POSITION SUMMARY:")
-            logger.info(f"   - Final position size: ${position_usdc_dollars:.2f}")
-            logger.info(f"   - Expected margin: ${position_usdc_dollars/leverage:.2f}")
-            logger.info(f"   - Margin after 3% slippage: ${(position_usdc_dollars * 0.97)/leverage:.2f}")
-
-            # Calculate required margin
-            required_margin = position_usdc_dollars / leverage
-            collateral_usdc_dollars = required_margin
-            collateral_usdc = int(collateral_usdc_dollars * 1_000_000)  # Convert to 6 decimals
-
-            logger.info(f"💰 COLLATERAL (what contract gets): ${collateral_usdc_dollars:.2f} USDC")            
+            original_position = position_usdc_dollars            
+            logger.info(f"💡 ENHANCED SLIPPAGE PROTECTION:")
+            logger.info(f"   - Original position: ${original_position:.2f}")
+            logger.info(f"   - With 15% buffer: ${position_usdc_dollars:.2f}")
+            logger.info(f"   - Buffer amount: ${position_usdc_dollars - original_position:.2f}")
+            logger.info(f"   - Final margin: ${position_usdc_dollars/leverage:.2f}")
+            
             # Double-check margin will be sufficient
             final_margin_after_slippage = (position_usdc_dollars * (1 - TradingConfig.DEFAULT_SLIPPAGE)) / leverage
             if final_margin_after_slippage >= 25:
@@ -1916,6 +1899,13 @@ class SignalProcessor:
 
         return {'valid': True}
 
+ 
+
+# Initialize signal processor
+
+signal_processor = SignalProcessor()
+
+ 
 
 # ============================================================================
 
@@ -1959,32 +1949,104 @@ def health_check():
 
  
 
-import threading
-
-# ✅ Async trade processor function
-async def process_trade(trade_data):
-    print("🚀 Executing trade:", trade_data)
-    # TODO: Replace this with your actual trade execution logic
-
-def background_trade_processor(trade_data):
-    import asyncio
-    try:
-        asyncio.run(process_trade(trade_data))
-    except Exception as e:
-        logger.error(f"❌ Background trade error: {e}")
-
 @app.route('/webhook', methods=['POST'])
+
 def webhook():
+
+    """Enhanced webhook endpoint for trading signals with Avantis integration"""
+
+   
+
     try:
+
         trade_data = request.get_json()
         if not trade_data:
+
             logger.error("❌ Empty request body")
+
             return {'error': 'Empty request body'}, 400
 
-        logger.info("🚀 ELITE BOT v214 - Webhook received")
+        source = trade_data.get('source', 'unknown').lower()
+        
+        
+        # Version tracking - MARGIN FIX VERSION
 
-        threading.Thread(target=background_trade_processor, args=(trade_data,)).start()
-        return jsonify({"status": "processing"}), 200
+        logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
+
+        time.sleep(2)  # 🚫 Prevent duplicate trades from rapid webhooks
+     
+        logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
+
+        # ADD THESE 6 LINES HERE ⬇️
+        global TRADE_IN_PROGRESS
+        with TRADE_LOCK:
+            if TRADE_IN_PROGRESS:
+                logger.warning("🚫 TRADE REJECTED - Another trade in progress!")
+                return {'status': 'rejected'}, 429
+            TRADE_IN_PROGRESS = True
+     
+
+        # Parse incoming request
+
+        if not request.is_json:
+
+            logger.error("❌ Request is not JSON")
+
+            return {'error': 'Request must be JSON'}, 400
+
+        
+       # NEW CODE - Add symbol checking
+        symbol = trade_data.get('symbol', '').upper()
+        if not symbol:
+            logger.error("❌ No symbol in signal!")
+            return {'error': 'Missing symbol in signal'}, 400
+    
+        # Check if symbol already has active trade
+        with ACTIVE_TRADES_LOCK:
+            if ACTIVE_TRADES.get(symbol, False):
+                logger.warning(f"🚫 Trade REJECTED - Trade already active for {symbol}!")
+                return {'status': 'rejected', 'reason': f'Trade already active for {symbol}'}, 400
+    
+            # Mark this symbol as active
+            ACTIVE_TRADES[symbol] = True
+            logger.info(f"✅ {symbol} marked as ACTIVE")
+
+           
+
+        logger.info(f"📨 Received signal data: {json.dumps(trade_data, indent=2)}")
+
+       
+
+        # Process the signal asynchronously
+
+        async def process_webhook():
+
+            return await signal_processor.process_signal(trade_data)
+
+           
+
+        # Run the async processing
+
+        result = asyncio.run(process_webhook())
+
+       
+
+        # Log the result
+
+        if result.get('status') == 'success':
+
+            logger.info(f"✅ Webhook processing successful!")
+
+            logger.info(f"   Trade result: {result.get('trade_result', {})}")
+
+        else:
+
+            logger.warning(f"⚠️ Webhook processing failed: {result.get('error', 'Unknown error')}")
+
+           
+        
+        return result
+
        
 
     except Exception as e:
@@ -2002,7 +2064,7 @@ def webhook():
         }, 500
 
     finally:  
-            # Release symbol lock
+        # Release symbol lock
             if 'symbol' in locals():
                 with ACTIVE_TRADES_LOCK:
                     ACTIVE_TRADES[symbol] = False
