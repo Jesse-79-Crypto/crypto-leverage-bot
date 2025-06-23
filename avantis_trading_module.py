@@ -1971,7 +1971,7 @@ import threading
 def background_trade_processor(trade_data):
     import asyncio
     try:
-        asyncio.run(process_signal(trade_data))
+        asyncio.run(signal_processor.process_signal(trade_data))
     except Exception as e:
         logger.error(f"❌ Background trade error: {e}")
 
