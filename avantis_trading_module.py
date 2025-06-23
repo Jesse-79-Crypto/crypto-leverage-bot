@@ -1968,9 +1968,12 @@ def health_check():
 
 import threading
 
+from signal_processor import SignalProcessor
+
 def background_trade_processor(trade_data):
     import asyncio
     try:
+        signal_processor = SignalProcessor()
         asyncio.run(signal_processor.process_signal(trade_data))
     except Exception as e:
         logger.error(f"❌ Background trade error: {e}")
