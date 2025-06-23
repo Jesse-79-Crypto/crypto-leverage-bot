@@ -1968,8 +1968,6 @@ def health_check():
 
 import threading
 
-from signal_processor import SignalProcessor
-
 def background_trade_processor(trade_data):
     import asyncio
     try:
