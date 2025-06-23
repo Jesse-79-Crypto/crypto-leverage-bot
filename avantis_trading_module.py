@@ -1961,6 +1961,11 @@ def health_check():
 
 import threading
 
+# ✅ Async trade processor function
+async def process_trade(trade_data):
+    print("🚀 Executing trade:", trade_data)
+    # TODO: Replace this with your actual trade execution logic
+
 def background_trade_processor(trade_data):
     import asyncio
     try:
