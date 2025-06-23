@@ -1138,9 +1138,12 @@ class AvantisTrader:
             logger.info(f"💰 FINAL Entry price: ${entry_price_dollars:.2f} (raw: {entry_price})")
             logger.info(f"💰 Entry price source: {entry_price_source}")
 
-            # Convert USDT pairs to USDC pairs for Avantis  
-            # Get pair index
-            # DEBUG: Show what's in pair_mappings
+            # 🔍 ADD THIS DEBUG CODE HERE (after line 1139):
+            logger.info(f"🔍 ENTRY PRICE DEBUG:")
+            logger.info(f"   - Original webhook price: {trade_data.get('entry_price')}")  
+            logger.info(f"   - entry_price_dollars: ${entry_price_dollars:.2f}")
+            logger.info(f"   - Final entry_price (8 decimals): {entry_price}")
+            logger.info(f"   - Verification: ${entry_price/1e8:.2f}")            
             logger.info(f"🔍 DEBUG: Available pair_mappings = {self.pair_mappings}")
 
             pair_index = self.get_pair_index(symbol)
@@ -1534,17 +1537,13 @@ class AvantisTrader:
             logger.error(f"🚨 FULL ERROR DETAILS: {repr(e)}")
             logger.error("❌ TRADE FAILED - NOT GENERATING FAKE SUCCESS MESSAGES")
 
-            # 🔍 ENHANCED REVERT ANALYSIS: Get detailed error info
             try:
-                # Get the transaction details from BaseScan
                 logger.error(f"🔍 ANALYZING REVERT: Transaction hash 0x{receipt.transactionHash.hex()}")
-                logger.error(f"🔍 BASESCAN LINK: https://basescan.org/tx/0x{receipt.transactionHash.hex()}")
-                
-                # Check if we can get more details about the revert reason
+                logger.error(f"🔍 BASESCAN LINK: https://basescan.org/tx/{receipt.transactionHash.hex()}")
+
                 logger.error(f"🔍 GAS USED: {receipt.gasUsed} / Block: {receipt.blockNumber}")
                 logger.error(f"🔍 CONTRACT ADDRESS: {receipt.to}")
                 
-                # Log the exact parameters we sent
                 logger.error(f"🔍 SENT PARAMETERS:")
                 logger.error(f"   - Trader: {trader_address}")
                 logger.error(f"   - Pair Index: {pair_index}")
