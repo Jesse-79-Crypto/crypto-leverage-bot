@@ -1986,39 +1986,6 @@ def webhook():
 
     threading.Thread(target=background_trade_processor, args=(trade_data,)).start()
     return jsonify({"status": "processing"}), 200
-
-       
-
-        # Process the signal asynchronously
-
-        async def process_webhook():
-
-            return await signal_processor.process_signal(trade_data)
-
-           
-
-        # Run the async processing
-
-        result = asyncio.run(process_webhook())
-
-       
-
-        # Log the result
-
-        if result.get('status') == 'success':
-
-            logger.info(f"✅ Webhook processing successful!")
-
-            logger.info(f"   Trade result: {result.get('trade_result', {})}")
-
-        else:
-
-            logger.warning(f"⚠️ Webhook processing failed: {result.get('error', 'Unknown error')}")
-
-           
-        
-        return result
-
        
 
     except Exception as e:
