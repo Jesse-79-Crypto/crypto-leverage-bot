@@ -1533,7 +1533,28 @@ class AvantisTrader:
             logger.error(f"🚨 ERROR TYPE: {type(e).__name__}")
             logger.error(f"🚨 FULL ERROR DETAILS: {repr(e)}")
             logger.error("❌ TRADE FAILED - NOT GENERATING FAKE SUCCESS MESSAGES")
-        
+
+            # 🔍 ENHANCED REVERT ANALYSIS: Get detailed error info
+            try:
+                # Get the transaction details from BaseScan
+                logger.error(f"🔍 ANALYZING REVERT: Transaction hash 0x{receipt.transactionHash.hex()}")
+                logger.error(f"🔍 BASESCAN LINK: https://basescan.org/tx/0x{receipt.transactionHash.hex()}")
+                
+                # Check if we can get more details about the revert reason
+                logger.error(f"🔍 GAS USED: {receipt.gasUsed} / Block: {receipt.blockNumber}")
+                logger.error(f"🔍 CONTRACT ADDRESS: {receipt.to}")
+                
+                # Log the exact parameters we sent
+                logger.error(f"🔍 SENT PARAMETERS:")
+                logger.error(f"   - Trader: {trader_address}")
+                logger.error(f"   - Pair Index: {pair_index}")
+                logger.error(f"   - Position: {position_usdc} ({position_usdc/1e6:.2f} USDC)")
+                logger.error(f"   - Entry Price: {entry_price} ({entry_price/1e8:.2f})")
+                logger.error(f"   - Leverage: {leverage}")
+                logger.error(f"   - Is Long: {is_long}")
+                
+            except Exception as debug_error:
+                logger.error(f"🔍 DEBUG ERROR: {debug_error}")            
             return {
                 "status": "error",
                 "message": f"Transaction failed: {error_msg}",
