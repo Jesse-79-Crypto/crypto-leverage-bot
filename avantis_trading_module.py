@@ -1966,71 +1966,26 @@ def health_check():
 
  
 
-@app.route('/webhook', methods=['POST'])
+import threading
 
-def webhook():
-
-    """Enhanced webhook endpoint for trading signals with Avantis integration"""
-
-   
-
+def background_trade_processor(trade_data):
+    import asyncio
     try:
+        asyncio.run(process_trade(trade_data))  # ← or your actual trade processor
+    except Exception as e:
+        logger.error(f"❌ Background trade error: {e}")
 
-        trade_data = request.get_json()
-        if not trade_data:
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    trade_data = request.get_json()
+    if not trade_data:
+        logger.error("❌ Empty request body")
+        return {'error': 'Empty request body'}, 400
 
-            logger.error("❌ Empty request body")
+    logger.info("🚀 ELITE BOT v214 - Webhook received")
 
-            return {'error': 'Empty request body'}, 400
-
-        source = trade_data.get('source', 'unknown').lower()
-        
-        
-        # Version tracking - MARGIN FIX VERSION
-
-        logger.info(f"🚀 ELITE TRADING BOT v214-MARGIN-FIX - Processing webhook request")
-
-        time.sleep(2)  # 🚫 Prevent duplicate trades from rapid webhooks
-     
-        logger.info(f"🎯 MARGIN-FOCUSED VERSION - Fixing leverage calculation issue!")
-
-        # ADD THESE 6 LINES HERE ⬇️
-        global TRADE_IN_PROGRESS
-        with TRADE_LOCK:
-            if TRADE_IN_PROGRESS:
-                logger.warning("🚫 TRADE REJECTED - Another trade in progress!")
-                return {'status': 'rejected'}, 429
-            TRADE_IN_PROGRESS = True
-     
-
-        # Parse incoming request
-
-        if not request.is_json:
-
-            logger.error("❌ Request is not JSON")
-
-            return {'error': 'Request must be JSON'}, 400
-
-        
-       # NEW CODE - Add symbol checking
-        symbol = trade_data.get('symbol', '').upper()
-        if not symbol:
-            logger.error("❌ No symbol in signal!")
-            return {'error': 'Missing symbol in signal'}, 400
-    
-        # Check if symbol already has active trade
-        with ACTIVE_TRADES_LOCK:
-            if ACTIVE_TRADES.get(symbol, False):
-                logger.warning(f"🚫 Trade REJECTED - Trade already active for {symbol}!")
-                return {'status': 'rejected', 'reason': f'Trade already active for {symbol}'}, 400
-    
-            # Mark this symbol as active
-            ACTIVE_TRADES[symbol] = True
-            logger.info(f"✅ {symbol} marked as ACTIVE")
-
-           
-
-        logger.info(f"📨 Received signal data: {json.dumps(trade_data, indent=2)}")
+    threading.Thread(target=background_trade_processor, args=(trade_data,)).start()
+    return jsonify({"status": "processing"}), 200
 
        
 
