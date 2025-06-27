@@ -1432,19 +1432,21 @@ class AvantisTrader:
 
             # Build trade struct in correct order for openTrade ABI
             trade_input = (
-                trader_address,           # trader (address)
-                pair_index,               # pairIndex (uint256) - 1 for your pair
-                0,                        # index (uint256)
-                0,                        # initialPosToken (uint256)
-                position_usdc,            # positionSizeUSDC (uint256)
-                0,                        # openPrice (uint256) - 0 for market price
-                is_long,                  # buy (bool)
-                leverage,                 # leverage (uint256)
-                0,                        # tp (uint256) - take profit
-                0,                        # sl (uint256) - stop loss
-                int(time.time())         # timestamp (uint256)
+                trader_address,    # address
+                pair_index,        # pair index
+                0,                 # index
+                0,                 # initialPosToken
+                position_usdc,     # position size
+                0,                 # openPrice (0 = market)
+                is_long,           # bool
+                leverage,          # leverage
+                entry_price - 200_000_000,  # sl
+                entry_price + 200_000_000,  # tp
+                int(time.time())   # timestamp
             )
 
+            logger.info(f"🚨 FINAL trade_input sent to contract: {trade_input}")
+            
             # Build transaction
             nonce = self.w3.eth.get_transaction_count(trader_address)
             gas_price = self.w3.eth.gas_price
