@@ -1325,30 +1325,6 @@ class AvantisTrader:
 
             # Force all trade_params to be integers (addresses decimal precision issue)
 
-            trade_input = TradeInput(
-                
-                trader_address=trader_address,
-                
-                pair_index=pair_index,
-                
-                margin = int(position_usdc_dollars / leverage * 1e6),
-                
-                open_collateral=Decimal(trade_data.get("open_collateral", 0)),
-                
-                collateral_in_trade=Decimal(trade_data.get("collateral_in_trade", 0)),
-                
-                leverage=leverage,
-                
-                buy=is_long,
-                
-                slippage=slippage,
-                
-                order_type=order_type,
-                
-                timestamp=int(time.time())
-                
-            )
-
             logger.info(f"  - slippage_pct: {slippage_pct} (type: {type(slippage_pct).__name__}) - Reduced to 3%")
 
             logger.info(f"  - entry_price value: {entry_price} (${entry_price/100_000_000:.2f})")
