@@ -1431,7 +1431,7 @@ class AvantisTrader:
             logger.info(f"🔄 Step 2: Building transaction with direct contract call")
 
             # Build trade struct in correct order for openTrade ABI
-           trade_input = (
+            trade_input = (
                 trader_address,
                 pair_index,
                 0,
