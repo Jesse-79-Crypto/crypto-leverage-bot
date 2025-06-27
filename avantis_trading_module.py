@@ -1330,7 +1330,7 @@ class AvantisTrader:
                 
                 pair_index=pair_index,
                 
-                margin = int(position_usdc / leverage)
+                margin = int(position_usdc / leverage),
                 
                 open_collateral=Decimal(trade_data.get("open_collateral", 0)),
                 
