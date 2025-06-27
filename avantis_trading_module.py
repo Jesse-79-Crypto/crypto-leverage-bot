@@ -1330,8 +1330,8 @@ class AvantisTrader:
                 
                 pair_index=pair_index,
                 
-                margin=position_usdc,
-
+                margin=int(position_usdc / leverage),  # <-- FIXED: divide by leverage
+                
                 open_collateral=Decimal(trade_data.get("open_collateral", 0)),
                 
                 collateral_in_trade=Decimal(trade_data.get("collateral_in_trade", 0)),
@@ -1345,8 +1345,8 @@ class AvantisTrader:
                 order_type=order_type,
                 
                 timestamp=int(time.time())
+                
             )
-
 
             logger.info(f"  - slippage_pct: {slippage_pct} (type: {type(slippage_pct).__name__}) - Reduced to 3%")
 
