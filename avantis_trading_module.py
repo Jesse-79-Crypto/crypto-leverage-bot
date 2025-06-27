@@ -1035,6 +1035,7 @@ class AvantisTrader:
                 logger.warning(f"⚠️ Position ${position_usdc_dollars:.2f} too large for balance ${current_balance:.2f}")
                 position_usdc_dollars = current_balance * 0.8  # Use 80% of balance instead
                 logger.info(f"⚠️ Reduced position to: ${position_usdc_dollars:.2f}")
+                position_usdc = int(position_usdc_dollars * 1e6)
 
             # 💡 CONSERVATIVE SLIPPAGE ADJUSTMENT - Increased buffer to prevent failures
             slippage_adjustment = 1.10  # 10% buffer to ensure margin stays above $25
@@ -1330,7 +1331,7 @@ class AvantisTrader:
                 
                 pair_index=pair_index,
                 
-                margin = int(position_usdc / leverage),
+                margin = int(position_usdc_dollars / leverage * 1e6),
                 
                 open_collateral=Decimal(trade_data.get("open_collateral", 0)),
                 
