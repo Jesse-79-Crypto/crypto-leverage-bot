@@ -802,10 +802,16 @@ class AvantisTrader:
                     pair_mapping = {}
                     for pair_data in pairs_info:
                         symbol = f"{pair_data.get('from', 'UNKNOWN')}/{pair_data.get('to', 'USDT')}"
-                        pair_index = pair_data.get('pairIndex', 0)
+                        pair_index = pair_data.get('pairIndex')
+                        if pair_index is None:
+                            raise ValueError(f"❌ pairIndex missing in pair_data: {pair_data}")
                         pair_mapping[symbol] = pair_index
+                        logger.info(f"🔍 Full pair mappings: {pair_mapping}")
                 
                     logger.info(f"🎯 Built pair mapping: {pair_mapping}")
+
+                    pair_index = self.get_pair_index("BTC/USD")  # not USDT!
+                    logger.info(f"🔎 Pair index for BTC/USD is: {pair_index}")   
                     return pair_mapping
             
                 except Exception as e:
