@@ -1431,19 +1431,20 @@ class AvantisTrader:
             logger.info(f"🔄 Step 2: Building transaction with direct contract call")
 
             # Build trade struct in correct order for openTrade ABI
-            trade_input = (
-                trader_address,    # address
-                pair_index,        # pair index
-                0,                 # index
-                0,                 # initialPosToken
-                position_usdc,     # position size
-                0,                 # openPrice (0 = market)
-                is_long,           # bool
-                leverage,          # leverage
-                entry_price - 200_000_000,  # sl
-                entry_price + 200_000_000,  # tp
-                int(time.time())   # timestamp
+           trade_input = (
+                trader_address,
+                pair_index,
+                0,
+                0,
+                position_usdc,
+                0,
+                is_long,
+                leverage,
+                0,  # tp
+                0,  # sl
+                int(time.time())
             )
+
 
             logger.info(f"🚨 FINAL trade_input sent to contract: {trade_input}")
             
