@@ -1432,7 +1432,7 @@ class AvantisTrader:
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
             try:
-                approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=20)
+                approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=60)
                 logger.info("✅ USDC approval confirmed after waiting!")
             except Exception as e:
                 if "TimeExhausted" in str(e):
