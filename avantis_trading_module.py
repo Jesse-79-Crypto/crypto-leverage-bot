@@ -808,12 +808,17 @@ class AvantisTrader:
                         pair_mapping[symbol] = pair_index
                         logger.info(f"🔍 Full pair mappings: {pair_mapping}")
                 
-                    logger.info(f"🎯 Built pair mapping: {pair_mapping}")
+                    logger.info(f"🎯 Built pair mapping: {pair_mapping}")                    
 
                     pair_index = self.get_pair_index("BTC/USDT")  
                     logger.info(f"🔎 Pair index for BTC/USD is: {pair_index}")   
                     return pair_mapping
-            
+
+                    # ✅ Optional debug line
+                    print("🧪 pair_mapping debug:", pair_mapping)  
+
+                    pair_index = self.get_pair_index("BTC/USDT")  # not USD!
+                    logger.info(f"🔎 Pair index for BTC/USDT is: {pair_index}")            
                 except Exception as e:
                     logger.error(f"❌ Failed to fetch pairs: {e}")
                     return None
