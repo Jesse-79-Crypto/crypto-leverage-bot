@@ -810,7 +810,7 @@ class AvantisTrader:
                 
                     logger.info(f"🎯 Built pair mapping: {pair_mapping}")
 
-                    pair_index = self.get_pair_index("BTC/USD")  # not USDT!
+                    pair_index = self.get_pair_index("BTC/USDT")  
                     logger.info(f"🔎 Pair index for BTC/USD is: {pair_index}")   
                     return pair_mapping
             
