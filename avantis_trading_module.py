@@ -1445,16 +1445,17 @@ class AvantisTrader:
             trade_input = (
                 trader_address,
                 pair_index,
-                0,
-                0,
+                int(slippage_pct * 1e10),  # Slippage tolerance in fixed point format
+                tp_price_raw,
                 position_usdc,
-                0,
+                Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),  # null referrer
                 is_long,
                 leverage,
-                0,  # tp
-                0,  # sl
-                int(time.time())
+                sl_price_raw,
+                0,  # spreadReductionId (future upgrade)
+                int(time.time()) + 300  # deadline = now + 5 minutes
             )
+
 
 
             logger.info(f"🚨 FINAL trade_input sent to contract: {trade_input}")
