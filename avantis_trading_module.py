@@ -1420,8 +1420,8 @@ class AvantisTrader:
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
             try:
-                approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=60)
-                logger.info("✅ USDC approval confirmed after waiting!")
+                logger.info(f"📤 Trade transaction sent! TX Hash: {tx_hash.hex()}")
+                logger.info(f"⏳ Skipping receipt wait to avoid Heroku timeout")
             except Exception as e:
                 if "TimeExhausted" in str(e):
                     logger.info("⏰ Checking if approval completed anyway...")
