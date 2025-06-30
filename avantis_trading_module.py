@@ -1448,17 +1448,16 @@ class AvantisTrader:
             
             # Build trade struct in correct order for openTrade ABI
             trade_input = (
-                trader_address,
-                pair_index,
-                int(slippage_pct * 1e10),  # Slippage tolerance in fixed point format
-                tp_price_raw,
-                position_usdc,
-                Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),  # null referrer
-                is_long,
-                leverage,
-                sl_price_raw,
-                0,  # spreadReductionId (future upgrade)
-                int(time.time()) + 300  # deadline = now + 5 minutes
+                trader_address,                  # address
+                pair_index,                      # uint256
+                tp_price_raw,                    # uint256 - take profit price
+                position_usdc,                   # uint256 - position size
+                0,                               # uint256 - referrer (0 = no referrer)
+                is_long,                         # bool
+                leverage,                        # uint256
+                sl_price_raw,                    # uint256 - stop loss price
+                0,                               # uint256 - spreadReductionId
+                int(time.time()) + 300           # uint256 - deadline
             )
 
             logger.info(f"🚨 FINAL trade_input sent to contract: {trade_input}")
