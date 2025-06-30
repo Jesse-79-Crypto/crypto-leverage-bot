@@ -1420,6 +1420,12 @@ class AvantisTrader:
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
             import time
             time.sleep(3)  # Wait 3 seconds for approval to process on blockchain
+            current_allowance = self.usdc_contract.functions.allowance(trader_address, AVANTIS_TRADING_CONTRACT).call()
+            logger.info(f"🔍 CURRENT ALLOWANCE: {current_allowance} (${current_allowance/1e6:.2f})")
+            if current_allowance < 10000000:
+                logger.error(f"❌ APPROVAL FAILED! Only {current_allowance} approved, need 10000000")
+            else:
+                logger.info(f"✅ APPROVAL VERIFIED: ${current_allowance/1e6:.2f} USDC approved")
             try:
                 logger.info(f"📤 Approval transaction sent! TX Hash: {approve_hash.hex()}")
                 logger.info(f"⏳ Skipping receipt wait to avoid Heroku timeout")
