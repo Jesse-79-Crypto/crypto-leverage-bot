@@ -1450,7 +1450,7 @@ class AvantisTrader:
             trade_input = (
                 trader_address,                  # address
                 pair_index,                      # uint256
-                0,                               # uint256 - index (position index)
+                int(entry_price),                # uint256 - entry price (not 0!)
                 tp_price_raw,                    # uint256 - take profit price
                 int(position_usdc / leverage),   # Send margin instead of full position
                 0,                               # uint256 - referrer (0 = no referrer)
