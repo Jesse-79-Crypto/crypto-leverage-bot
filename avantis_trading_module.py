@@ -1409,7 +1409,7 @@ class AvantisTrader:
             logger.info(f"🔍 USDC Balance BEFORE trade: ${balance_before:.6f}") 
             # 🔑 APPROVE USDC FIRST (THE MISSING PIECE!)
             logger.info("🔑 Step 1: Approving USDC spending...")
-            approve_amount = position_usdc  # Amount to approve
+            approve_amount = 10000000  # Approve exactly $10 to match what we're sending
             approve_txn = self.usdc_contract.functions.approve(AVANTIS_TRADING_CONTRACT, approve_amount).build_transaction({
                 'from': trader_address,
                 'gas': 100000,
@@ -1418,6 +1418,8 @@ class AvantisTrader:
             })
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
+            import time
+            time.sleep(3)  # Wait 3 seconds for approval to process on blockchain
             try:
                 logger.info(f"📤 Approval transaction sent! TX Hash: {approve_hash.hex()}")
                 logger.info(f"⏳ Skipping receipt wait to avoid Heroku timeout")
