@@ -1480,6 +1480,7 @@ class AvantisTrader:
                 transaction_data, TradingConfig.PRIVATE_KEY
             )
 
+            tx_hash_str = None  # Initialize before try block
             # 🚀 Send transaction and wait for confirmation            
             tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
             tx_hash_str = tx_hash.hex()
@@ -1492,14 +1493,13 @@ class AvantisTrader:
 
             return jsonify({
                 "status": "trade_sent",
-                "tx_hash": tx_hash_str,
+                "tx_hash": tx_hash_str if tx_hash_str else "unknown",
                 "message": "Trade signal received and transaction sent. Monitoring continues asynchronously."
             }), 200
-                    except:
-                        logger.info("❌ Trade failed - will retry on next signal")
-                        raise e
-                else:
-                    raise e
+        except Exception as e:
+            logger.info("❌ Trade failed - will retry on next signal")
+            raise e
+                   
             if receipt.status == 1:
                 logger.info(f"✅ Trade executed successfully! Gas used: {receipt.gasUsed}")
                 logger.info(f"🔗 BaseScan: https://basescan.org/tx/{tx_hash_str}")
@@ -1514,8 +1514,11 @@ class AvantisTrader:
                     "block_number": receipt.blockNumber
                 }
             else:
-                logger.info(f"📋 Receipt: {receipt}")
-                raise Exception(f"Transaction reverted: {tx_hash_str}")        
+                logger.info(f"📄 Receipt: {receipt}")
+                if tx_hash_str:
+                    raise Exception(f"Transaction reverted: {tx_hash_str}")
+                else:
+                    raise Exception("Transaction reverted: hash unknown")        
 
         except Exception as e:
             error_msg = str(e)
