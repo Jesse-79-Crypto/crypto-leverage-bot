@@ -1420,7 +1420,7 @@ class AvantisTrader:
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
             try:
-                logger.info(f"📤 Trade transaction sent! TX Hash: {tx_hash.hex()}")
+                logger.info(f"📤 Trade transaction sent! TX Hash: {tx_hash_str}")
                 logger.info(f"⏳ Skipping receipt wait to avoid Heroku timeout")
             except Exception as e:
                 if "TimeExhausted" in str(e):
