@@ -161,9 +161,6 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 # ✅ Load official Avantis Trading contract using SDK
 from avantis_trader_sdk import TraderClient
 
-# Manually define the official Avantis Trading contract (confirmed)
-avantis_contract_address = "0x05B9E58232f15E44C5646aBd2Cd2736D6f81f8A6"  # <-- This is the real one from earlier
-
 # Correct Avantis ABI with openTrade function
 AVANTIS_TRADING_ABI = [
     {
@@ -1452,7 +1449,7 @@ class AvantisTrader:
                 pair_index,                      # pairIndex (uint256)  
                 0,                               # index (uint256) - position index
                 0,                               # initialPosToken (uint256) - usually 0
-                int(position_usdc / leverage),   # Send $44 margin (correct!)
+                10000000,                        # Test with exactly $10 like your successful manual trade
                 int(entry_price),                # openPrice (uint256) - ENTRY PRICE GOES HERE!
                 is_long,                         # buy (bool)
                 leverage,                        # leverage (uint256)
