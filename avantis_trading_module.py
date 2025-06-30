@@ -1456,14 +1456,13 @@ class AvantisTrader:
                 int(time.time()) + 300  # deadline = now + 5 minutes
             )
 
-
-
             logger.info(f"🚨 FINAL trade_input sent to contract: {trade_input}")
             
             # Build transaction
-            nonce = self.w3.eth.get_transaction_count(trader_address)
+            nonce = self.w3.eth.get_transaction_count(trader_address, 'pending')
             gas_price = self.w3.eth.gas_price
-
+            gas_price = int(gas_price * 1.2)
+            
             transaction_data = self.avantis_contract.functions.openTrade(
                 trade_input,              # TradeInput struct
                 0,                        # order type (uint8) - 0 for market
@@ -1550,12 +1549,9 @@ class AvantisTrader:
                 "error_type": type(e).__name__
             }
   
-
         except Exception as e:
 
             logger.error(f"❌ Avantis trade execution failed: {str(e)}")
-
-           
 
             # Enhanced error analysis for BELOW_MIN_POS
 
@@ -1596,7 +1592,6 @@ class AvantisTrader:
 # Initialize Avantis trader
 
 avantis_trader = AvantisTrader()
-
  
 
 # ============================================================================
@@ -1605,13 +1600,10 @@ avantis_trader = AvantisTrader()
 
 # ============================================================================
 
- 
-
 class SignalProcessor:
 
     """Advanced signal processing and validation engine"""
 
-   
 
     def __init__(self):
 
@@ -1620,7 +1612,6 @@ class SignalProcessor:
         self.trader = avantis_trader
 
        
-
     async def process_signal(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
 
         """Process incoming trading signal from any source"""
@@ -1681,8 +1672,7 @@ class SignalProcessor:
                 'trade_result': trade_result
 
             }
-
-           
+    
 
         except Exception as e:
 
@@ -1697,7 +1687,6 @@ class SignalProcessor:
             }
 
            
-
     def _process_generic_signal(self, trade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
         if not trade_data:
