@@ -1443,6 +1443,9 @@ class AvantisTrader:
 
             logger.info(f"🔄 Step 2: Building transaction with direct contract call")
 
+            tp_price_raw = 0  # No take profit for now
+            sl_price_raw = 0  # No stop loss for now 
+            
             # Build trade struct in correct order for openTrade ABI
             trade_input = (
                 trader_address,
