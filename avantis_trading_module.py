@@ -1452,7 +1452,7 @@ class AvantisTrader:
                 pair_index,                      # uint256
                 int(entry_price),                # uint256 - entry price (not 0!)
                 tp_price_raw,                    # uint256 - take profit price
-                int(position_usdc / leverage),   # Send margin instead of full position
+                position_usdc,                   # Send $220 full position again
                 0,                               # uint256 - referrer (0 = no referrer)
                 is_long,                         # bool
                 leverage,                        # uint256
