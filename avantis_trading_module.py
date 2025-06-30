@@ -1405,7 +1405,9 @@ class AvantisTrader:
 
                 logger.info(f"  - Slippage: {slippage_pct} ({type(slippage_pct).__name__})")
 
-           
+                logger.info(f"💰 USDC Balance BEFORE trade: ${balance_before:.6f}")
+                tx_hash_str = None  # Initialize before any transaction attempts   
+                
             balance_before = self.usdc_contract.functions.balanceOf(trader_address).call() / 1e6
             logger.info(f"🔍 USDC Balance BEFORE trade: ${balance_before:.6f}") 
             # 🔑 APPROVE USDC FIRST (THE MISSING PIECE!)
@@ -1415,12 +1417,12 @@ class AvantisTrader:
                 'from': trader_address,
                 'gas': 100000,
                 'gasPrice': self.w3.eth.gas_price,
-                'nonce': self.w3.eth.get_transaction_count(trader_address),
+                'nonce': self.w3.eth.get_transaction_count(trader_address, 'pending'),
             })
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
             try:
-                logger.info(f"📤 Trade transaction sent! TX Hash: {tx_hash_str}")
+                logger.info(f"📤 Approval transaction sent! TX Hash: {approve_hash.hex()}")
                 logger.info(f"⏳ Skipping receipt wait to avoid Heroku timeout")
             except Exception as e:
                 if "TimeExhausted" in str(e):
@@ -1479,7 +1481,6 @@ class AvantisTrader:
                 transaction_data, TradingConfig.PRIVATE_KEY
             )
 
-            tx_hash_str = None  # Initialize before try block
             # 🚀 Send transaction and wait for confirmation            
             tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
             tx_hash_str = tx_hash.hex()
