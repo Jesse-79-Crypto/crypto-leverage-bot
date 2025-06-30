@@ -1452,7 +1452,7 @@ class AvantisTrader:
                 pair_index,                      # pairIndex (uint256)  
                 0,                               # index (uint256) - position index
                 0,                               # initialPosToken (uint256) - usually 0
-                position_usdc,                   # positionSizeUSDC (uint256) - position size
+                int(position_usdc / leverage),   # Send $44 margin (correct!)
                 int(entry_price),                # openPrice (uint256) - ENTRY PRICE GOES HERE!
                 is_long,                         # buy (bool)
                 leverage,                        # leverage (uint256)
@@ -1494,11 +1494,11 @@ class AvantisTrader:
             logger.info(f"📤 Trade transaction sent! TX Hash: {tx_hash_str}")
             logger.info(f"⏳ Skipping confirmation wait to avoid Heroku 30s timeout")
 
-            return jsonify({
+            return {
                 "status": "trade_sent",
                 "tx_hash": tx_hash_str if tx_hash_str else "unknown",
                 "message": "Trade signal received and transaction sent. Monitoring continues asynchronously."
-            }), 200
+            }
         except Exception as e:
             logger.info("❌ Trade failed - will retry on next signal")
             raise e
