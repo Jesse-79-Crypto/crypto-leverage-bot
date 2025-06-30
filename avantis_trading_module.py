@@ -1487,19 +1487,14 @@ class AvantisTrader:
             logger.info(f"📨 Sent trade tx: {tx_hash_str}")
             logger.info(f"⏳ Waiting for confirmation...")
 
-            try:
-                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-                logger.info("✅ Trade confirmed after waiting!")
-            except Exception as e:
-                if "TimeExhausted" in str(e):
-                    logger.info("⏰ Checking if trade completed anyway...")
-                    try:
-                        receipt = self.w3.eth.get_transaction_receipt(tx_hash)
-                        if receipt and receipt.status == 1:
-                            logger.info("🎉 SUCCESS! Trade completed despite timeout!")
-                        else:
-                            logger.info("❌ Trade still pending - network very slow today")
-                            raise e
+            logger.info(f"📤 Trade transaction sent! TX Hash: {tx_hash_str}")
+            logger.info(f"⏳ Skipping confirmation wait to avoid Heroku 30s timeout")
+
+            return jsonify({
+                "status": "trade_sent",
+                "tx_hash": tx_hash_str,
+                "message": "Trade signal received and transaction sent. Monitoring continues asynchronously."
+            }), 200
                     except:
                         logger.info("❌ Trade failed - will retry on next signal")
                         raise e
