@@ -1448,17 +1448,17 @@ class AvantisTrader:
             
             # Build trade struct in correct order for openTrade ABI
             trade_input = (
-                trader_address,                  # address
-                pair_index,                      # uint256
-                int(entry_price),                # uint256 - entry price (not 0!)
-                tp_price_raw,                    # uint256 - take profit price
-                position_usdc,                   # Send $220 full position again
-                0,                               # uint256 - referrer (0 = no referrer)
-                is_long,                         # bool
-                leverage,                        # uint256
-                sl_price_raw,                    # uint256 - stop loss price
-                0,                               # uint256 - spreadReductionId
-                int(time.time()) + 300           # uint256 - deadline
+                trader_address,                  # trader (address)
+                pair_index,                      # pairIndex (uint256)  
+                0,                               # index (uint256) - position index
+                0,                               # initialPosToken (uint256) - usually 0
+                position_usdc,                   # positionSizeUSDC (uint256) - position size
+                int(entry_price),                # openPrice (uint256) - ENTRY PRICE GOES HERE!
+                is_long,                         # buy (bool)
+                leverage,                        # leverage (uint256)
+                tp_price_raw,                    # tp (uint256) - take profit
+                sl_price_raw,                    # sl (uint256) - stop loss
+                int(time.time()) + 300           # timestamp (uint256) - deadline
             )
 
             logger.info(f"🚨 FINAL trade_input sent to contract: {trade_input}")
