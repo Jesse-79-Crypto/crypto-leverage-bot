@@ -1462,7 +1462,7 @@ class AvantisTrader:
             sl_price_raw = 0  # No stop loss for now 
             
             # Build trade struct in correct order for openTrade ABI
-           trade_input = (
+            trade_input = (
                 trader_address,                  # address
                 pair_index,                      # uint256
                 0,                               # index
