@@ -1467,7 +1467,7 @@ class AvantisTrader:
                 pair_index,                      # uint256
                 0,                               # index
                 0,                               # initialPosToken
-                50000000,                        # $50 POSITION SIZE (not $10 collateral)
+                10000000,                        # Exactly $10 like your successful manual trade,                       
                 int(entry_price),                # openPrice
                 is_long,                         # bool
                 leverage,                        # uint256
