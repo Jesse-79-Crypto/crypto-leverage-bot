@@ -806,8 +806,26 @@ class BMXTrader:
             # Wait for approval
             import time
             time.sleep(3)
-            
-            # Step 2: Create position via BMX Position Router
+
+            # Step 2: Approve Position Router as Plugin (BMX requirement)
+            logger.info("🔐 Approving Position Router as BMX plugin...")
+
+            plugin_approval_txn = self.bmx_vault.functions.approvePlugin(
+                BMX_POSITION_ROUTER
+            ).build_transaction({
+                'from': trader_address,
+                'gas': 100000,
+                'gasPrice': int(self.w3.eth.gas_price * 1.1),
+                'nonce': self.w3.eth.get_transaction_count(trader_address)
+            })
+
+            signed_plugin = self.w3.eth.account.sign_transaction(plugin_approval_txn, TradingConfig.PRIVATE_KEY)
+            plugin_hash = self.w3.eth.send_raw_transaction(signed_plugin.rawTransaction)
+            logger.info(f"✅ Plugin approved! Hash: {plugin_hash.hex()}")
+
+            time.sleep(3) 
+
+            # Step 3: Create position via BMX Position Router
             # 🔧 CRITICAL FIX: Use correct token addresses
             collateral_token = USDC_CONTRACT  # ✅ Collateral = USDC (what we deposit as margin)
             
