@@ -324,6 +324,12 @@ class Web3Manager:
                 abi=usdc_abi
             )
 
+            # BMX Position Router contract
+            self.bmx_position_router = self.w3.eth.contract(
+                address=BMX_POSITION_ROUTER,
+                abi=BMX_POSITION_ROUTER_ABI
+            )  
+            
             # BMX Token contract
             bmx_token_abi = [
                 {
