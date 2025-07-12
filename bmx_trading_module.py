@@ -645,8 +645,8 @@ class BMXTrader:
             leverage = int(trade_data.get('leverage', TradingConfig.DEFAULT_LEVERAGE))
 
             # Get supported symbol for BMX
-            bmx_symbol = self.get_supported_symbol(symbol)
-            logger.info(f"🎯 Trading symbol: {symbol} -> BMX: {bmx_symbol}")
+            symbol = self.get_supported_symbol(symbol)
+            logger.info(f"🎯 Trading symbol: {symbol} -> BMX: {symbol}")
 
             # 🚀 DYNAMIC POSITION SIZING (PRESERVED FROM ORIGINAL)
             trader_address = self.web3_manager.account.address
@@ -721,7 +721,7 @@ class BMXTrader:
             # Execute the BMX trade
             result = await self._execute_bmx_trade(
                 trader_address=trader_address,
-                symbol=bmx_symbol,
+                symbol=symbol,
                 position_usdc_dollars=position_usdc_dollars,
                 entry_price=entry_price_dollars,
                 leverage=leverage,
@@ -806,15 +806,15 @@ class BMXTrader:
             collateral_token = USDC_CONTRACT  # ✅ Collateral = USDC (what we deposit as margin)
             
             # 🎯 Get the actual trading token address (BTC, ETH, etc.)
-            if bmx_symbol not in self.supported_tokens:
-                logger.error(f"❌ Unsupported symbol: {bmx_symbol}")
-                return {"status": "error", "error": f"Unsupported symbol: {bmx_symbol}"}
+            if symbol not in self.supported_tokens:
+                logger.error(f"❌ Unsupported symbol: {symbol}")
+                return {"status": "error", "error": f"Unsupported symbol: {symbol}"}
                 
-            index_token = self.supported_tokens[bmx_symbol]['address']  # ✅ Index = actual asset we're trading
+            index_token = self.supported_tokens[symbol]['address']  # ✅ Index = actual asset we're trading
             
             logger.info(f"🔧 TOKEN SETUP:")
             logger.info(f"   - Collateral (margin): USDC {collateral_token}")
-            logger.info(f"   - Index (trading): {bmx_symbol} {index_token}")
+            logger.info(f"   - Index (trading): {symbol} {index_token}")
             
             size_delta = int(position_usdc_dollars * 1e30)  # Position size in USD (30 decimals)
             acceptable_price = int(entry_price * 1.05 * 1e30) if is_long else int(entry_price * 0.95 * 1e30)
