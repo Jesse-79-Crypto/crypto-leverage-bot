@@ -555,31 +555,31 @@ class BMXTrader:
         return {
             'BTC': {
                 'symbol': 'BTC',
-                'address': '0x8e3BCC334657560253B83f08331d85267316e08a',  # ✅ Real cbBTC on Base
+                'address': Web3.to_checksum_address(0x8e3BCC334657560253B83f08331d85267316e08a',  # ✅ Real cbBTC on Base
                 'precision': 8,
                 'coingecko_id': 'bitcoin'
             },
             'ETH': {
                 'symbol': 'ETH', 
-                'address': '0x4200000000000000000000000000000000000006',  # ✅ Real WETH on Base
+                'address': Web3.to_checksum_address(0x4200000000000000000000000000000000000006',  # ✅ Real WETH on Base
                 'precision': 18,
                 'coingecko_id': 'ethereum'
             },
             'SOL': {
                 'symbol': 'SOL',
-                'address': '0x22a31BD4cB694433B6de19e8aE1972E3C5e0D40C',  # ✅ SOL on Base (bridged)
+                'address': Web3.to_checksum_address(0x22a31BD4cB694433B6de19e8aE1972E3C5e0D40C',  # ✅ SOL on Base (bridged)
                 'precision': 9,
                 'coingecko_id': 'solana'
             },
             'LINK': {
                 'symbol': 'LINK',
-                'address': '0x491e136ff7ff03e6ab097e54734697bb5802fc1c',  # ✅ Real LINK on Base
+                'address': Web3.to_checksum_address(0x491e136ff7ff03e6ab097e54734697bb5802fc1c',  # ✅ Real LINK on Base
                 'precision': 18,
                 'coingecko_id': 'chainlink'
             },
             'AVAX': {
                 'symbol': 'AVAX',
-                'address': '0x4158734D47Fc9692176B5085E0F52ee0Da5d47F1',  # ✅ AVAX on Base (if supported)
+                'address': Web3.to_checksum_address(0x4158734D47Fc9692176B5085E0F52ee0Da5d47F1',  # ✅ AVAX on Base (if supported)
                 'precision': 18,
                 'coingecko_id': 'avalanche-2'
             }
