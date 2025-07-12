@@ -322,13 +322,7 @@ class Web3Manager:
             self.usdc_contract = self.w3.eth.contract(
                 address=TradingConfig.USDC_CONTRACT,
                 abi=usdc_abi
-            )
-
-            # BMX Position Router contract
-            self.bmx_position_router = self.w3.eth.contract(
-                address=BMX_POSITION_ROUTER,
-                abi=BMX_POSITION_ROUTER_ABI
-            )  
+            ) 
             
             # BMX Token contract
             bmx_token_abi = [
@@ -543,7 +537,13 @@ class BMXTrader:
                 address=USDC_CONTRACT,
                 abi=USDC_ABI
             )
-        
+
+            # BMX Position Router contract
+            self.bmx_position_router = self.w3.eth.contract(
+                address=BMX_POSITION_ROUTER,
+                abi=BMX_POSITION_ROUTER_ABI
+            ) 
+            
             logging.info("✅ BMX contracts initialized successfully!")
         
         except Exception as e:
