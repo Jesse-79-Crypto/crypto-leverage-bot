@@ -824,7 +824,7 @@ class BMXTrader:
             
             size_delta = int(position_usdc_dollars * 1e30)  # Position size in USD (30 decimals)
             acceptable_price = int(entry_price * 1.05 * 1e30) if is_long else int(entry_price * 0.95 * 1e30)
-            execution_fee = self.w3.eth.gas_price * 200000  # Execution fee for keeper
+            execution_fee = int(0.001 * 1e18)  # 0.001 ETH execution fee
             
             logger.info(f"🎯 CREATING BMX POSITION:")
             logger.info(f"   - Collateral: ${position_usdc/1e6:.2f} USDC")
