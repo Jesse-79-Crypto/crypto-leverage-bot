@@ -543,6 +543,21 @@ class BMXTrader:
                 address=BMX_POSITION_ROUTER,
                 abi=BMX_POSITION_ROUTER_ABI
             ) 
+
+            # BMX Vault contract
+            vault_abi = [
+                {
+                    "inputs": [{"name": "_plugin", "type": "address"}],
+                    "name": "approvePlugin",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                }
+            ]
+            self.bmx_vault = self.w3.eth.contract(
+                address=BMX_VAULT_CONTRACT,
+                abi=vault_abi
+            )
             
             logging.info("✅ BMX contracts initialized successfully!")
         
