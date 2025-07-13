@@ -842,7 +842,7 @@ class BMXTrader:
             plugin_hash = self.w3.eth.send_raw_transaction(signed_plugin.rawTransaction)
             logger.info(f"✅ Plugin approved! Hash: {plugin_hash.hex()}")
 
-            time.sleep(10) 
+            time.sleep(20) 
 
             # Step 3: Create position via BMX Position Router
             # 🔧 CRITICAL FIX: Use correct token addresses
