@@ -604,6 +604,10 @@ class BMXTrader:
         """Get supported symbol from various input formats with validation"""
         # Clean up symbol format
         clean_symbol = symbol.replace('/USD', '').replace('/USDT', '').replace('USD', '').upper()
+
+        logger.info(f"🔍 Converting symbol: {symbol} -> {clean_symbol}")
+        available = list(self.supported_tokens.keys())
+        logger.info(f"📋 Available tokens: {available}")
         
         if clean_symbol in self.supported_tokens:
             logger.info(f"✅ Symbol {symbol} → {clean_symbol} (supported)")
