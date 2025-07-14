@@ -603,7 +603,7 @@ class BMXTrader:
     def get_supported_symbol(self, symbol: str) -> Optional[str]:
         """Get supported symbol from various input formats with validation"""
         # Clean up symbol format
-        clean_symbol = symbol.replace('/USD', '').replace('/USDT', '').replace('USD', '').upper()
+        clean_symbol = symbol.replace('/USDT', '').replace('/USD', '').replace('USD', '').upper()
 
         logger.info(f"🔍 Converting symbol: {symbol} -> {clean_symbol}")
         available = list(self.supported_tokens.keys())
