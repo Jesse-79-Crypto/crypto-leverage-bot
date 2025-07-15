@@ -40,7 +40,7 @@ BMX_VAULT_CONTRACT = "0x9cC4E8e60a2c9a67Ac7D20f54607f98EfBA38AcF"    # ✅ BMX V
 BMX_READER_CONTRACT = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"   # ✅ Reader (same as router)
 
 BMX_ROUTER_CONTRACT = "0xC608188e753b1e9558731724b7F7Cdde40c3b174"  # ✅ CORRECT
-PLUGIN_CONTRACT = "0x927f9c03d1ac6e2630d31e614f226b5ed028d443"  # ✅ NEW
+PLUGIN_CONTRACT = Web3.to_checksum_address("0x927f9c03d1ac6e2630d31e614f226b5ed028d443")
 # USDC ABI (same as before)
 USDC_ABI = [
     {
@@ -833,7 +833,7 @@ class BMXTrader:
             
             # Step 1: Approve USDC for Position Router
             position_usdc = int(position_usdc_dollars / leverage * 1e6)  # Margin in USDC
-            approve_amount = position_usdc * 10  # Approve 10x for safety
+            approve_amount = min(position_usdc * 3, int(balance * 0.9 * 1e6))  # ✅ 3x or 90% of balance
             
             logger.info(f"💰 APPROVING ${approve_amount/1e6:.2f} USDC for BMX Position Router...")
             
