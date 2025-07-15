@@ -833,7 +833,7 @@ class BMXTrader:
             
             # Step 1: Approve USDC for Position Router
             position_usdc = int(position_usdc_dollars / leverage * 1e6)  # Margin in USDC
-            approve_amount = min(position_usdc * 3, int(balance * 0.9 * 1e6))  # ✅ 3x or 90% of balance
+            approve_amount = position_usdc * 3  # ✅ Simple: $42 × 3 = $126
             
             logger.info(f"💰 APPROVING ${approve_amount/1e6:.2f} USDC for BMX Position Router...")
             
