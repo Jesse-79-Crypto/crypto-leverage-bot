@@ -39,6 +39,7 @@ BMX_POSITION_ROUTER = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"  # ✅ BMX Po
 BMX_VAULT_CONTRACT = "0x9cC4E8e60a2c9a67Ac7D20f54607f98EfBA38AcF"    # ✅ BMX Vault
 BMX_READER_CONTRACT = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"   # ✅ Reader (same as router)
 
+BMX_ROUTER_CONTRACT = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"  # ✅ Same as Position Router
 # USDC ABI (same as before)
 USDC_ABI = [
     {
@@ -558,7 +559,11 @@ class BMXTrader:
                 address=BMX_VAULT_CONTRACT,
                 abi=vault_abi
             )
-            
+
+            self.bmx_router = self.w3.eth.contract(
+                address=BMX_ROUTER_CONTRACT,
+                abi=vault_abi  # ✅ Use same ABI as vault for now
+            )
             logging.info("✅ BMX contracts initialized successfully!")
         
         except Exception as e:
