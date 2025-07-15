@@ -39,7 +39,7 @@ BMX_POSITION_ROUTER = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"  # ✅ BMX Po
 BMX_VAULT_CONTRACT = "0x9cC4E8e60a2c9a67Ac7D20f54607f98EfBA38AcF"    # ✅ BMX Vault
 BMX_READER_CONTRACT = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"   # ✅ Reader (same as router)
 
-BMX_ROUTER_CONTRACT = "0x9cC4E8e60a2c9a67Ac7D20f54607f98EfBA38AcF"  # ✅ Use Vault as Router
+BMX_ROUTER_CONTRACT = "0xC608188e753b1e9558731724b7F7Cdde40c3b174"  # ✅ REAL Router!
 # USDC ABI (same as before)
 USDC_ABI = [
     {
@@ -834,7 +834,7 @@ class BMXTrader:
             # Step 2: Approve Position Router as Plugin (BMX requirement)
             logger.info("🔐 Approving Position Router as BMX plugin...")
 
-            plugin_approval_txn = self.bmx_vault.functions.approvePlugin(
+            plugin_approval_txn = self.bmx_router.functions.approvePlugin(  # ✅ Use real router
                 BMX_POSITION_ROUTER
             ).build_transaction({
                 'from': trader_address,
