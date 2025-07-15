@@ -902,6 +902,11 @@ class BMXTrader:
             
             logger.info(f"🚀 BMX POSITION CREATED! Hash: {position_hash.hex()}")
             logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
+
+            receipt = self.w3.eth.wait_for_transaction_receipt(position_hash)
+            if receipt.status != 1:
+                raise Exception("Position creation transaction failed!")
+            logger.info(f"✅ Position creation confirmed on-chain! Block: {receipt.blockNumber}")
             
             # Check balance after
             balance_after = self.usdc_contract.functions.balanceOf(trader_address).call() / 1e6
