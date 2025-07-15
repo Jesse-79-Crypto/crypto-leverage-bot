@@ -590,7 +590,7 @@ class BMXTrader:
 
             self.bmx_router = self.w3.eth.contract(
                 address=BMX_ROUTER_CONTRACT,
-                abi=vault_abi  # ✅ Use same ABI as vault for now
+                abi=ROUTER_ABI  # ✅ NEW
             )
             logging.info("✅ BMX contracts initialized successfully!")
         
@@ -862,8 +862,8 @@ class BMXTrader:
             # Step 2: Approve Position Router as Plugin (BMX requirement)
             logger.info("🔐 Approving Position Router as BMX plugin...")
 
-            plugin_approval_txn = self.bmx_router.functions.approvePlugin(  # ✅ Use real router
-                BMX_POSITION_ROUTER
+            plugin_approval_txn = self.bmx_router.functions.approvePlugin(
+                PLUGIN_CONTRACT
             ).build_transaction({
                 'from': trader_address,
                 'gas': 100000,
