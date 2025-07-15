@@ -898,7 +898,11 @@ class BMXTrader:
             
             # Execute position transaction
             signed_position = self.w3.eth.account.sign_transaction(position_txn, TradingConfig.PRIVATE_KEY)
-            position_hash = self.w3.eth.send_raw_transaction(signed_position.rawTransaction)
+            try:
+                position_hash = self.w3.eth.send_raw_transaction(signed_position.rawTransaction)
+            except Exception as e:
+                logger.error(f"❌ Failed to send position transaction: {e}")
+                raise
             
             logger.info(f"🚀 BMX POSITION CREATED! Hash: {position_hash.hex()}")
             logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
