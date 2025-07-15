@@ -847,6 +847,11 @@ class BMXTrader:
             plugin_hash = self.w3.eth.send_raw_transaction(signed_plugin.rawTransaction)
             logger.info(f"✅ Plugin approved! Hash: {plugin_hash.hex()}") 
 
+            receipt = self.w3.eth.wait_for_transaction_receipt(plugin_hash)
+            if receipt.status != 1:
+                raise Exception("Plugin approval transaction failed!")
+            logger.info(f"✅ Plugin approval confirmed on-chain! Block: {receipt.blockNumber}")
+            
             # Step 3: Create position via BMX Position Router
             # 🔧 CRITICAL FIX: Use correct token addresses
             collateral_token = USDC_CONTRACT  # ✅ Collateral = USDC (what we deposit as margin)
