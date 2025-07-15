@@ -829,7 +829,7 @@ class BMXTrader:
             # Step 2: Approve Position Router as Plugin (BMX requirement)
             logger.info("🔐 Approving Position Router as BMX plugin...")
 
-            plugin_approval_txn = self.bmx_vault.functions.approvePlugin(
+            plugin_approval_txn = self.bmx_router.functions.approvePlugin(
                 BMX_POSITION_ROUTER
             ).build_transaction({
                 'from': trader_address,
@@ -840,9 +840,7 @@ class BMXTrader:
 
             signed_plugin = self.w3.eth.account.sign_transaction(plugin_approval_txn, TradingConfig.PRIVATE_KEY)
             plugin_hash = self.w3.eth.send_raw_transaction(signed_plugin.rawTransaction)
-            logger.info(f"✅ Plugin approved! Hash: {plugin_hash.hex()}")
-
-            time.sleep(20) 
+            logger.info(f"✅ Plugin approved! Hash: {plugin_hash.hex()}") 
 
             # Step 3: Create position via BMX Position Router
             # 🔧 CRITICAL FIX: Use correct token addresses
