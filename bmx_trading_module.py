@@ -805,7 +805,7 @@ class BMXTrader:
             
             # Step 1: Approve USDC for Position Router
             position_usdc = int(position_usdc_dollars / leverage * 1e6)  # Margin in USDC
-            approve_amount = position_usdc * 2  # Approve 2x for safety
+            approve_amount = position_usdc * 10  # Approve 10x for safety
             
             logger.info(f"💰 APPROVING ${approve_amount/1e6:.2f} USDC for BMX Position Router...")
             
