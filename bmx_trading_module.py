@@ -834,7 +834,7 @@ class BMXTrader:
             # Step 2: Approve Position Router as Plugin (BMX requirement)
             logger.info("🔐 Approving Position Router as BMX plugin...")
 
-            plugin_approval_txn = self.bmx_vault.functions.approvePlugin(
+            plugin_approval_txn = self.bmx_router.functions.approvePlugin(
                 BMX_POSITION_ROUTER
             ).build_transaction({
                 'from': trader_address,
