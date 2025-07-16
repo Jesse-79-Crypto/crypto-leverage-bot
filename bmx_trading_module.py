@@ -848,7 +848,7 @@ class BMXTrader:
             ).build_transaction({ 
                 'from': trader_address,
                 'gas': 100000,
-                'gasPrice': int(self.w3.eth.gas_price * 1.1),  # 10% gas boost for faster execution
+                'gasPrice': self.w3.to_wei(2, 'gwei')
                 'nonce': current_nonce
             })
             
@@ -868,7 +868,7 @@ class BMXTrader:
             ).build_transaction({
                 'from': trader_address,
                 'gas': 100000,
-                'gasPrice': int(self.w3.eth.gas_price * 1.1),
+                'gasPrice': self.w3.to_wei(2, 'gwei'),
                 'nonce': self.w3.eth.get_transaction_count(trader_address)
             })
 
