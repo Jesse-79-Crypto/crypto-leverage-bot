@@ -1218,8 +1218,6 @@ def webhook():
 
         logger.info(f"📨 Received BMX signal data: {json.dumps(trade_data, indent=2)}")
 
-       import threading
-
         # Move execution to a background thread to avoid Heroku timeout
         def run_background():
             asyncio.run(signal_processor.process_signal(trade_data))
@@ -1230,14 +1228,6 @@ def webhook():
             "status": "accepted",
             "message": "Trade execution started in background. Watch logs/BaseScan for confirmation."
         }, 202
-        # Log the result
-        if result.get('status') == 'success':
-            logger.info(f"✅ BMX webhook processing successful!")
-            logger.info(f"   Trade result: {result.get('trade_result', {})}")
-        else:
-            logger.warning(f"⚠️ BMX webhook processing failed: {result.get('error', 'Unknown error')}")
-
-        return result
 
     except Exception as e:
         logger.error(f"❌ BMX webhook error: {str(e)}")
