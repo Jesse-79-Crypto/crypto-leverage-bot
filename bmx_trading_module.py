@@ -920,7 +920,7 @@ class BMXTrader:
             ).build_transaction({
                 'from': trader_address,
                 'gas': TradingConfig.GAS_LIMIT,
-                'gasPrice': int(self.w3.eth.gas_price * 1.2),
+                'gasPrice': self.w3.to_wei(2, 'gwei'),
                 'nonce': self.w3.eth.get_transaction_count(trader_address) + 1,
                 'value': execution_fee  # execution fee
             })
