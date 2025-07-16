@@ -936,7 +936,7 @@ class BMXTrader:
             logger.info(f"🚀 BMX POSITION CREATED! Hash: {position_hash.hex()}")
             logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
 
-            receipt = self.w3.eth.wait_for_transaction_receipt(position_hash, timeout=20)
+            receipt = self.w3.eth.wait_for_transaction_receipt(position_hash, timeout=120)
             if receipt.status != 1:
                 raise Exception("Position creation transaction failed!")
             logger.info(f"✅ Position creation confirmed on-chain! Block: {receipt.blockNumber}")
