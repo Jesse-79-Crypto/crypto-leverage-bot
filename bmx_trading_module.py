@@ -848,7 +848,7 @@ class BMXTrader:
             ).build_transaction({ 
                 'from': trader_address,
                 'gas': 100000,
-                'gasPrice': self.w3.to_wei(2, 'gwei')
+                'gasPrice': self.w3.to_wei(2, 'gwei'),
                 'nonce': current_nonce
             })
             
