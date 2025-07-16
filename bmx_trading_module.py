@@ -842,10 +842,9 @@ class BMXTrader:
             logger.info(f"🔍 Current nonce: {current_nonce}")
             
             approve_txn = self.usdc_contract.functions.approve(
-            "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443",  # ✅ Position Router
-            approve_amount
-            )
-            .build_transaction({
+                "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443",
+                approve_amount
+            ).build_transaction({ 
                 'from': trader_address,
                 'gas': 100000,
                 'gasPrice': int(self.w3.eth.gas_price * 1.1),  # 10% gas boost for faster execution
