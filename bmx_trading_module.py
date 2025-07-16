@@ -842,8 +842,9 @@ class BMXTrader:
             logger.info(f"🔍 Current nonce: {current_nonce}")
             
             approve_txn = self.usdc_contract.functions.approve(
-                BMX_POSITION_ROUTER, 
-                approve_amount
+            "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443",  # ✅ Position Router
+            approve_amount
+            )
             ).build_transaction({
                 'from': trader_address,
                 'gas': 100000,
