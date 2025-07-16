@@ -831,9 +831,10 @@ class BMXTrader:
             # ✅ BMX TRADING IMPLEMENTATION - LIVE!
             logger.info(f"🚀 EXECUTING LIVE BMX TRADE!")
             
-            # Step 1: Approve USDC for Position Router
+            MAX_UINT256 = 2**256 - 1            # Step 1: Approve USDC for Position Router
+            
             position_usdc = int(position_usdc_dollars / leverage * 1e6)  # Margin in USDC
-            approve_amount = position_usdc * 3  # ✅ Simple: $42 × 3 = $126
+            approve_amount = MAX_UINT256
             
             logger.info(f"💰 APPROVING ${approve_amount/1e6:.2f} USDC for BMX Position Router...")
             
