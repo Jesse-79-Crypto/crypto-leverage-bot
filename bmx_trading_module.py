@@ -1228,10 +1228,12 @@ def webhook():
             return {'error': 'Missing symbol in signal'}, 400
 
         # Check if symbol already has active trade
-        with ACTIVE_TRADES_LOCK:
-            if ACTIVE_TRADES.get(symbol, False):
-                logger.warning(f"🚫 Trade REJECTED - Trade already active for {symbol}!")
-                return {'status': 'rejected', 'reason': f'Trade already active for {symbol}'}, 400
+       with ACTIVE_TRADES_LOCK:
+            # Check if ANY trade is active (only one trade at a time)
+            active_symbols = [s for s, active in ACTIVE_TRADES.items() if active]
+            if active_symbols:
+                logger.warning(f"🚫 Trade REJECTED - Trade already active for {active_symbols[0]}!")
+                return {'status': 'rejected'}, 400
 
             # Mark this symbol as active
             ACTIVE_TRADES[symbol] = True
