@@ -990,7 +990,7 @@ class BMXTrader:
                 logger.error(f"❌ Transaction failed! Check gas, nonce, contract params.")
                 logger.error(f"❌ Full receipt: {receipt}")            
                 if receipt.status != 1:
-                raise Exception("Position creation transaction failed!")
+                    raise Exception("Position creation transaction failed!")
             logger.info(f"✅ Position creation confirmed on-chain! Block: {receipt.blockNumber}")
             
             # Check balance after
