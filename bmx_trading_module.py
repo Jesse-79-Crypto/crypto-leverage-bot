@@ -838,15 +838,17 @@ class BMXTrader:
 
             TRADING_LOCK = True
             try:
-                # Your existing code continues here (USDC approval, etc.)
+                # Step 1: Approve USDC for Position Router
+                position_usdc = int(position_usdc_dollars / leverage * 1e6)  # Margin in USDC
+                approve_amount = position_usdc * 3  # Approve 3x for safety
     
-                # ... all your existing trading logic ...
+                # ... ALL your existing trading code goes here ...
     
             except Exception as e:
                 logger.error(f"❌ Trading error: {e}")
                 raise
             finally:
-                TRADING_LOCK = False  # Always unlock
+                TRADING_LOCK = False
             
             MAX_UINT256 = 2**256 - 1            # Step 1: Approve USDC for Position Router
             
