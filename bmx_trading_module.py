@@ -1258,12 +1258,14 @@ def webhook():
             'error': f'BMX webhook processing failed: {str(e)}'
         }, 500
     finally:  
-        # Release symbol lock
-        if 'symbol' in locals():
-            with ACTIVE_TRADES_LOCK:
-                ACTIVE_TRADES[symbol] = False
-                logger.info(f"🔓 {symbol} marked as INACTIVE")
-
+        # Only mark INACTIVE if trade actually completed successfully
+        if 'symbol' in locals() and 'result' in locals():
+            if result.get('status') == 'success':
+                with ACTIVE_TRADES_LOCK:
+                    ACTIVE_TRADES[symbol] = False
+                    logger.info(f"🔓 {symbol} marked as INACTIVE after successful trade")
+            else:
+                logger.info(f"🔒 {symbol} remains ACTIVE (trade failed/pending)")
         TRADE_IN_PROGRESS = False  # Always reset
 
 @app.route('/balance', methods=['GET'])
