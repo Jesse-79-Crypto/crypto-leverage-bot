@@ -965,6 +965,25 @@ class BMXTrader:
                 logger.info(f"✅ BMX POSITION CONFIRMED! Hash: {position_hash.hex()}")
                 logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
 
+            except Exception as e:
+                logger.error(f"❌ Error sending or confirming TX: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": "TX failed or could not confirm",
+                    "error": str(e)
+                }
+
+                if receipt.status != 1:
+                    logger.error("❌ BMX POSITION FAILED - TX REVERTED OR DROPPED")
+                    return {
+                        "status": "error",
+                        "message": "Trade reverted or failed on-chain",
+                        "tx_hash": position_hash.hex()
+                    }
+
+                logger.info(f"✅ BMX POSITION CONFIRMED! Hash: {position_hash.hex()}")
+                logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
+
 
             receipt = self.w3.eth.wait_for_transaction_receipt(position_hash, timeout=120)
             if receipt.status != 1:
