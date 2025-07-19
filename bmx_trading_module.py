@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import traceback
 import sys
 import threading
-
+TRADING_LOCK = False
 # Trading state management
 TRADE_IN_PROGRESS = False
 TRADE_LOCK = threading.Lock()
@@ -830,6 +830,23 @@ class BMXTrader:
 
             # ✅ BMX TRADING IMPLEMENTATION - LIVE!
             logger.info(f"🚀 EXECUTING LIVE BMX TRADE!")
+
+            global TRADING_LOCK
+            if TRADING_LOCK:
+                logger.info("🔒 Trade already in progress, skipping...")
+                return
+
+            TRADING_LOCK = True
+            try:
+                # Your existing code continues here (USDC approval, etc.)
+    
+                # ... all your existing trading logic ...
+    
+            except Exception as e:
+                logger.error(f"❌ Trading error: {e}")
+                raise
+            finally:
+                TRADING_LOCK = False  # Always unlock
             
             MAX_UINT256 = 2**256 - 1            # Step 1: Approve USDC for Position Router
             
