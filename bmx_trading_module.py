@@ -1228,7 +1228,7 @@ def webhook():
             return {'error': 'Missing symbol in signal'}, 400
 
         # Check if symbol already has active trade
-       with ACTIVE_TRADES_LOCK:
+        with ACTIVE_TRADES_LOCK:
             # Check if ANY trade is active (only one trade at a time)
             active_symbols = [s for s, active in ACTIVE_TRADES.items() if active]
             if active_symbols:
