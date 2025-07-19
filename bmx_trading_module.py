@@ -830,7 +830,9 @@ class BMXTrader:
 
             # ✅ BMX TRADING IMPLEMENTATION - LIVE!
             logger.info(f"🚀 EXECUTING LIVE BMX TRADE!")
-
+            import time
+            time.sleep(5)  # Wait 5 seconds to avoid overlap 
+            
             global TRADING_LOCK
             if TRADING_LOCK:
                 logger.info("🔒 Trade already in progress, skipping...")
