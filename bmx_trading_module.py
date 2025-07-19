@@ -950,15 +950,27 @@ class BMXTrader:
             signed_position = self.w3.eth.account.sign_transaction(position_txn, TradingConfig.PRIVATE_KEY)
             try:
                 position_hash = self.w3.eth.send_raw_transaction(signed_position.rawTransaction)
-            except Exception as e:
-                logger.error(f"❌ Failed to send position transaction: {e}")
-                raise
-            
-            logger.info(f"🚀 BMX POSITION CREATED! Hash: {position_hash.hex()}")
-            logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
+
+                logger.info(f"⏳ Waiting for confirmation of TX: {position_hash.hex()}")
+                receipt = self.w3.eth.wait_for_transaction_receipt(position_hash, timeout=120)
+
+                if receipt.status != 1:
+                    logger.error("❌ BMX POSITION FAILED - TX REVERTED OR DROPPED")
+                    return {
+                        "status": "error",
+                        "message": "Trade reverted or failed on-chain",
+                        "tx_hash": position_hash.hex()
+                    }
+
+                logger.info(f"✅ BMX POSITION CONFIRMED! Hash: {position_hash.hex()}")
+                logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
+
 
             receipt = self.w3.eth.wait_for_transaction_receipt(position_hash, timeout=120)
             if receipt.status != 1:
+                logger.error(f"❌ Transaction failed! Check gas, nonce, contract params.")
+                logger.error(f"❌ Full receipt: {receipt}")            
+                if receipt.status != 1:
                 raise Exception("Position creation transaction failed!")
             logger.info(f"✅ Position creation confirmed on-chain! Block: {receipt.blockNumber}")
             
@@ -1245,7 +1257,7 @@ def webhook():
         def run_background():
             asyncio.run(signal_processor.process_signal(trade_data))
 
-        threading.Thread(target=run_background).start()
+        asyncio.run(signal_processor.process_signal(trade_data))
 
         return {
             "status": "accepted",
