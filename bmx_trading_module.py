@@ -834,7 +834,7 @@ class BMXTrader:
             MAX_UINT256 = 2**256 - 1            # Step 1: Approve USDC for Position Router
             
             position_usdc = int(position_usdc_dollars / leverage * 1e6)  # Margin in USDC
-            approve_amount = MAX_UINT256
+            approve_amount = position_usdc * 3  # ✅ $42 * 3 = $126
             
             logger.info(f"💰 APPROVING ${approve_amount/1e6:.2f} USDC for BMX Position Router...")
             
