@@ -906,8 +906,8 @@ class BMXTrader:
             logger.info(f"   - Price: ${acceptable_price/1e30:.2f}")
             logger.info(f"   - Direction: {'LONG' if is_long else 'SHORT'}")
             
-            position_txn = self.bmx_position_router.functions.createIncreasePosition(
-                [collateral_token],     # path
+            self.bmx_router.functions.createIncreasePosition(  # ✅ Router, not Position Router
+                [collateral_token, index_token],  # ✅ Full path for swapping
                 index_token,            # index token
                 position_usdc,          # amount in
                 0,                      # min out
