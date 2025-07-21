@@ -1353,9 +1353,7 @@ def webhook():
         logger.error(f"⚠️ Webhook Handling Error: {str(e)}")
         return {'error': str(e)}, 500
 
-
-
-    async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
+    async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
         """Monitor keeper execution of position request - CRITICAL for detecting failures"""
         try:
             logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
@@ -1402,7 +1400,7 @@ def webhook():
         except Exception as e:
             logger.error(f"❌ Execution monitoring failed: {e}")
             return {"success": False, "error": f"Monitoring failed: {str(e)}"}
-
+            
     async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute trade on BMX protocol with enhanced keeper execution"""
         try:
