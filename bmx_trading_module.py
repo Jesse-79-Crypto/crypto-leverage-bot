@@ -1339,14 +1339,15 @@ def webhook():
         logger.info(f"🚀 ELITE BMX TRADING BOT v300-KEEPER-LIVE - Processing webhook request")
         logger.info(f"🎯 BMX KEEPER EXECUTION - EXECUTING REAL TRADES!")
 
-        # Trade protection (preserved from original)
-        global TRADE_IN_PROGRESS
-        with TRADE_LOCK:
-            if TRADE_IN_PROGRESS:
-                logger.warning("🚫 TRADE blocked – another is in progress")
-                logger.info(f"📊 Acceptable price calculated: ${acceptable_price / 1e30:.2f} ({'LONG' if is_long else 'SHORT'})")
-            return acceptable_price
-            
+        try:
+            global TRADE_IN_PROGRESS
+            with TRADE_LOCK:
+                if TRADE_IN_PROGRESS:
+                    logger.warning("🚫 TRADE blocked – another is in progress")
+                    return acceptable_price
+
+            logger.info(f"📈 Acceptable price calculated: ${acceptable_price / 1e30:.2f} ({'LONG' if is_long else 'SHORT'})")
+
         except Exception as e:
             logger.error(f"❌ Failed to calculate acceptable price: {e}")
             return oracle_price  # Fallback to oracle price
