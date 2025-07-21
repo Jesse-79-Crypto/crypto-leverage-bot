@@ -1334,15 +1334,11 @@ def webhook():
             logger.error("❌ Empty request body")
             return {'error': 'Empty request body'}, 400
 
-        # Version tracking - BMX Keeper Live
 
         logger.info(f"🚀 ELITE BMX TRADING BOT v300-KEEPER-LIVE - Processing webhook request")
 
         logger.info(f"🎯 BMX KEEPER EXECUTION - EXECUTING REAL TRADES!")
 
-
-
-        # Trade protection (preserved from original)
 
         try:
 
