@@ -1328,10 +1328,7 @@ def health_check():
 @app.route('/webhook', methods=['POST'])
 
 def webhook():
-
-    """Enhanced webhook endpoint for BMX keeper trading signals"""
-
-    
+"""Enhanced webhook endpoint for BMX keeper trading signals"""
 
     try:
 
