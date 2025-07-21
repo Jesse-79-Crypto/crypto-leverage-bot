@@ -1343,7 +1343,7 @@ def webhook():
         global TRADE_IN_PROGRESS
         with TRADE_LOCK:
             if TRADE_IN_PROGRESS:
-                logger.warning("🚫 TRADE
+                logger.warning("🚫 TRADE blocked – another is in progress")
                 logger.info(f"📊 Acceptable price calculated: ${acceptable_price / 1e30:.2f} ({'LONG' if is_long else 'SHORT'})")
             return acceptable_price
             
