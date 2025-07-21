@@ -1344,7 +1344,6 @@ def webhook():
         with TRADE_LOCK:
             if TRADE_IN_PROGRESS:
                 logger.warning("🚫 TRADE
-Smart, efficient model for everyday use Learn more
                 logger.info(f"📊 Acceptable price calculated: ${acceptable_price / 1e30:.2f} ({'LONG' if is_long else 'SHORT'})")
             return acceptable_price
             
