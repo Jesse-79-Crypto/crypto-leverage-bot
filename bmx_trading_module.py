@@ -1327,19 +1327,14 @@ def health_check():
 
 @app.route('/webhook', methods=['POST'])
 
-def webhook():
-"""Enhanced webhook endpoint for BMX keeper trading signals"""
+    def webhook():
+        """Enhanced webhook endpoint for BMX keeper trading signals"""
+        try:
+            trade_data = request.get_json()
 
-    try:
-
-        trade_data = request.get_json()
-
-        if not trade_data:
-
-            logger.error("❌ Empty request body")
-
-            return {'error': 'Empty request body'}, 400
-
+            if not trade_data:
+                logger.error("❌ Empty request body")
+                return {'error': 'Empty request body'}, 400
 
 
         # Version tracking - BMX Keeper Live
