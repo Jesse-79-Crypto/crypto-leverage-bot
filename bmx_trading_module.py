@@ -1339,6 +1339,7 @@ def webhook():
         logger.info(f"🚀 ELITE BMX TRADING BOT v300-KEEPER-LIVE - Processing webhook request")
         logger.info(f"🎯 BMX KEEPER EXECUTION - EXECUTING REAL TRADES!")
 
+        # Trade protection (preserved from original)
         try:
             global TRADE_IN_PROGRESS
             with TRADE_LOCK:
@@ -1346,11 +1347,13 @@ def webhook():
                     logger.warning("🚫 TRADE blocked – another is in progress")
                     return acceptable_price
 
-            logger.info(f"📈 Acceptable price calculated: ${acceptable_price / 1e30:.2f} ({'LONG' if is_long else 'SHORT'})")
+                logger.info(f"📈 Acceptable price calculated: ${acceptable_price / 1e30:.2f} ({'LONG' if is_long else 'SHORT'})")
+                return acceptable_price
 
         except Exception as e:
             logger.error(f"❌ Failed to calculate acceptable price: {e}")
             return oracle_price  # Fallback to oracle price
+
 
     async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
         """Monitor keeper execution of position request - CRITICAL for detecting failures"""
