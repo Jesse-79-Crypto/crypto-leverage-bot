@@ -963,7 +963,7 @@ class BMXTrader:
 
                 # Step 2: Calculate amounts with correct decimals
                 position_usdc = int(position_usdc_dollars / leverage * (10 ** USDC_DECIMALS))  # FIXED: Use 6 decimals
-                approve_amount = position_usdc * 3  # Approve 3x for safety
+                approve_amount = int(1000 * (10 ** USDC_DECIMALS))  # Approve $1000 USDC (max safety)
                 
                 logger.info(f"💰 APPROVING ${approve_amount / (10 ** USDC_DECIMALS):.2f} USDC for Position Router...")
                 
