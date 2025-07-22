@@ -36,12 +36,10 @@ BMX_TOKEN_CONTRACT = "0x548f93779fbc992010c07467cbaf329dd5f059b7"
 WBLT_TOKEN_CONTRACT = "0x4e74d4db6c0726ccded4656d0bce448876bb4c7a"
 
 # ✅ CRITICAL UPDATE: Use Position Router for keeper execution
-BMX_POSITION_ROUTER = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"  # Position Router for keeper execution
-BMX_VAULT_CONTRACT = "0x9cC4E8e60a2c9a67Ac7D20f54607f98EfBA38AcF"    # BMX Vault
-BMX_READER_CONTRACT = "0x927F9c03d1Ac6e2630d31E614F226b5Ed028d443"   # Reader
-
-BMX_ROUTER_CONTRACT = "0xC608188e753b1e9558731724b7F7Cdde40c3b174"  # Router for plugin approval
-PLUGIN_CONTRACT = Web3.to_checksum_address("0x927f9c03d1ac6e2630d31e614f226b5ed028d443")
+BMX_POSITION_ROUTER = "0x88b256D6B7Ef47a775164bC8d9467538b2709c13"  # ✅ Live Position Router
+BMX_VAULT_CONTRACT = "0xED62f93FdEa956cAAc005C046F1C23dDc2c1027d"     # ✅ Live Vault
+BMX_ROUTER_CONTRACT = "0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361"    # ✅ Router (used to approve plugin)
+PLUGIN_CONTRACT = Web3.to_checksum_address(BMX_POSITION_ROUTER)       # ✅ Correct plugin target
 
 # ✅ EXECUTION FEE FOR KEEPER SYSTEM
 MIN_EXECUTION_FEE = int(0.0015 * 1e18)  # 0.0015 ETH for keeper execution
@@ -1049,23 +1047,22 @@ class BMXTrader:
                 logger.info(f"   - Execution Fee: {execution_fee / 1e18:.6f} ETH")
                 
                 # Step 7: Create position via Position Router (KEEPER EXECUTION)
-                position_txn = self.bmx_position_router.functions.createIncreasePosition(
-                    [collateral_token, index_token],  # _path for swapping
-                    index_token,            # _indexToken
-                    position_usdc,          # _amountIn (USDC with 6 decimals)
-                    0,                      # _minOut
-                    size_delta,             # _sizeDelta (USD with 30 decimals)
-                    is_long,                # _isLong
-                    acceptable_price,       # _acceptablePrice (30 decimals)
-                    execution_fee,          # _executionFee
-                    b'\x00' * 32,           # _referralCode
-                    trader_address          # _callbackTarget
+                position_txn = position_router.functions.createIncreasePosition(
+                    path,
+                    index_token,
+                    amount_in,
+                    min_out,
+                    size_delta,
+                    is_long,
+                    acceptable_price,
+                    execution_fee,
+                    referral_code,
+                    callback_target
                 ).build_transaction({
-                    'from': trader_address,
-                    'gas': TradingConfig.GAS_LIMIT,
-                    'gasPrice': self.w3.to_wei(TradingConfig.GAS_PRICE_GWEI, 'gwei'),
-                    'nonce': self.w3.eth.get_transaction_count(trader_address),
-                    'value': execution_fee  # ✅ CRITICAL: Send ETH for keeper execution
+                    "from": wallet_address,
+                    "value": execution_fee,  # 👈 THIS LINE IS MANDATORY
+                    "gas": 500000,
+                    "nonce": w3.eth.get_transaction_count(wallet_address),
                 })
                 
                 # Execute position transaction
