@@ -609,7 +609,7 @@ class BMXTrader:
         
         except Exception as e:
             logging.error(f"❌ BMX contract initialization failed: {e}")
-            raise Exception("BMX contract initialization failed")
+            raise Exception(f"BMX contract initialization failed: {e}")
 
     def _initialize_supported_tokens(self) -> Dict[str, Dict]:
         """Initialize supported trading tokens on BMX with REAL Base network addresses"""
