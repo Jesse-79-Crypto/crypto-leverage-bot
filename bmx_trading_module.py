@@ -36,10 +36,11 @@ BMX_TOKEN_CONTRACT = "0x548f93779fbc992010c07467cbaf329dd5f059b7"
 WBLT_TOKEN_CONTRACT = "0x4e74d4db6c0726ccded4656d0bce448876bb4c7a"
 
 # ✅ CRITICAL UPDATE: Use Position Router for keeper execution
-BMX_POSITION_ROUTER = "0x88b256D6B7Ef47a775164bC8d9467538b2709c13"  # ✅ Live Position Router
-BMX_VAULT_CONTRACT = "0xED62f93FdEa956cAAc005C046F1C23dDc2c1027d"     # ✅ Live Vault
-BMX_ROUTER_CONTRACT = "0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361"    # ✅ Router (used to approve plugin)
-PLUGIN_CONTRACT = Web3.to_checksum_address(BMX_POSITION_ROUTER)       # ✅ Correct plugin target
+BMX_POSITION_ROUTER = Web3.to_checksum_address("0x88b256D6B7Ef47a775164bC8d9467538b2709c13")  # ✅ Live Position Router
+BMX_VAULT_CONTRACT = Web3.to_checksum_address("0xED62f93FdEa956cAAC005C046F1C23dDc2c1027d")  # ✅ Live Vault
+BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361")  # ✅ Approves plugin
+
+PLUGIN_CONTRACT = BMX_POSITION_ROUTER  # ✅ Plugin target is Position Router
 
 # ✅ EXECUTION FEE FOR KEEPER SYSTEM
 MIN_EXECUTION_FEE = int(0.0015 * 1e18)  # 0.0015 ETH for keeper execution
