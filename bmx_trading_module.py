@@ -672,37 +672,38 @@ class BMXTrader:
         return None
 
     def get_oracle_price(self, token_address: str, is_long: bool) -> int:
-    """Get current oracle price from BMX vault - ENHANCED DIAGNOSTICS"""
-    try:
-        logger.info(f"🔮 Attempting oracle price fetch for {token_address}")
-        logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
-        
-        # Try multiple possible function names
+        """Get current oracle price from BMX vault - ENHANCED DIAGNOSTICS"""
         try:
-            if is_long:
-                price = self.bmx_vault.functions.getMaxPrice(token_address).call()
-            else:
-                price = self.bmx_vault.functions.getMinPrice(token_address).call()
-            logger.info(f"✅ Oracle price fetched successfully: ${price / 1e30:.2f}")
-            return price
-        except Exception as e1:
-            logger.warning(f"⚠️ getMaxPrice/getMinPrice failed: {e1}")
-            
-            # Try alternative function names
-            try:
-                price = self.bmx_vault.functions.getPrice(token_address).call()
-                logger.info(f"✅ Alternative getPrice() worked: ${price / 1e30:.2f}")
-                return price
-            except Exception as e2:
-                logger.warning(f"⚠️ getPrice failed: {e2}")
-                
-        # If all oracle attempts fail, use fallback
-        logger.warning("⚠️ All oracle methods failed - using entry price fallback")
-        return 0
+            logger.info(f"🔮 Attempting oracle price fetch for {token_address}")
+            logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
         
-    except Exception as e:
-        logger.error(f"❌ Oracle price fetch completely failed: {e}")
-        return 0
+            # Try multiple possible function names
+            try:
+                if is_long:
+                    price = self.bmx_vault.functions.getMaxPrice(token_address).call()
+                else:
+                    price = self.bmx_vault.functions.getMinPrice(token_address).call()
+                logger.info(f"✅ Oracle price fetched successfully: ${price / 1e30:.2f}")
+                return price
+            except Exception as e1:
+                logger.warning(f"⚠️ getMaxPrice/getMinPrice failed: {e1}")
+            
+                # Try alternative function names
+                try:
+                    price = self.bmx_vault.functions.getPrice(token_address).call()
+                    logger.info(f"✅ Alternative getPrice() worked: ${price / 1e30:.2f}")
+                    return price
+                except Exception as e2:
+                    logger.warning(f"⚠️ getPrice failed: {e2}")
+                
+            # If all oracle attempts fail, use fallback
+            logger.warning("⚠️ All oracle methods failed - using entry price fallback")
+            return 0
+        
+        except Exception as e:
+            logger.error(f"❌ Oracle price fetch completely failed: {e}")
+            return 0
+        
     def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
         try:
