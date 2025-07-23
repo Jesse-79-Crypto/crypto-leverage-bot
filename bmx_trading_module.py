@@ -12,6 +12,14 @@ from datetime import datetime, timezone
 import traceback
 import sys
 import threading
+# 🚨 EMERGENCY DEBUG - ADD THESE LINES HERE:
+print("🚨 STARTING EMERGENCY DEBUG")
+print(f"🔍 os module working: {bool(os)}")
+print(f"🔍 os.environ exists: {bool(hasattr(os, 'environ'))}")
+print(f"🔍 PRIVATE_KEY raw: {repr(os.environ.get('PRIVATE_KEY'))}")
+print(f"🔍 All env keys: {[k for k in os.environ.keys() if 'PRIVATE' in k or 'BASE' in k]}")
+print("🚨 END EMERGENCY DEBUG")
+
 TRADING_LOCK = False
 # Trading state management
 TRADE_IN_PROGRESS = False
