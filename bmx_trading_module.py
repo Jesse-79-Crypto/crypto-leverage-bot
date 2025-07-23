@@ -576,8 +576,13 @@ class BMXTrader:
         try:
             # Get Web3 instance
             self.w3 = self.web3_manager.w3
-            self.wallet_address = self.web3_manager.account.address
-        
+
+            # ✅ SAFETY CHECK: Ensure account is loaded
+            if self.web3_manager.account is None:
+                raise Exception("❌ No wallet account loaded! Check your PRIVATE_KEY environment variable.")
+    
+            self.wallet_address = self.web3_manager.account.address 
+
             logging.info(f"📝 Wallet Address: {self.wallet_address}")
             logging.info(f"📝 USDC Contract: {USDC_CONTRACT}")
             logging.info(f"📝 BMX Token: {BMX_TOKEN_CONTRACT}")
