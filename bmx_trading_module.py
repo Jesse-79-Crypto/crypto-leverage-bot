@@ -40,8 +40,8 @@ USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 USDC_DECIMALS = 6  # ✅ CRITICAL: USDC uses 6 decimals, not 18!
 
 # BMX Protocol Contracts on Base Network - VERIFIED ADDRESSES
-BMX_TOKEN_CONTRACT = "0x548f93779fbc992010c07467cbaf329dd5f059b7"
-WBLT_TOKEN_CONTRACT = "0x4e74d4db6c0726ccded4656d0bce448876bb4c7a"
+BMX_TOKEN_CONTRACT = Web3.to_checksum_address("0x548f93779fbc992010c07467cbaf329dd5f059b7")
+WBLT_TOKEN_CONTRACT = Web3.to_checksum_address("0x4e74d4db6c0726ccded4656d0bce448876bb4c7a")
 
 # ✅ CRITICAL UPDATE: Use Position Router for keeper execution
 BMX_POSITION_ROUTER = Web3.to_checksum_address("0x88b256D6B7Ef47a775164bC8d9467538b2709c13")  # ✅ Live Position Router
