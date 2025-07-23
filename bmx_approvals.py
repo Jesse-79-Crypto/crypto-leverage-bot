@@ -8,7 +8,6 @@ load_dotenv()
 
 # 🧠 CONFIG ----------------------------------------------------------------
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
-WALLET_ADDRESS = Web3.to_checksum_address(os.getenv("WALLET_ADDRESS"))
 
 # BMX CONTRACT ADDRESSES (Base network)
 USDC_CONTRACT = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
