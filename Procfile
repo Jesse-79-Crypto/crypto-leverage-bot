@@ -1,1 +1,1 @@
-web: gunicorn bmx_trading_module:app
+web: python bmx_trading_module.py
