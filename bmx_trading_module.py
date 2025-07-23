@@ -1082,7 +1082,7 @@ class BMXTrader:
                 logger.info(f"   - Execution Fee: {execution_fee / 1e18:.6f} ETH")
                 
                 # Step 7: Create position via Position Router (KEEPER EXECUTION)
-                position_txn = position_router.functions.createIncreasePosition(
+                position_txn = self.bmx_position_router.functions.createIncreasePosition(
                     path,
                     index_token,
                     amount_in,
