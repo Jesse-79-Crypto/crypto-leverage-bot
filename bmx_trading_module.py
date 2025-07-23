@@ -342,13 +342,18 @@ class Web3Manager:
 
             # Initialize account
             if TradingConfig.PRIVATE_KEY:
-                logger.info(f"🔍 PRIVATE_KEY length: {len(TradingConfig.PRIVATE_KEY)}")
-                self.account = Account.from_key(TradingConfig.PRIVATE_KEY)
-                logger.info(f"✅ Account loaded: {self.account.address}")
+                try:
+                    logger.info(f"🔍 PRIVATE_KEY length: {len(TradingConfig.PRIVATE_KEY)}")
+                    self.account = Account.from_key(TradingConfig.PRIVATE_KEY)
+                    logger.info(f"✅ Account loaded: {self.account.address}")
+                except Exception as account_error:
+                    logger.error(f"❌ Account creation failed: {account_error}")
+                    self.account = None
             else:
                 logger.warning("⚠️ No private key provided - read-only mode")
                 logger.warning(f"🔍 PRIVATE_KEY exists: {bool(TradingConfig.PRIVATE_KEY)}")
-
+                self.account = None
+                
             # Initialize contracts
             self._initialize_bmx_contracts()
 
