@@ -240,6 +240,7 @@ load_dotenv()
 
 # Environment Configuration
 RPC_URL = os.getenv('BASE_RPC_URL')
+print(f"🌐 Using RPC: {RPC_URL}")
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
