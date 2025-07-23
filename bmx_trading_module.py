@@ -1344,7 +1344,6 @@ def health_check():
         'contracts': {
             'position_router': BMX_POSITION_ROUTER,
             'vault': BMX_VAULT_CONTRACT,
-            'reader': BMX_READER_CONTRACT,
             'bmx_token': BMX_TOKEN_CONTRACT,
             'wblt_token': WBLT_TOKEN_CONTRACT
         },
@@ -1523,7 +1522,6 @@ def get_config():
         'live_contracts': {
             'position_router': BMX_POSITION_ROUTER,
             'vault': BMX_VAULT_CONTRACT,
-            'reader': BMX_READER_CONTRACT,
             'bmx_token': BMX_TOKEN_CONTRACT,
             'wblt_token': WBLT_TOKEN_CONTRACT,
             'usdc': USDC_CONTRACT
@@ -1599,7 +1597,6 @@ def initialize_application():
         logger.info(f"🔧 BMX KEEPER CONTRACT ADDRESSES:")
         logger.info(f"  - Position Router: {BMX_POSITION_ROUTER}")
         logger.info(f"  - Vault: {BMX_VAULT_CONTRACT}")
-        logger.info(f"  - Reader: {BMX_READER_CONTRACT}")
         logger.info(f"  - BMX Token: {BMX_TOKEN_CONTRACT}")
         logger.info(f"  - wBLT Token: {WBLT_TOKEN_CONTRACT}")
 
