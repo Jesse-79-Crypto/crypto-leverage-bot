@@ -16,7 +16,7 @@ BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x88B256d6b7ef47A775164bc8D94675
 PLUGIN_CONTRACT = Web3.to_checksum_address("0x7925aD2c2C6DBB5Bd8f8372Ab3693B17E1DAD6B3")
 
 # Setup Web3
-RPC_URL = os.getenv("RPC_URL")  # Example: Alchemy or Blast Base Mainnet RPC
+RPC_URL = os.getenv("BASE_RPC_URL")
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 # Approve Max Amount (uint256 max)
