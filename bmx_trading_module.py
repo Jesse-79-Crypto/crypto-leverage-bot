@@ -243,6 +243,7 @@ RPC_URL = os.getenv('BASE_RPC_URL')
 print(f"🌐 Using RPC: {RPC_URL}")
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
+print(f"🔍 DEBUG: PRIVATE_KEY loaded: {bool(PRIVATE_KEY)}, length: {len(PRIVATE_KEY) if PRIVATE_KEY else 0}")
 
 # Configure logging with enhanced formatting
 logging.basicConfig(
