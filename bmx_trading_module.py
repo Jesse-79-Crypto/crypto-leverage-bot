@@ -239,7 +239,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Environment Configuration
-RPC_URL = os.getenv('RPC_URL')
+RPC_URL = os.getenv('BASE_RPC_URL')
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 
