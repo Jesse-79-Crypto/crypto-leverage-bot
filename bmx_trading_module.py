@@ -487,7 +487,12 @@ class Web3Manager:
         return self.w3 and self.w3.is_connected()
 
 # Initialize global Web3 manager
-web3_manager = Web3Manager()
+try:
+    web3_manager = Web3Manager()
+    logger.info("✅ Web3Manager created successfully")
+except Exception as web3_error:
+    logger.error(f"❌ Web3Manager creation failed: {web3_error}")
+    web3_manager = None
 
 # ============================================================================
 # 📊 GOOGLE SHEETS INTEGRATION - PRESERVED FROM ORIGINAL
