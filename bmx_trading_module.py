@@ -331,6 +331,9 @@ class Web3Manager:
     def _initialize_web3(self):
         """Initialize Web3 connection and BMX contracts"""
         try:
+            logger.info("🔍 DEBUG: Starting Web3 initialization...")
+            logger.info(f"🔍 DEBUG: TradingConfig.PRIVATE_KEY exists: {bool(TradingConfig.PRIVATE_KEY)}")
+            logger.info(f"🔍 DEBUG: TradingConfig.RPC_URL: {TradingConfig.RPC_URL}")
             # Initialize Web3
             self.w3 = Web3(Web3.HTTPProvider(TradingConfig.RPC_URL))
 
