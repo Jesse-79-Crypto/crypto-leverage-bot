@@ -690,38 +690,75 @@ class BMXTrader:
         logger.error(f"❌ Symbol {symbol} not supported and not a known crypto")
         return None
 
-    def get_oracle_price(self, token_address: str, is_long: bool) -> int:
-        """Get current oracle price from BMX vault - ENHANCED DIAGNOSTICS"""
+    # 🎯 BMX ORACLE PRICE FIX - BASED ON MORPHEX DOCUMENTATION
+# 
+# PROBLEM: Your bot's oracle calls are failing because BMX uses a different function signature
+# SOLUTION: Use getPrice(token, maximize) instead of getMaxPrice/getMinPrice
+
+def get_oracle_price(self, token_address: str, is_long: bool) -> int:
+    """Get current oracle price from BMX vault - FIXED VERSION"""
+    try:
+        logger.info(f"🔮 Fetching BMX oracle price for {token_address}")
+        logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
+        
+        # ✅ FIXED: BMX uses getPrice(token, maximize) function signature
+        # From research: "passing in true returns the maximum price, false returns the minimum price"
+        
+        # For longs: use maximum price (maximize=True)
+        # For shorts: use minimum price (maximize=False)
+        maximize = is_long  # True for longs, False for shorts
+        
         try:
-            logger.info(f"🔮 Attempting oracle price fetch for {token_address}")
-            logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
-        
-            # Try multiple possible function names
-            try:
-                if is_long:
-                    price = self.bmx_vault.functions.getMaxPrice(token_address).call()
-                else:
-                    price = self.bmx_vault.functions.getMinPrice(token_address).call()
-                logger.info(f"✅ Oracle price fetched successfully: ${price / 1e30:.2f}")
-                return price
-            except Exception as e1:
-                logger.warning(f"⚠️ getMaxPrice/getMinPrice failed: {e1}")
+            price = self.bmx_vault.functions.getPrice(token_address, maximize).call()
+            logger.info(f"✅ BMX oracle price fetched: ${price / 1e30:.2f} ({'MAX' if maximize else 'MIN'})")
+            return price
             
-                # Try alternative function names
-                try:
-                    price = self.bmx_vault.functions.getPrice(token_address).call()
-                    logger.info(f"✅ Alternative getPrice() worked: ${price / 1e30:.2f}")
-                    return price
-                except Exception as e2:
-                    logger.warning(f"⚠️ getPrice failed: {e2}")
-                
-            # If all oracle attempts fail, use fallback
-            logger.warning("⚠️ All oracle methods failed - using entry price fallback")
-            return 0
+        except Exception as e1:
+            logger.warning(f"⚠️ getPrice(token, maximize) failed: {e1}")
+            
+            # Fallback: Try without maximize parameter
+            try:
+                price = self.bmx_vault.functions.getPrice(token_address).call()
+                logger.info(f"✅ BMX oracle fallback worked: ${price / 1e30:.2f}")
+                return price
+            except Exception as e2:
+                logger.warning(f"⚠️ getPrice(token) failed: {e2}")
         
-        except Exception as e:
-            logger.error(f"❌ Oracle price fetch completely failed: {e}")
-            return 0
+        # If all oracle attempts fail, use entry price fallback
+        logger.warning("⚠️ All BMX oracle methods failed - using entry price fallback")
+        return 0
+        
+    except Exception as e:
+        logger.error(f"❌ BMX oracle price fetch completely failed: {e}")
+        return 0
+
+# 🔧 UPDATED BMX VAULT ABI - WITH CORRECT FUNCTION SIGNATURE
+BMX_VAULT_ABI = [
+    {
+        "inputs": [
+            {"name": "_token", "type": "address"},
+            {"name": "_maximize", "type": "bool"}
+        ],
+        "name": "getPrice",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"name": "_token", "type": "address"}],
+        "name": "getPrice",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"name": "_token", "type": "address"}],
+        "name": "lastUpdatedAt",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
         
     def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
