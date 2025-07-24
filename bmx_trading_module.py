@@ -760,7 +760,7 @@ BMX_VAULT_ABI = [
     }
 ]
         
-    def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
+def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
         try:
             slippage_basis_points = int(TradingConfig.DEFAULT_SLIPPAGE * 10000)  # 0.8% = 80 basis points
