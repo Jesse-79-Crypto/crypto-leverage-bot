@@ -1090,7 +1090,7 @@ class BMXTrader:
                     "from": trader_address,
                     "value": execution_fee,  # 👈 THIS LINE IS MANDATORY
                     "gas": 500000,
-                    "nonce": self.w3.eth.get_transaction_count(wallet_address),
+                    "nonce": self.w3.eth.get_transaction_count(trader_address),
                 })
                 
                 # Execute position transaction
