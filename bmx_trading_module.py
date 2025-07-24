@@ -1101,7 +1101,7 @@ class BMXTrader:
                     referral_code,
                     callback_target
                 ).build_transaction({
-                    "from": wallet_address,
+                    "from": trader_address,
                     "value": execution_fee,  # 👈 THIS LINE IS MANDATORY
                     "gas": 500000,
                     "nonce": w3.eth.get_transaction_count(wallet_address),
