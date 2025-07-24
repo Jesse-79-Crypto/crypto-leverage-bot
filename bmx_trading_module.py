@@ -781,7 +781,7 @@ def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
             logger.error(f"❌ Failed to calculate acceptable price: {e}")
             return oracle_price  # Fallback to oracle price
 
-    async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
+async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
         """Monitor keeper execution of position request - CRITICAL for detecting failures"""
         try:
             logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
@@ -829,7 +829,7 @@ def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
             logger.error(f"❌ Execution monitoring failed: {e}")
             return {"success": False, "error": f"Monitoring failed: {str(e)}"}
 
-    async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute trade on BMX protocol with enhanced keeper execution"""
         try:
             logger.info(f"🎯 EXECUTING BMX TRADE:")
@@ -971,7 +971,7 @@ def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
                 'traceback': traceback.format_exc()
             }
 
-    async def _execute_bmx_trade_keeper(
+async def _execute_bmx_trade_keeper(
         self,
         trader_address: str,
         symbol: str,
