@@ -12,13 +12,6 @@ from datetime import datetime, timezone
 import traceback
 import sys
 import threading
-# 🚨 EMERGENCY DEBUG - ADD THESE LINES HERE:
-print("🚨 STARTING EMERGENCY DEBUG")
-print(f"🔍 os module working: {bool(os)}")
-print(f"🔍 os.environ exists: {bool(hasattr(os, 'environ'))}")
-print(f"🔍 PRIVATE_KEY raw: {repr(os.environ.get('PRIVATE_KEY'))}")
-print(f"🔍 All env keys: {[k for k in os.environ.keys() if 'PRIVATE' in k or 'BASE' in k]}")
-print("🚨 END EMERGENCY DEBUG")
 
 TRADING_LOCK = False
 # Trading state management
@@ -47,9 +40,6 @@ WBLT_TOKEN_CONTRACT = Web3.to_checksum_address("0x4e74d4db6c0726ccded4656d0bce44
 BMX_POSITION_ROUTER = Web3.to_checksum_address("0x88b256D6B7Ef47a775164bC8d9467538b2709c13")  # ✅ Live Position Router
 BMX_VAULT_CONTRACT = Web3.to_checksum_address("0xED62f93FdEa956cAAC005C046F1C23dDc2c1027d")  # ✅ Live Vault
 
-# 🚨 EARLY DEBUG TEST
-print("🚨 TESTING IF PRINT WORKS AT ALL!")
-print("🚨 Code is loading properly!")
 PLUGIN_CONTRACT = BMX_POSITION_ROUTER  # ✅ Plugin target is Position Router
 
 BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361")  # ✅ Approves plugin
@@ -255,7 +245,6 @@ RPC_URL = os.getenv('BASE_RPC_URL')
 print(f"🌐 Using RPC: {RPC_URL}")
 CHAIN_ID = int(os.getenv('CHAIN_ID', 8453))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
-print(f"🔍 DEBUG: PRIVATE_KEY loaded: {bool(PRIVATE_KEY)}, length: {len(PRIVATE_KEY) if PRIVATE_KEY else 0}")
 
 # Configure logging with enhanced formatting
 logging.basicConfig(
@@ -343,9 +332,6 @@ class Web3Manager:
     def _initialize_web3(self):
         """Initialize Web3 connection and BMX contracts"""
         try:
-            logger.info("🔍 DEBUG: Starting Web3 initialization...")
-            logger.info(f"🔍 DEBUG: TradingConfig.PRIVATE_KEY exists: {bool(TradingConfig.PRIVATE_KEY)}")
-            logger.info(f"🔍 DEBUG: TradingConfig.RPC_URL: {TradingConfig.RPC_URL}")
             # Initialize Web3
             self.w3 = Web3(Web3.HTTPProvider(TradingConfig.RPC_URL))
 
