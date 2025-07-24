@@ -1080,6 +1080,13 @@ class BMXTrader:
                 logger.info(f"   - Acceptable Price: ${acceptable_price / 1e30:.2f}")
                 logger.info(f"   - Direction: {'LONG' if is_long else 'SHORT'}")
                 logger.info(f"   - Execution Fee: {execution_fee / 1e18:.6f} ETH")
+
+                # Step 7: Define missing variables for position creation
+                path = [collateral_token, index_token]  # Swap path for USDC -> BTC
+                amount_in = position_usdc  # USDC amount to use as margin
+                min_out = 0  # Minimum tokens out (no swap needed)
+                referral_code = b'\x00' * 32  # Empty referral code
+                callback_target = trader_address  # Callback to user's address
                 
                 # Step 7: Create position via Position Router (KEEPER EXECUTION)
                 position_txn = self.bmx_position_router.functions.createIncreasePosition(
