@@ -1126,7 +1126,7 @@ async def _execute_bmx_trade_keeper(
                 ).build_transaction({
                     "from": trader_address,
                     "value": execution_fee,  # 👈 THIS LINE IS MANDATORY
-                    "gas": 500000,
+                    "gas": 200000,
                     "nonce": self.w3.eth.get_transaction_count(trader_address),
                 })
                 
@@ -1202,6 +1202,8 @@ async def _execute_bmx_trade_keeper(
 
 # Initialize BMX trader
 bmx_trader = BMXTrader()
+print(f"🔍 BMXTrader has execute_trade: {hasattr(bmx_trader, 'execute_trade')}")
+print(f"🔍 BMXTrader methods: {[m for m in dir(bmx_trader) if not m.startswith('_')]}")
 
 # ============================================================================
 # 🔄 SIGNAL PROCESSING ENGINE - ADAPTED FOR BMX KEEPER EXECUTION
