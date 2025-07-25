@@ -690,7 +690,7 @@ class BMXTrader:
         logger.error(f"❌ Symbol {symbol} not supported and not a known crypto")
         return None
 
-    def get_oracle_price(self, token_address: str, is_long: bool) -> int:
+        def get_oracle_price(self, token_address: str, is_long: bool) -> int:
         """Get current oracle price from BMX vault - FIXED VERSION"""
     try:
         logger.info(f"🔮 Fetching BMX oracle price for {token_address}")
