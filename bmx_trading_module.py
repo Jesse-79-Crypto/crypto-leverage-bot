@@ -1203,11 +1203,9 @@ async def _execute_bmx_trade_keeper(
 # Initialize BMX trader
 try:
     bmx_trader = BMXTrader()
-    print(f"✅ BMXTrader initialized successfully")
-    print(f"🔍 BMXTrader has execute_trade: {hasattr(bmx_trader, 'execute_trade')}")
-    print(f"🔍 BMXTrader methods: {[m for m in dir(bmx_trader) if not m.startswith('_')]}")
-except Exception as init_error:
-    print(f"❌ BMXTrader initialization failed: {init_error}")
+    print(f"✅ BMXTrader initialized - has execute_trade: {hasattr(bmx_trader, 'execute_trade')}")
+except Exception as e:
+    print(f"❌ BMXTrader failed to initialize: {e}")
     bmx_trader = None
 
 # ============================================================================
