@@ -45,7 +45,7 @@ PLUGIN_CONTRACT = BMX_POSITION_ROUTER  # ✅ Plugin target is Position Router
 BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361")  # ✅ Approves plugin
 
 # ✅ EXECUTION FEE FOR KEEPER SYSTEM
-MIN_EXECUTION_FEE = int(0.0015 * 1e18)  # 0.0015 ETH for keeper execution
+MIN_EXECUTION_FEE = int(0.00005 * 1e18)  # About $0.12
 
 # USDC ABI with 6 decimal support
 USDC_ABI = [
