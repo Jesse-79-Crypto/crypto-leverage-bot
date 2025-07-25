@@ -1245,8 +1245,17 @@ class SignalProcessor:
                     'error': f"Signal validation failed: {validation_result['reason']}"
                 }
 
-            # Execute the BMX trade with keeper execution
-            trade_result = await self.trader.execute_trade(processed_signal)
+            # Debug: Check if trader has execute_trade method
+            if not hasattr(self.trader, 'execute_trade'):
+                logger.error(f"❌ BMXTrader missing execute_trade method!")
+                logger.error(f"❌ Available methods: {[m for m in dir(self.trader) if not m.startswith('_')]}")
+                return {
+                    'status': 'error',
+                    'error': 'BMXTrader not properly initialized - missing execute_trade method'
+                }
+
+# Execute the BMX trade with keeper execution
+trade_result = await self.trader.execute_trade(processed_signal)
 
             return {
                 'status': 'success' if trade_result.get('status') in ['success'] else 'failed',
