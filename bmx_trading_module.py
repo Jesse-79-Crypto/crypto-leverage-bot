@@ -690,12 +690,7 @@ class BMXTrader:
         logger.error(f"❌ Symbol {symbol} not supported and not a known crypto")
         return None
 
-    # 🎯 BMX ORACLE PRICE FIX - BASED ON MORPHEX DOCUMENTATION
-# 
-# PROBLEM: Your bot's oracle calls are failing because BMX uses a different function signature
-# SOLUTION: Use getPrice(token, maximize) instead of getMaxPrice/getMinPrice
-
-def get_oracle_price(self, token_address: str, is_long: bool) -> int:
+    def get_oracle_price(self, token_address: str, is_long: bool) -> int:
     """Get current oracle price from BMX vault - FIXED VERSION"""
     try:
         logger.info(f"🔮 Fetching BMX oracle price for {token_address}")
@@ -760,7 +755,7 @@ BMX_VAULT_ABI = [
     }
 ]
         
-def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
+    def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
         try:
             slippage_basis_points = int(TradingConfig.DEFAULT_SLIPPAGE * 10000)  # 0.8% = 80 basis points
@@ -781,7 +776,7 @@ def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
             logger.error(f"❌ Failed to calculate acceptable price: {e}")
             return oracle_price  # Fallback to oracle price
 
-async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
+    async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
         """Monitor keeper execution of position request - CRITICAL for detecting failures"""
         try:
             logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
@@ -829,7 +824,7 @@ async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> D
             logger.error(f"❌ Execution monitoring failed: {e}")
             return {"success": False, "error": f"Monitoring failed: {str(e)}"}
 
-async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute trade on BMX protocol with enhanced keeper execution"""
         try:
             logger.info(f"🎯 EXECUTING BMX TRADE:")
@@ -971,7 +966,7 @@ async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
                 'traceback': traceback.format_exc()
             }
 
-async def _execute_bmx_trade_keeper(
+    async def _execute_bmx_trade_keeper(
         self,
         trader_address: str,
         symbol: str,
