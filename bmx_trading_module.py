@@ -629,6 +629,14 @@ class BMXTrader:
             logging.info("✅ BMX contracts initialized for live keeper execution!")
         
         except Exception as e:
+            logger.error(f"❌ BMX keeper execution failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"BMX keeper execution failed: {str(e)}",
+                "error_type": type(e).__name__
+            }
+
+# Initialize BMX trader Exception as e:
             logging.error(f"❌ BMX contract initialization failed: {e}")
             raise Exception(f"BMX contract initialization failed: {e}")
 
@@ -690,70 +698,42 @@ class BMXTrader:
         logger.error(f"❌ Symbol {symbol} not supported and not a known crypto")
         return None
 
-        def get_oracle_price(self, token_address: str, is_long: bool) -> int:
+    def get_oracle_price(self, token_address: str, is_long: bool) -> int:
         """Get current oracle price from BMX vault - FIXED VERSION"""
-    try:
-        logger.info(f"🔮 Fetching BMX oracle price for {token_address}")
-        logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
-        
-        # ✅ FIXED: BMX uses getPrice(token, maximize) function signature
-        # From research: "passing in true returns the maximum price, false returns the minimum price"
-        
-        # For longs: use maximum price (maximize=True)
-        # For shorts: use minimum price (maximize=False)
-        maximize = is_long  # True for longs, False for shorts
-        
         try:
-            price = self.bmx_vault.functions.getPrice(token_address, maximize).call()
-            logger.info(f"✅ BMX oracle price fetched: ${price / 1e30:.2f} ({'MAX' if maximize else 'MIN'})")
-            return price
+            logger.info(f"🔮 Fetching BMX oracle price for {token_address}")
+            logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
             
-        except Exception as e1:
-            logger.warning(f"⚠️ getPrice(token, maximize) failed: {e1}")
+            # ✅ FIXED: BMX uses getPrice(token, maximize) function signature
+            # From research: "passing in true returns the maximum price, false returns the minimum price"
             
-            # Fallback: Try without maximize parameter
+            # For longs: use maximum price (maximize=True)
+            # For shorts: use minimum price (maximize=False)
+            maximize = is_long  # True for longs, False for shorts
+            
             try:
-                price = self.bmx_vault.functions.getPrice(token_address).call()
-                logger.info(f"✅ BMX oracle fallback worked: ${price / 1e30:.2f}")
+                price = self.bmx_vault.functions.getPrice(token_address, maximize).call()
+                logger.info(f"✅ BMX oracle price fetched: ${price / 1e30:.2f} ({'MAX' if maximize else 'MIN'})")
                 return price
-            except Exception as e2:
-                logger.warning(f"⚠️ getPrice(token) failed: {e2}")
-        
-        # If all oracle attempts fail, use entry price fallback
-        logger.warning("⚠️ All BMX oracle methods failed - using entry price fallback")
-        return 0
-        
-    except Exception as e:
-        logger.error(f"❌ BMX oracle price fetch completely failed: {e}")
-        return 0
-
-# 🔧 UPDATED BMX VAULT ABI - WITH CORRECT FUNCTION SIGNATURE
-BMX_VAULT_ABI = [
-    {
-        "inputs": [
-            {"name": "_token", "type": "address"},
-            {"name": "_maximize", "type": "bool"}
-        ],
-        "name": "getPrice",
-        "outputs": [{"name": "", "type": "uint256"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [{"name": "_token", "type": "address"}],
-        "name": "getPrice",
-        "outputs": [{"name": "", "type": "uint256"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [{"name": "_token", "type": "address"}],
-        "name": "lastUpdatedAt",
-        "outputs": [{"name": "", "type": "uint256"}],
-        "stateMutability": "view",
-        "type": "function"
-    }
-]
+                
+            except Exception as e1:
+                logger.warning(f"⚠️ getPrice(token, maximize) failed: {e1}")
+                
+                # Fallback: Try without maximize parameter
+                try:
+                    price = self.bmx_vault.functions.getPrice(token_address).call()
+                    logger.info(f"✅ BMX oracle fallback worked: ${price / 1e30:.2f}")
+                    return price
+                except Exception as e2:
+                    logger.warning(f"⚠️ getPrice(token) failed: {e2}")
+            
+            # If all oracle attempts fail, use entry price fallback
+            logger.warning("⚠️ All BMX oracle methods failed - using entry price fallback")
+            return 0
+            
+        except Exception as e:
+            logger.error(f"❌ BMX oracle price fetch completely failed: {e}")
+            return 0
         
     def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
@@ -967,15 +947,15 @@ BMX_VAULT_ABI = [
             }
 
     async def _execute_bmx_trade_keeper(
-        self,
-        trader_address: str,
-        symbol: str,
-        position_usdc_dollars: float,
-        entry_price: float,
-        leverage: int,
-        is_long: bool,
-        trade_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+            self,
+            trader_address: str,
+            symbol: str,
+            position_usdc_dollars: float,
+            entry_price: float,
+            leverage: int,
+            is_long: bool,
+            trade_data: Dict[str, Any]
+        ) -> Dict[str, Any]:
         """Execute BMX trade using keeper-based Position Router - CRITICAL UPDATE"""
         
         try:
