@@ -769,8 +769,9 @@ class BMXTrader:
                     break
             
             if not request_key:
-                logger.warning("⚠️ Could not extract request key, assuming immediate execution")
-                return {"success": True, "executed": True, "immediate": True}
+                logger.warning("⚠️ Could not extract request key - verifying position creation")
+                position_created = self.verify_position_created(tx_hash)
+                return {"success": position_created, "executed": position_created, "immediate": True}
             
             # Monitor for keeper execution
             while time.time() - start_time < timeout_seconds:
