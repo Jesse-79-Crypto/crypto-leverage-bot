@@ -629,14 +629,6 @@ class BMXTrader:
             logging.info("✅ BMX contracts initialized for live keeper execution!")
         
         except Exception as e:
-            logger.error(f"❌ BMX keeper execution failed: {str(e)}")
-            return {
-                "status": "error",
-                "message": f"BMX keeper execution failed: {str(e)}",
-                "error_type": type(e).__name__
-            }
-
-# Initialize BMX trader Exception as e:
             logging.error(f"❌ BMX contract initialization failed: {e}")
             raise Exception(f"BMX contract initialization failed: {e}")
 
