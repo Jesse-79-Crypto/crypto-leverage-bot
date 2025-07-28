@@ -744,53 +744,34 @@ class BMXTrader:
             return oracle_price  # Fallback to oracle price
 
     async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
-        """Monitor keeper execution of position request - CRITICAL for detecting failures"""
-        try:
-            logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
-            start_time = time.time()
+    """Monitor keeper execution by checking USDC balance"""
+    try:
+        logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
+        
+        # Get transaction receipt
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+        if receipt.status != 1:
+            return {"success": False, "error": "Transaction failed on-chain"}
+        
+        # Simple approach: Check if USDC balance decreased
+        trader_address = self.web3_manager.account.address
+        balance_before = self.usdc_contract.functions.balanceOf(trader_address).call()
+        
+        # Wait a bit for keeper execution, then check again
+        await asyncio.sleep(30)  # Wait 30 seconds for keeper
+        
+        balance_after = self.usdc_contract.functions.balanceOf(trader_address).call()
+        
+        if balance_after < balance_before:
+            logger.info("✅ USDC balance decreased - position executed!")
+            return {"success": True, "executed": True}
+        else:
+            logger.warning("⚠️ USDC balance unchanged - position may not have executed")
+            return {"success": False, "error": "No USDC deduction detected"}
             
-            # Get transaction receipt to find request key
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-            
-            if receipt.status != 1:
-                return {"success": False, "error": "Transaction failed on-chain"}
-            
-            # Extract request key from logs (simplified - you may need to parse logs properly)
-            request_key = None
-            for log in receipt.logs:
-                if log.address.lower() == BMX_POSITION_ROUTER.lower():
-                    # This is a simplified approach - you might need to decode the actual event
-                    request_key = log.topics[1] if len(log.topics) > 1 else None
-                    break
-            
-            if not request_key:
-                logger.warning("⚠️ Could not extract request key - verifying position creation")
-                position_created = self.verify_position_created(tx_hash)
-                return {"success": position_created, "executed": position_created, "immediate": True}
-            
-            # Monitor for keeper execution
-            while time.time() - start_time < timeout_seconds:
-                try:
-                    # Check if request still exists
-                    request_data = self.bmx_position_router.functions.increasePositionRequests(request_key).call()
-                    
-                    # If account is zero address, request was executed or cancelled
-                    if request_data[0] == "0x0000000000000000000000000000000000000000":
-                        logger.info("✅ Position request completed by keeper!")
-                        return {"success": True, "executed": True}
-                        
-                except Exception as e:
-                    # Request might not exist yet, continue monitoring
-                    pass
-                
-                await asyncio.sleep(10)  # Check every 10 seconds
-            
-            logger.warning(f"⏰ Execution monitoring timeout after {timeout_seconds} seconds")
-            return {"success": False, "error": "Execution timeout", "timeout": True}
-            
-        except Exception as e:
-            logger.error(f"❌ Execution monitoring failed: {e}")
-            return {"success": False, "error": f"Monitoring failed: {str(e)}"}
+    except Exception as e:
+        logger.error(f"❌ Execution monitoring failed: {e}")
+        return {"success": False, "error": f"Monitoring failed: {str(e)}"}
 
     async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute trade on BMX protocol with enhanced keeper execution"""
