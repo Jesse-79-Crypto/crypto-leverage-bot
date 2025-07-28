@@ -702,7 +702,7 @@ class BMXTrader:
             maximize = is_long  # True for longs, False for shorts
             
             try:
-                price = self.bmx_vault.functions.getPrice(token_address, maximize).call()
+                price = self.bmx_vault.functions.getPrice(token_address, True).call()  # Always use True for now
                 logger.info(f"✅ BMX oracle price fetched: ${price / 1e30:.2f} ({'MAX' if maximize else 'MIN'})")
                 return price
                 
