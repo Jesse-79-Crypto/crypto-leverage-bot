@@ -161,16 +161,19 @@ BMX_VAULT_ABI = [
     },
     {
         "inputs": [{"name": "_token", "type": "address"}],
-        "name": "getMaxPrice",
+        "name": "getMaxPrice", 
         "outputs": [{"name": "", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function"
     },
     {
-        "inputs": [{"name": "_token", "type": "address"}],
-        "name": "lastUpdatedAt",
+        "inputs": [
+            {"name": "_token", "type": "address"},
+            {"name": "_maximise", "type": "bool"}
+        ],
+        "name": "getPrice",
         "outputs": [{"name": "", "type": "uint256"}],
-        "stateMutability": "view",
+        "stateMutability": "view", 
         "type": "function"
     }
 ]
