@@ -319,15 +319,12 @@ class TradingConfig:
 
 class Web3Manager:
     """Manages Web3 connections and blockchain interactions for BMX"""
-
     def __init__(self):
         self.w3 = None
         self.account = None
-        self.bmx_position_router = None
-        self.bmx_vault = None
         self.usdc_contract = None
         self.bmx_token = None
-        self.wblt_token = None
+        self.wblt_token = None  # ✅ This is the main trading contract
         self._initialize_web3()
 
     def _initialize_web3(self):
