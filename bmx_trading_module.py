@@ -29,22 +29,23 @@ import requests
 # ============================================================================
 
 # USDC Contract on Base Network (6 decimals - CRITICAL FIX)
-USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # ✅ CORRECT
 USDC_DECIMALS = 6  # ✅ CRITICAL: USDC uses 6 decimals, not 18!
 
-# BMX Protocol Contracts on Base Network - VERIFIED ADDRESSES
-BMX_TOKEN_CONTRACT = Web3.to_checksum_address("0x548f93779fbc992010c07467cbaf329dd5f059b7")
-WBLT_TOKEN_CONTRACT = Web3.to_checksum_address("0x4e74d4db6c0726ccded4656d0bce448876bb4c7a")
+# BMX Protocol Contracts on Base Network - CORRECTED ADDRESSES
+BMX_TOKEN_CONTRACT = Web3.to_checksum_address("0x548f93779fbc992010c07467cbaf329dd5f059b7")  # ✅ BMX Token (CORRECT)
+WBLT_TOKEN_CONTRACT = Web3.to_checksum_address("0x4e74d4db6c0726ccded4656d0bce448876bb4c7a")  # ✅ wBLT Vault (CORRECT)
 
-# ✅ CRITICAL UPDATE: Use Position Router for keeper execution
-BMX_POSITION_ROUTER = Web3.to_checksum_address("0x88b256D6B7Ef47a775164bC8d9467538b2709c13")  # ✅ Live Position Router
-BMX_VAULT_CONTRACT = Web3.to_checksum_address("0xED62f93FdEa956cAAC005C046F1C23dDc2c1027d")  # ✅ Live Vault
+# ❌ CRITICAL FIX: These addresses don't exist on Base network - REMOVE THEM
+# BMX_POSITION_ROUTER = Web3.to_checksum_address("0x88b256D6B7Ef47a775164bC8d9467538b2709c13")  # ❌ DOES NOT EXIST
+# BMX_VAULT_CONTRACT = Web3.to_checksum_address("0xED62f93FdEa956cAAC005C046F1C23dDc2c1027d")   # ❌ DOES NOT EXIST  
+# BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361")  # ❌ DOES NOT EXIST
 
-PLUGIN_CONTRACT = BMX_POSITION_ROUTER  # ✅ Plugin target is Position Router
+# ✅ BMX.trade uses wBLT as primary trading contract - NO SEPARATE ROUTERS NEEDED
+PRIMARY_TRADING_CONTRACT = WBLT_TOKEN_CONTRACT  # This is what you approve and interact with
+APPROVAL_TARGET = WBLT_TOKEN_CONTRACT  # Approve USDC to wBLT vault, not fake routers
 
-BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361")  # ✅ Approves plugin
-
-# ✅ EXECUTION FEE FOR KEEPER SYSTEM
+# ✅ EXECUTION FEE FOR KEEPER SYSTEM (reduced since no position router)
 MIN_EXECUTION_FEE = int(0.00005 * 1e18)  # About $0.12
 
 # USDC ABI with 6 decimal support
