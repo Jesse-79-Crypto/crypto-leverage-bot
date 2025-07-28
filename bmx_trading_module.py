@@ -1070,7 +1070,7 @@ class BMXTrader:
                 ).build_transaction({
                     "from": trader_address,
                     "value": execution_fee,  # 👈 THIS LINE IS MANDATORY
-                    "gas": 200000,
+                    "gas": 50000,
                     "nonce": self.w3.eth.get_transaction_count(trader_address),
                 })
                 
