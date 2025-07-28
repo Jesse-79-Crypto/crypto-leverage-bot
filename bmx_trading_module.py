@@ -988,10 +988,11 @@ class BMXTrader:
                 approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
                 logger.info(f"✅ USDC approved! Hash: {approve_hash.hex()}")
                 
-                # Wait for approval confirmation
                 approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=60)
-                if approve_receipt.status != 1:
+                if not approve_receipt or approve_receipt.status != 1:
                     raise Exception("USDC approval failed!")
+                else:
+                    logger.info(f"✅ Approval confirmed with status: {approve_receipt.status}")
                 
                 # Step 4: Verify approval
                 allowance = self.usdc_contract.functions.allowance(trader_address, BMX_POSITION_ROUTER).call()
