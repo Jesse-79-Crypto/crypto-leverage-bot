@@ -317,9 +317,11 @@ class Web3Manager:
     def __init__(self):
         self.w3 = None
         self.account = None
+        self.bmx_position_router = None  # ✅ KEEP THIS - Position Router exists
+        self.bmx_vault = None           # ✅ KEEP THIS - Vault exists  
         self.usdc_contract = None
         self.bmx_token = None
-        self.wblt_token = None  # ✅ This is the main trading contract
+        self.wblt_token = None
         self._initialize_web3()
 
     def _initialize_web3(self):
