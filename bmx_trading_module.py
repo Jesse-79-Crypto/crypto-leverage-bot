@@ -975,12 +975,12 @@ class BMXTrader:
                 logger.info(f"🔍 Current nonce: {current_nonce}")
                 
                 approve_txn = self.usdc_contract.functions.approve(
-                    BMX_POSITION_ROUTER,  # ✅ Position Router, not regular router
+                    BMX_POSITION_ROUTER,
                     approve_amount
                 ).build_transaction({ 
                     'from': trader_address,
-                    'gas': 25000,
-                    'gasPrice': self.w3.to_wei(TradingConfig.GAS_PRICE_GWEI, 'gwei'),
+                    'gas': 50000,  # Reduced from 100,000
+                    'gasPrice': self.w3.to_wei(0.1, 'gwei'),  # 0.1 gwei instead of 2+ gwei
                     'nonce': current_nonce
                 })
                 
