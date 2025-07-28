@@ -291,7 +291,7 @@ class TradingConfig:
     DEFAULT_LEVERAGE = 5
     DEFAULT_SLIPPAGE = 0.008  # 0.8% slippage for BMX oracle pricing
     MIN_MARGIN_REQUIRED = 25  # Minimum margin in USDC
-    GAS_LIMIT = 1000000  # Higher for BMX complexity
+    GAS_LIMIT = 25000  # Higher for BMX complexity
     GAS_PRICE_GWEI = 2
     EXECUTION_FEE = MIN_EXECUTION_FEE  # For keeper execution
 
@@ -976,7 +976,7 @@ class BMXTrader:
                     approve_amount
                 ).build_transaction({ 
                     'from': trader_address,
-                    'gas': 100000,
+                    'gas': 25000,
                     'gasPrice': self.w3.to_wei(TradingConfig.GAS_PRICE_GWEI, 'gwei'),
                     'nonce': current_nonce
                 })
@@ -1004,7 +1004,7 @@ class BMXTrader:
                     BMX_POSITION_ROUTER  # ✅ Position Router address
                 ).build_transaction({
                     'from': trader_address,
-                    'gas': 100000,
+                    'gas': 25000,
                     'gasPrice': self.w3.to_wei(TradingConfig.GAS_PRICE_GWEI, 'gwei'),
                     'nonce': self.w3.eth.get_transaction_count(trader_address)
                 })
