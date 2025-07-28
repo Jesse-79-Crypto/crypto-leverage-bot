@@ -744,34 +744,34 @@ class BMXTrader:
             return oracle_price  # Fallback to oracle price
 
     async def monitor_execution(self, tx_hash: str, timeout_seconds: int = 300) -> Dict[str, Any]:
-    """Monitor keeper execution by checking USDC balance"""
-    try:
-        logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
+        """Monitor keeper execution by checking USDC balance"""
+        try:
+            logger.info(f"👀 Monitoring execution for TX: {tx_hash}")
         
-        # Get transaction receipt
-        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-        if receipt.status != 1:
-            return {"success": False, "error": "Transaction failed on-chain"}
+            # Get transaction receipt
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+            if receipt.status != 1:
+                return {"success": False, "error": "Transaction failed on-chain"}
         
-        # Simple approach: Check if USDC balance decreased
-        trader_address = self.web3_manager.account.address
-        balance_before = self.usdc_contract.functions.balanceOf(trader_address).call()
+            # Simple approach: Check if USDC balance decreased
+            trader_address = self.web3_manager.account.address
+            balance_before = self.usdc_contract.functions.balanceOf(trader_address).call()
         
-        # Wait a bit for keeper execution, then check again
-        await asyncio.sleep(30)  # Wait 30 seconds for keeper
+            # Wait a bit for keeper execution, then check again
+            await asyncio.sleep(30)  # Wait 30 seconds for keeper
         
-        balance_after = self.usdc_contract.functions.balanceOf(trader_address).call()
+            balance_after = self.usdc_contract.functions.balanceOf(trader_address).call()
         
-        if balance_after < balance_before:
-            logger.info("✅ USDC balance decreased - position executed!")
-            return {"success": True, "executed": True}
-        else:
-            logger.warning("⚠️ USDC balance unchanged - position may not have executed")
-            return {"success": False, "error": "No USDC deduction detected"}
+            if balance_after < balance_before:
+                logger.info("✅ USDC balance decreased - position executed!")
+                return {"success": True, "executed": True}
+            else:
+                logger.warning("⚠️ USDC balance unchanged - position may not have executed")
+                return {"success": False, "error": "No USDC deduction detected"}
             
-    except Exception as e:
-        logger.error(f"❌ Execution monitoring failed: {e}")
-        return {"success": False, "error": f"Monitoring failed: {str(e)}"}
+        except Exception as e:
+            logger.error(f"❌ Execution monitoring failed: {e}")
+            return {"success": False, "error": f"Monitoring failed: {str(e)}"}
 
     async def execute_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute trade on BMX protocol with enhanced keeper execution"""
