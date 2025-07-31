@@ -689,42 +689,10 @@ class BMXTrader:
         return None
 
     def get_oracle_price(self, token_address: str, is_long: bool) -> int:
-        """Get current oracle price from BMX vault - FIXED VERSION"""
-        try:
-            logger.info(f"🔮 Fetching BMX oracle price for {token_address}")
-            logger.info(f"🔧 Using vault contract: {BMX_VAULT_CONTRACT}")
-            
-            # ✅ FIXED: BMX uses getPrice(token, maximize) function signature
-            # From research: "passing in true returns the maximum price, false returns the minimum price"
-            
-            # For longs: use maximum price (maximize=True)
-            # For shorts: use minimum price (maximize=False)
-            maximize = is_long  # True for longs, False for shorts
-            
-            try:
-                price = self.bmx_vault.functions.getPrice(token_address, True).call()  # Always use True for now
-                logger.info(f"✅ BMX oracle price fetched: ${price / 1e30:.2f} ({'MAX' if maximize else 'MIN'})")
-                return price
-                
-            except Exception as e1:
-                logger.warning(f"⚠️ getPrice(token, maximize) failed: {e1}")
-                
-                # Fallback: Try without maximize parameter
-                try:
-                    price = self.bmx_vault.functions.getPrice(token_address).call()
-                    logger.info(f"✅ BMX oracle fallback worked: ${price / 1e30:.2f}")
-                    return price
-                except Exception as e2:
-                    logger.warning(f"⚠️ getPrice(token) failed: {e2}")
-            
-            # If all oracle attempts fail, use entry price fallback
-            logger.warning("⚠️ All BMX oracle methods failed - using entry price fallback")
-            return 0
-            
-        except Exception as e:
-            logger.error(f"❌ BMX oracle price fetch completely failed: {e}")
-            return 0
-        
+    """Skip BMX oracle - use entry price directly"""
+    logger.info(f"🔮 Using entry price directly (oracle bypass)")
+    return 0  # This triggers your existing entry price fallback
+    
     def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
         try:
