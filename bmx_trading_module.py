@@ -689,9 +689,9 @@ class BMXTrader:
         return None
 
     def get_oracle_price(self, token_address: str, is_long: bool) -> int:
-    """Skip BMX oracle - use entry price directly"""
-    logger.info(f"🔮 Using entry price directly (oracle bypass)")
-    return 0  # This triggers your existing entry price fallback
+        """Skip BMX oracle - use entry price directly"""
+        logger.info(f"🔮 Using entry price directly (oracle bypass)")
+        return 0  # This triggers your existing entry price fallback
     
     def calculate_acceptable_price(self, oracle_price: int, is_long: bool) -> int:
         """Calculate acceptable price with proper slippage for BMX keeper execution"""
