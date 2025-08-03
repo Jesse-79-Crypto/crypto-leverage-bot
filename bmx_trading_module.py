@@ -36,8 +36,8 @@ USDC_DECIMALS = 6  # ✅ CRITICAL: USDC uses 6 decimals, not 18!
 BMX_TOKEN_CONTRACT = Web3.to_checksum_address("0x548f93779fbc992010c07467cbaf329dd5f059b7")  # ✅ BMX Token (CORRECT)
 WBLT_TOKEN_CONTRACT = Web3.to_checksum_address("0x4e74d4db6c0726ccded4656d0bce448876bb4c7a")  # ✅ wBLT Vault (CORRECT)
 
-BMX_POSITION_ROUTER = Web3.to_checksum_address("0x8457CA5040ad67fdebbCC8EdCE889A335Bc0fbFB")
-BMX_VAULT_CONTRACT = Web3.to_checksum_address("0xED62f93FdEa956cAAC005C046F1C23dDc2c1027d")
+BMX_POSITION_ROUTER = Web3.to_checksum_address("0xa688605056b6656eab66cf7e82ea3608ea9d9e27")
+BMX_VAULT_CONTRACT = Web3.to_checksum_address("0x9cC4E8e60a2c9a67Ac7D20f54607f98EfBA38AcF")
 BMX_ROUTER_CONTRACT = Web3.to_checksum_address("0x5c45ED1Ae116Cf2Bd4d5e3Ba4f56387F69f1F361")
 
 # ✅ EXECUTION FEE FOR KEEPER SYSTEM (reduced since no position router)
