@@ -879,234 +879,148 @@ class BMXTrader:
             }
 
     async def _execute_bmx_trade_keeper(
-            self,
-            trader_address: str,
-            symbol: str,
-            position_usdc_dollars: float,
-            entry_price: float,
-            leverage: int,
-            is_long: bool,
-            trade_data: Dict[str, Any]
-        ) -> Dict[str, Any]:
-        """Execute BMX trade using keeper-based Position Router - CRITICAL UPDATE"""
+        self,
+        trader_address: str,
+        symbol: str,
+        position_usdc_dollars: float,
+        entry_price: float,
+        leverage: int,
+        is_long: bool,
+        trade_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+    """Execute BMX trade using SYMMIO protocol"""
+    
+    try:
+        logger.info(f"🎯 Preparing SYMMIO execution...")
         
+        # Step 1: Create sub-account if needed
+        logger.info("👤 Creating SYMMIO sub-account...")
         try:
-            logger.info(f"🎯 Preparing BMX keeper execution...")
+            account_txn = self.bmx_position_router.functions.addAccount(
+                f"BMXBot_{int(time.time())}"
+            ).build_transaction({
+                'from': trader_address,
+                'gas': 100000,
+                'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(trader_address)
+            })
             
-            logger.info(f"🔍 BMX TRADE PARAMETERS:")
-            logger.info(f"   - Symbol: {symbol}")
-            logger.info(f"   - Position: ${position_usdc_dollars:.2f} USDC")
-            logger.info(f"   - Entry Price: ${entry_price:.2f}")
-            logger.info(f"   - Leverage: {leverage}x")
-            logger.info(f"   - Direction: {'LONG' if is_long else 'SHORT'}")
-            logger.info(f"   - Margin: ${position_usdc_dollars/leverage:.2f}")
-
-            # Check USDC balance
-            balance_before = self.usdc_contract.functions.balanceOf(trader_address).call() / (10 ** USDC_DECIMALS)
-            logger.info(f"🔍 USDC Balance BEFORE: ${balance_before:.6f}")
-
-            # ✅ BMX KEEPER EXECUTION IMPLEMENTATION
-            logger.info(f"🚀 EXECUTING LIVE BMX TRADE WITH KEEPER SYSTEM!")
+            signed_account = self.w3.eth.account.sign_transaction(account_txn, TradingConfig.PRIVATE_KEY)
+            account_hash = self.w3.eth.send_raw_transaction(signed_account.rawTransaction)
+            logger.info(f"✅ Sub-account created: {account_hash.hex()}")
             
-            # CRITICAL: Check if any trade is already active
-            global TRADING_LOCK
-            if TRADING_LOCK:
-                logger.info("🔒 Trade already in progress, skipping...")
-                return {"status": "error", "error": "Trade already in progress"}
-
-            TRADING_LOCK = True
-            try:
-                # Step 1: Get execution fee from Position Router
-                try:
-                    execution_fee = self.bmx_position_router.functions.minExecutionFee().call()
-                    logger.info(f"💰 Execution fee from contract: {execution_fee / 1e18:.6f} ETH")
-                except:
-                    execution_fee = MIN_EXECUTION_FEE
-                    logger.info(f"💰 Using fallback execution fee: {execution_fee / 1e18:.6f} ETH")
-
-                # Step 2: Calculate amounts with correct decimals
-                position_usdc = int(position_usdc_dollars / leverage * (10 ** USDC_DECIMALS))  # FIXED: Use 6 decimals
-                approve_amount = int(1000 * (10 ** USDC_DECIMALS))  # Approve $1000 USDC (max safety)
-                
-                logger.info(f"💰 APPROVING ${approve_amount / (10 ** USDC_DECIMALS):.2f} USDC for Position Router...")
-                
-                # Step 3: Approve USDC for Position Router (FIXED decimal handling)
-                current_nonce = self.w3.eth.get_transaction_count(trader_address, 'pending')
-                logger.info(f"🔍 Current nonce: {current_nonce}")
-                
-                approve_txn = self.usdc_contract.functions.approve(
-                    BMX_POSITION_ROUTER,
-                    approve_amount
-                ).build_transaction({ 
-                    'from': trader_address,
-                    'gas': 50000,  # Reduced from 100,000
-                    'gasPrice': self.w3.to_wei(0.1, 'gwei'),  # 0.1 gwei instead of 2+ gwei
-                    'nonce': current_nonce
-                })
-                
-                signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
-                approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
-                logger.info(f"✅ USDC approved! Hash: {approve_hash.hex()}")
-                
-                approve_receipt = self.w3.eth.wait_for_transaction_receipt(approve_hash, timeout=60)
-                if not approve_receipt or approve_receipt.status != 1:
-                    raise Exception("USDC approval failed!")
-                else:
-                    logger.info(f"✅ Approval confirmed with status: {approve_receipt.status}")
-                
-                # Step 4: Verify approval
-                allowance = self.usdc_contract.functions.allowance(trader_address, BMX_POSITION_ROUTER).call()
-                logger.info(f"✅ Verified allowance: ${allowance / (10 ** USDC_DECIMALS):.2f} USDC")
-                
-                if allowance < position_usdc:
-                    raise Exception(f"Insufficient allowance: {allowance} < {position_usdc}")
-
-                # Step 5: Approve Position Router as plugin
-                logger.info("🔐 Approving Position Router as BMX plugin...")
-
-                plugin_approval_txn = self.bmx_router.functions.approvePlugin(
-                    BMX_POSITION_ROUTER  # ✅ Position Router address
-                ).build_transaction({
-                    'from': trader_address,
-                    'gas': 25000,
-                    'gasPrice': self.w3.to_wei(TradingConfig.GAS_PRICE_GWEI, 'gwei'),
-                    'nonce': self.w3.eth.get_transaction_count(trader_address)
-                })
-
-                signed_plugin = self.w3.eth.account.sign_transaction(plugin_approval_txn, TradingConfig.PRIVATE_KEY)
-                plugin_hash = self.w3.eth.send_raw_transaction(signed_plugin.rawTransaction)
-                logger.info(f"✅ Plugin approved! Hash: {plugin_hash.hex()}") 
-
-                plugin_receipt = self.w3.eth.wait_for_transaction_receipt(plugin_hash)
-                if plugin_receipt.status != 1:
-                    raise Exception("Plugin approval transaction failed!")
-                logger.info(f"✅ Plugin approval confirmed on-chain! Block: {plugin_receipt.blockNumber}")
-                
-                # Step 6: Get oracle price and calculate acceptable price
-                if symbol not in self.supported_tokens:
-                    logger.error(f"❌ Unsupported symbol: {symbol}")
-                    return {"status": "error", "error": f"Unsupported symbol: {symbol}"}
-                    
-                index_token = self.supported_tokens[symbol]['address']
-                collateral_token = USDC_CONTRACT
-                
-                logger.info(f"🔧 TOKEN SETUP:")
-                logger.info(f"   - Collateral (margin): USDC {collateral_token}")
-                logger.info(f"   - Index (trading): {symbol} {index_token}")
-                
-                # Get oracle price for acceptable price calculation
-                oracle_price = self.get_oracle_price(index_token, is_long)
-                if oracle_price == 0:
-                    # Fallback to entry price if oracle fails
-                    oracle_price = int(entry_price * 1e30)
-                    logger.warning("⚠️ Using entry price as fallback for oracle price")
-                
-                acceptable_price = self.calculate_acceptable_price(oracle_price, is_long)
-                size_delta = int(position_usdc_dollars * 1e30)  # Position size in USD (30 decimals)
-                
-                logger.info(f"🎯 CREATING BMX POSITION WITH KEEPER:")
-                logger.info(f"   - Collateral: ${position_usdc / (10 ** USDC_DECIMALS):.2f} USDC")
-                logger.info(f"   - Size: ${size_delta / 1e30:.2f} USD")
-                logger.info(f"   - Oracle Price: ${oracle_price / 1e30:.2f}")
-                logger.info(f"   - Acceptable Price: ${acceptable_price / 1e30:.2f}")
-                logger.info(f"   - Direction: {'LONG' if is_long else 'SHORT'}")
-                logger.info(f"   - Execution Fee: {execution_fee / 1e18:.6f} ETH")
-
-                # Step 7: Define missing variables for position creation
-                path = [collateral_token, index_token]  # Swap path for USDC -> BTC
-                amount_in = position_usdc  # USDC amount to use as margin
-                min_out = 0  # Minimum tokens out (no swap needed)
-                referral_code = b'\x00' * 32  # Empty referral code
-                callback_target = trader_address  # Callback to user's address
-                
-                # Step 7: Create position via Position Router (KEEPER EXECUTION)
-                position_txn = self.bmx_position_router.functions.createIncreasePosition(
-                    path,
-                    index_token,
-                    amount_in,
-                    min_out,
-                    size_delta,
-                    is_long,
-                    acceptable_price,
-                    execution_fee,
-                    referral_code,
-                    callback_target
-                ).build_transaction({
-                    "from": trader_address,
-                    "value": execution_fee,  # 👈 THIS LINE IS MANDATORY
-                    "gas": 50000,
-                    "nonce": self.w3.eth.get_transaction_count(trader_address),
-                })
-                
-                # Execute position transaction
-                signed_position = self.w3.eth.account.sign_transaction(position_txn, TradingConfig.PRIVATE_KEY)
-                position_hash = self.w3.eth.send_raw_transaction(signed_position.rawTransaction)
-
-                logger.info(f"🚀 BMX POSITION REQUEST SUBMITTED! Hash: {position_hash.hex()}")
-                logger.info(f"🔗 BaseScan: https://basescan.org/tx/{position_hash.hex()}")
-
-                # Step 8: Monitor keeper execution
-                execution_result = await self.monitor_execution(position_hash.hex())
-                
-                if not execution_result["success"]:
-                    logger.error(f"❌ Keeper execution failed: {execution_result.get('error', 'Unknown error')}")
-                    return {
-                        "status": "error",
-                        "message": f"Keeper execution failed: {execution_result.get('error')}",
-                        "tx_hash": position_hash.hex(),
-                        "basescan_url": f"https://basescan.org/tx/{position_hash.hex()}"
-                    }
-
-                logger.info(f"✅ BMX POSITION EXECUTED BY KEEPER!")
-                
-                # Check balance after execution
-                balance_after = self.usdc_contract.functions.balanceOf(trader_address).call() / (10 ** USDC_DECIMALS)
-                logger.info(f"🔍 USDC Balance AFTER: ${balance_after:.6f}")
-                
-                balance_change = balance_before - balance_after
-                logger.info(f"💰 USDC Balance Change: -${balance_change:.6f}")
-                
-                return {
-                    "status": "success", 
-                    "message": "BMX trade executed successfully via keeper!",
-                    "tx_hash": position_hash.hex(),
-                    "basescan_url": f"https://basescan.org/tx/{position_hash.hex()}",
-                    "execution_monitoring": execution_result,
-                    "trade_details": {
-                        "symbol": symbol,
-                        "position_size": f"${position_usdc_dollars:.2f}",
-                        "entry_price": f"${entry_price:.2f}",
-                        "oracle_price": f"${oracle_price / 1e30:.2f}",
-                        "acceptable_price": f"${acceptable_price / 1e30:.2f}",
-                        "leverage": f"{leverage}x",
-                        "direction": "LONG" if is_long else "SHORT",
-                        "margin_used": f"${position_usdc_dollars/leverage:.2f}",
-                        "balance_before": f"${balance_before:.6f}",
-                        "balance_after": f"${balance_after:.6f}",
-                        "balance_change": f"-${balance_change:.6f}",
-                        "execution_fee": f"{execution_fee / 1e18:.6f} ETH"
-                    },
-                    "bmx_advantages": [
-                        "✅ Keeper-based execution",
-                        "✅ Oracle-based pricing", 
-                        "✅ No price impact",
-                        "✅ Reliable settlement"
-                    ]
-                }
-
-            except Exception as e:
-                logger.error(f"❌ Trading error: {e}")
-                raise
-            finally:
-                TRADING_LOCK = False
-
+            # Wait for confirmation
+            self.w3.eth.wait_for_transaction_receipt(account_hash)
+            
         except Exception as e:
-            logger.error(f"❌ BMX keeper execution failed: {str(e)}")
-            return {
-                "status": "error",
-                "message": f"BMX keeper execution failed: {str(e)}",
-                "error_type": type(e).__name__
+            logger.warning(f"⚠️ Sub-account creation failed (may already exist): {e}")
+        
+        # Step 2: Approve USDC
+        position_usdc = int(position_usdc_dollars * (10 ** USDC_DECIMALS))
+        
+        approve_txn = self.usdc_contract.functions.approve(
+            BMX_POSITION_ROUTER,
+            position_usdc * 2  # Approve double for safety
+        ).build_transaction({
+            'from': trader_address,
+            'gas': 50000,
+            'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+            'nonce': self.w3.eth.get_transaction_count(trader_address)
+        })
+        
+        signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
+        approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
+        logger.info(f"✅ USDC approved: {approve_hash.hex()}")
+        
+        # Wait for approval
+        self.w3.eth.wait_for_transaction_receipt(approve_hash)
+        
+        # Step 3: Deposit and allocate
+        logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC...")
+        
+        deposit_txn = self.bmx_position_router.functions.depositAndAllocateForAccount(
+            trader_address,  # Account to deposit for
+            position_usdc    # Amount in USDC
+        ).build_transaction({
+            'from': trader_address,
+            'gas': 150000,
+            'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+            'nonce': self.w3.eth.get_transaction_count(trader_address)
+        })
+        
+        signed_deposit = self.w3.eth.account.sign_transaction(deposit_txn, TradingConfig.PRIVATE_KEY)
+        deposit_hash = self.w3.eth.send_raw_transaction(signed_deposit.rawTransaction)
+        logger.info(f"✅ Deposit submitted: {deposit_hash.hex()}")
+        
+        # Wait for deposit
+        self.w3.eth.wait_for_transaction_receipt(deposit_hash)
+        
+        # Step 4: Send trading quote (intent)
+        logger.info(f"📝 Sending trading quote...")
+        
+        # Calculate quote parameters
+        symbol_id = 1  # BTC = 1, ETH = 2, etc.
+        position_type = 1 if is_long else 0  # LONG = 1, SHORT = 0
+        order_type = 1  # MARKET = 1
+        price_18_decimals = int(entry_price * 1e18)
+        quantity_18_decimals = int(position_usdc_dollars * leverage * 1e18)
+        cva = quantity_18_decimals // 20  # 5% CVA
+        mm = quantity_18_decimals // 20   # 5% MM
+        lf = quantity_18_decimals // 100  # 1% LF
+        max_interest_rate = int(0.1 * 1e18)  # 10% max interest
+        deadline = int(time.time()) + 600  # 10 minutes from now
+        
+        quote_txn = self.bmx_position_router.functions.sendQuote(
+            [],  # Empty whitelist = any hedger can fill
+            symbol_id,
+            position_type,
+            order_type,
+            price_18_decimals,
+            quantity_18_decimals,
+            cva,
+            mm,
+            lf,
+            max_interest_rate,
+            deadline
+        ).build_transaction({
+            'from': trader_address,
+            'gas': 200000,
+            'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+            'nonce': self.w3.eth.get_transaction_count(trader_address)
+        })
+        
+        signed_quote = self.w3.eth.account.sign_transaction(quote_txn, TradingConfig.PRIVATE_KEY)
+        quote_hash = self.w3.eth.send_raw_transaction(signed_quote.rawTransaction)
+        
+        logger.info(f"🚀 QUOTE SUBMITTED: {quote_hash.hex()}")
+        logger.info(f"🔗 BaseScan: https://basescan.org/tx/{quote_hash.hex()}")
+        
+        return {
+            "status": "success",
+            "message": "SYMMIO quote submitted - waiting for hedger to fill",
+            "tx_hash": quote_hash.hex(),
+            "basescan_url": f"https://basescan.org/tx/{quote_hash.hex()}",
+            "trade_details": {
+                "symbol": symbol,
+                "position_size": f"${position_usdc_dollars:.2f}",
+                "entry_price": f"${entry_price:.2f}",
+                "leverage": f"{leverage}x",
+                "direction": "LONG" if is_long else "SHORT",
+                "symbol_id": symbol_id,
+                "quote_parameters": {
+                    "cva": f"{cva / 1e18:.2f}",
+                    "mm": f"{mm / 1e18:.2f}",
+                    "lf": f"{lf / 1e18:.2f}"
+                }
             }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ SYMMIO execution failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"SYMMIO execution failed: {str(e)}"
+        }
 
 # Initialize BMX trader
 try:
