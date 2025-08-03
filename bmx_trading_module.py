@@ -102,50 +102,42 @@ ROUTER_ABI = [
     }
 ]
 
-# ✅ POSITION ROUTER ABI for keeper-based execution
+# ✅ SYMMIO DIAMOND ABI for intent-based execution
 BMX_POSITION_ROUTER_ABI = [
     {
+        "inputs": [{"name": "name", "type": "string"}],
+        "name": "addAccount",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
         "inputs": [
-            {"name": "_path", "type": "address[]"},
-            {"name": "_indexToken", "type": "address"}, 
-            {"name": "_amountIn", "type": "uint256"},
-            {"name": "_minOut", "type": "uint256"},
-            {"name": "_sizeDelta", "type": "uint256"},
-            {"name": "_isLong", "type": "bool"},
-            {"name": "_acceptablePrice", "type": "uint256"},
-            {"name": "_executionFee", "type": "uint256"},
-            {"name": "_referralCode", "type": "bytes32"},
-            {"name": "_callbackTarget", "type": "address"}
-        ],
-        "name": "createIncreasePosition",
-        "outputs": [{"name": "", "type": "bytes32"}],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [{"name": "_key", "type": "bytes32"}],
-        "name": "increasePositionRequests",
-        "outputs": [
             {"name": "account", "type": "address"},
-            {"name": "path", "type": "address[]"},
-            {"name": "indexToken", "type": "address"},
-            {"name": "amountIn", "type": "uint256"},
-            {"name": "minOut", "type": "uint256"},
-            {"name": "sizeDelta", "type": "uint256"},
-            {"name": "isLong", "type": "bool"},
-            {"name": "acceptablePrice", "type": "uint256"},
-            {"name": "executionFee", "type": "uint256"},
-            {"name": "blockNumber", "type": "uint256"},
-            {"name": "blockTime", "type": "uint256"}
+            {"name": "amount", "type": "uint256"}
         ],
-        "stateMutability": "view",
+        "name": "depositAndAllocateForAccount", 
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "minExecutionFee",
+        "inputs": [
+            {"name": "partyBsWhiteList", "type": "address[]"},
+            {"name": "symbolId", "type": "uint256"},
+            {"name": "positionType", "type": "uint8"},
+            {"name": "orderType", "type": "uint8"},
+            {"name": "price", "type": "uint256"},
+            {"name": "quantity", "type": "uint256"},
+            {"name": "cva", "type": "uint256"},
+            {"name": "mm", "type": "uint256"},
+            {"name": "lf", "type": "uint256"},
+            {"name": "maxInterestRate", "type": "uint256"},
+            {"name": "deadline", "type": "uint256"}
+        ],
+        "name": "sendQuote",
         "outputs": [{"name": "", "type": "uint256"}],
-        "stateMutability": "view",
+        "stateMutability": "nonpayable", 
         "type": "function"
     }
 ]
