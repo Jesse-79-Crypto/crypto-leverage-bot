@@ -879,148 +879,148 @@ class BMXTrader:
             }
 
     async def _execute_bmx_trade_keeper(
-        self,
-        trader_address: str,
-        symbol: str,
-        position_usdc_dollars: float,
-        entry_price: float,
-        leverage: int,
-        is_long: bool,
-        trade_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-    """Execute BMX trade using SYMMIO protocol"""
-    
-    try:
-        logger.info(f"🎯 Preparing SYMMIO execution...")
+            self,
+            trader_address: str,
+            symbol: str,
+            position_usdc_dollars: float,
+            entry_price: float,
+            leverage: int,
+            is_long: bool,
+            trade_data: Dict[str, Any]
+        ) -> Dict[str, Any]:
+        """Execute BMX trade using SYMMIO protocol"""
         
-        # Step 1: Create sub-account if needed
-        logger.info("👤 Creating SYMMIO sub-account...")
         try:
-            account_txn = self.bmx_position_router.functions.addAccount(
-                f"BMXBot_{int(time.time())}"
+            logger.info(f"🎯 Preparing SYMMIO execution...")
+            
+            # Step 1: Create sub-account if needed
+            logger.info("👤 Creating SYMMIO sub-account...")
+            try:
+                account_txn = self.bmx_position_router.functions.addAccount(
+                    f"BMXBot_{int(time.time())}"
+                ).build_transaction({
+                    'from': trader_address,
+                    'gas': 100000,
+                    'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+                    'nonce': self.w3.eth.get_transaction_count(trader_address)
+                })
+                
+                signed_account = self.w3.eth.account.sign_transaction(account_txn, TradingConfig.PRIVATE_KEY)
+                account_hash = self.w3.eth.send_raw_transaction(signed_account.rawTransaction)
+                logger.info(f"✅ Sub-account created: {account_hash.hex()}")
+                
+                # Wait for confirmation
+                self.w3.eth.wait_for_transaction_receipt(account_hash)
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Sub-account creation failed (may already exist): {e}")
+            
+            # Step 2: Approve USDC
+            position_usdc = int(position_usdc_dollars * (10 ** USDC_DECIMALS))
+            
+            approve_txn = self.usdc_contract.functions.approve(
+                BMX_POSITION_ROUTER,
+                position_usdc * 2  # Approve double for safety
             ).build_transaction({
                 'from': trader_address,
-                'gas': 100000,
+                'gas': 50000,
                 'gasPrice': self.w3.to_wei(0.1, 'gwei'),
                 'nonce': self.w3.eth.get_transaction_count(trader_address)
             })
             
-            signed_account = self.w3.eth.account.sign_transaction(account_txn, TradingConfig.PRIVATE_KEY)
-            account_hash = self.w3.eth.send_raw_transaction(signed_account.rawTransaction)
-            logger.info(f"✅ Sub-account created: {account_hash.hex()}")
+            signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
+            approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
+            logger.info(f"✅ USDC approved: {approve_hash.hex()}")
             
-            # Wait for confirmation
-            self.w3.eth.wait_for_transaction_receipt(account_hash)
+            # Wait for approval
+            self.w3.eth.wait_for_transaction_receipt(approve_hash)
             
-        except Exception as e:
-            logger.warning(f"⚠️ Sub-account creation failed (may already exist): {e}")
-        
-        # Step 2: Approve USDC
-        position_usdc = int(position_usdc_dollars * (10 ** USDC_DECIMALS))
-        
-        approve_txn = self.usdc_contract.functions.approve(
-            BMX_POSITION_ROUTER,
-            position_usdc * 2  # Approve double for safety
-        ).build_transaction({
-            'from': trader_address,
-            'gas': 50000,
-            'gasPrice': self.w3.to_wei(0.1, 'gwei'),
-            'nonce': self.w3.eth.get_transaction_count(trader_address)
-        })
-        
-        signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
-        approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
-        logger.info(f"✅ USDC approved: {approve_hash.hex()}")
-        
-        # Wait for approval
-        self.w3.eth.wait_for_transaction_receipt(approve_hash)
-        
-        # Step 3: Deposit and allocate
-        logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC...")
-        
-        deposit_txn = self.bmx_position_router.functions.depositAndAllocateForAccount(
-            trader_address,  # Account to deposit for
-            position_usdc    # Amount in USDC
-        ).build_transaction({
-            'from': trader_address,
-            'gas': 150000,
-            'gasPrice': self.w3.to_wei(0.1, 'gwei'),
-            'nonce': self.w3.eth.get_transaction_count(trader_address)
-        })
-        
-        signed_deposit = self.w3.eth.account.sign_transaction(deposit_txn, TradingConfig.PRIVATE_KEY)
-        deposit_hash = self.w3.eth.send_raw_transaction(signed_deposit.rawTransaction)
-        logger.info(f"✅ Deposit submitted: {deposit_hash.hex()}")
-        
-        # Wait for deposit
-        self.w3.eth.wait_for_transaction_receipt(deposit_hash)
-        
-        # Step 4: Send trading quote (intent)
-        logger.info(f"📝 Sending trading quote...")
-        
-        # Calculate quote parameters
-        symbol_id = 1  # BTC = 1, ETH = 2, etc.
-        position_type = 1 if is_long else 0  # LONG = 1, SHORT = 0
-        order_type = 1  # MARKET = 1
-        price_18_decimals = int(entry_price * 1e18)
-        quantity_18_decimals = int(position_usdc_dollars * leverage * 1e18)
-        cva = quantity_18_decimals // 20  # 5% CVA
-        mm = quantity_18_decimals // 20   # 5% MM
-        lf = quantity_18_decimals // 100  # 1% LF
-        max_interest_rate = int(0.1 * 1e18)  # 10% max interest
-        deadline = int(time.time()) + 600  # 10 minutes from now
-        
-        quote_txn = self.bmx_position_router.functions.sendQuote(
-            [],  # Empty whitelist = any hedger can fill
-            symbol_id,
-            position_type,
-            order_type,
-            price_18_decimals,
-            quantity_18_decimals,
-            cva,
-            mm,
-            lf,
-            max_interest_rate,
-            deadline
-        ).build_transaction({
-            'from': trader_address,
-            'gas': 200000,
-            'gasPrice': self.w3.to_wei(0.1, 'gwei'),
-            'nonce': self.w3.eth.get_transaction_count(trader_address)
-        })
-        
-        signed_quote = self.w3.eth.account.sign_transaction(quote_txn, TradingConfig.PRIVATE_KEY)
-        quote_hash = self.w3.eth.send_raw_transaction(signed_quote.rawTransaction)
-        
-        logger.info(f"🚀 QUOTE SUBMITTED: {quote_hash.hex()}")
-        logger.info(f"🔗 BaseScan: https://basescan.org/tx/{quote_hash.hex()}")
-        
-        return {
-            "status": "success",
-            "message": "SYMMIO quote submitted - waiting for hedger to fill",
-            "tx_hash": quote_hash.hex(),
-            "basescan_url": f"https://basescan.org/tx/{quote_hash.hex()}",
-            "trade_details": {
-                "symbol": symbol,
-                "position_size": f"${position_usdc_dollars:.2f}",
-                "entry_price": f"${entry_price:.2f}",
-                "leverage": f"{leverage}x",
-                "direction": "LONG" if is_long else "SHORT",
-                "symbol_id": symbol_id,
-                "quote_parameters": {
-                    "cva": f"{cva / 1e18:.2f}",
-                    "mm": f"{mm / 1e18:.2f}",
-                    "lf": f"{lf / 1e18:.2f}"
+            # Step 3: Deposit and allocate
+            logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC...")
+            
+            deposit_txn = self.bmx_position_router.functions.depositAndAllocateForAccount(
+                trader_address,  # Account to deposit for
+                position_usdc    # Amount in USDC
+            ).build_transaction({
+                'from': trader_address,
+                'gas': 150000,
+                'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(trader_address)
+            })
+            
+            signed_deposit = self.w3.eth.account.sign_transaction(deposit_txn, TradingConfig.PRIVATE_KEY)
+            deposit_hash = self.w3.eth.send_raw_transaction(signed_deposit.rawTransaction)
+            logger.info(f"✅ Deposit submitted: {deposit_hash.hex()}")
+            
+            # Wait for deposit
+            self.w3.eth.wait_for_transaction_receipt(deposit_hash)
+            
+            # Step 4: Send trading quote (intent)
+            logger.info(f"📝 Sending trading quote...")
+            
+            # Calculate quote parameters
+            symbol_id = 1  # BTC = 1, ETH = 2, etc.
+            position_type = 1 if is_long else 0  # LONG = 1, SHORT = 0
+            order_type = 1  # MARKET = 1
+            price_18_decimals = int(entry_price * 1e18)
+            quantity_18_decimals = int(position_usdc_dollars * leverage * 1e18)
+            cva = quantity_18_decimals // 20  # 5% CVA
+            mm = quantity_18_decimals // 20   # 5% MM
+            lf = quantity_18_decimals // 100  # 1% LF
+            max_interest_rate = int(0.1 * 1e18)  # 10% max interest
+            deadline = int(time.time()) + 600  # 10 minutes from now
+            
+            quote_txn = self.bmx_position_router.functions.sendQuote(
+                [],  # Empty whitelist = any hedger can fill
+                symbol_id,
+                position_type,
+                order_type,
+                price_18_decimals,
+                quantity_18_decimals,
+                cva,
+                mm,
+                lf,
+                max_interest_rate,
+                deadline
+            ).build_transaction({
+                'from': trader_address,
+                'gas': 200000,
+                'gasPrice': self.w3.to_wei(0.1, 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(trader_address)
+            })
+            
+            signed_quote = self.w3.eth.account.sign_transaction(quote_txn, TradingConfig.PRIVATE_KEY)
+            quote_hash = self.w3.eth.send_raw_transaction(signed_quote.rawTransaction)
+            
+            logger.info(f"🚀 QUOTE SUBMITTED: {quote_hash.hex()}")
+            logger.info(f"🔗 BaseScan: https://basescan.org/tx/{quote_hash.hex()}")
+            
+            return {
+                "status": "success",
+                "message": "SYMMIO quote submitted - waiting for hedger to fill",
+                "tx_hash": quote_hash.hex(),
+                "basescan_url": f"https://basescan.org/tx/{quote_hash.hex()}",
+                "trade_details": {
+                    "symbol": symbol,
+                    "position_size": f"${position_usdc_dollars:.2f}",
+                    "entry_price": f"${entry_price:.2f}",
+                    "leverage": f"{leverage}x",
+                    "direction": "LONG" if is_long else "SHORT",
+                    "symbol_id": symbol_id,
+                    "quote_parameters": {
+                        "cva": f"{cva / 1e18:.2f}",
+                        "mm": f"{mm / 1e18:.2f}",
+                        "lf": f"{lf / 1e18:.2f}"
+                    }
                 }
             }
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ SYMMIO execution failed: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"SYMMIO execution failed: {str(e)}"
-        }
+            
+        except Exception as e:
+            logger.error(f"❌ SYMMIO execution failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"SYMMIO execution failed: {str(e)}"
+            }
 
 # Initialize BMX trader
 try:
