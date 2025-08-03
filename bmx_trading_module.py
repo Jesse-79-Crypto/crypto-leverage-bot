@@ -959,7 +959,29 @@ class BMXTrader:
             logger.info(f"📝 Sending trading quote...")
             
             # Calculate quote parameters
-            symbol_id = 1  # BTC = 1, ETH = 2, etc.
+            # DEBUGGING: Let's check contract activity first
+            logger.error(f"🔍 DEBUGGING CONTRACT VALIDATION")
+            logger.error(f"Current contract: {BMX_POSITION_ROUTER}")
+            logger.error(f"This contract has 2,444 transactions - seems low for active trading")
+            logger.error(f"Most transactions are 'Approve Plugin' not actual trades")
+
+            # Don't send quote yet - return debug info
+            return {
+                "status": "debug",
+                "message": "Investigating correct BMX contract address",
+                "current_contract": BMX_POSITION_ROUTER,
+                "observations": [
+                    "Contract has only 2,444 total transactions",
+                    "Mostly 'Approve Plugin' calls, few actual trades", 
+                    "Recent 'Create Increa...' transactions show errors",
+                    "Need to verify this is the active trading contract"
+                ],
+                "next_steps": [
+                    "Check BMX.trade frontend for real contract calls",
+                    "Look for high-volume SYMMIO Diamond contracts on Base",
+                    "Test with small amount once verified"
+                ]
+            }
             position_type = 1 if is_long else 0  # LONG = 1, SHORT = 0
             order_type = 1  # MARKET = 1
             price_18_decimals = int(entry_price * 1e18)
