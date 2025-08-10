@@ -955,32 +955,26 @@ class BMXTrader:
             except Exception as e:
                 logger.warning(f"⚠️ Sub-account creation failed (may already exist): {e}")
             
-            # Step 2: Approve USDC
+
+            # ---- Step 2: APPROVE USDC (spender = SYMMIO MultiAccount)
             position_usdc = int(position_usdc_dollars * (10 ** USDC_DECIMALS))
-            
-            # -- SYMMIO: approve USDC to MultiAccount (spender)
+
             approve_txn = self.usdc_contract.functions.approve(
-                SYMMIO_USDC_SPENDER,
-                position_usdc * 2  # approve a bit extra
-            ).build_transaction(_tx_args(self.w3, trader_address))
+                SYMMIO_USDC_SPENDER,           # <- MultiAccount address
+                position_usdc * 2              # approve a bit extra
+            ).build_transaction(_tx_args(self.w3, trader_address, gas_limit=60000))
 
             signed_approve = self.w3.eth.account.sign_transaction(approve_txn, TradingConfig.PRIVATE_KEY)
             approve_hash = self.w3.eth.send_raw_transaction(signed_approve.rawTransaction)
             logger.info(f"✅ USDC approve tx: {approve_hash.hex()}")
             self.w3.eth.wait_for_transaction_receipt(approve_hash)
 
-            # Wait for approval
-            self.w3.eth.wait_for_transaction_receipt(approve_hash)
-            
-            # Step 3: Deposit and allocate
-            logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC...")
-            
-            # -- SYMMIO: deposit USDC into MultiAccount
+            # ---- Step 3: DEPOSIT & ALLOCATE
             logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC to SYMMIO...")
             deposit_txn = self.symmio_multi.functions.depositAndAllocateForAccount(
                 trader_address,
-                position_usdc  # 6-decimals already applied above
-            ).build_transaction(_tx_args(self.w3, trader_address))
+                position_usdc
+            ).build_transaction(_tx_args(self.w3, trader_address, gas_limit=180000))
 
             signed_deposit = self.w3.eth.account.sign_transaction(deposit_txn, TradingConfig.PRIVATE_KEY)
             deposit_hash = self.w3.eth.send_raw_transaction(signed_deposit.rawTransaction)
