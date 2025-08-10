@@ -639,7 +639,13 @@ class BMXTrader:
                 address=BMX_ROUTER_CONTRACT,
                 abi=ROUTER_ABI
             )
-            
+
+            # SYMMIO MultiAccount contract instance (used for sub-account + deposit)
+            self.symmio_multi = self.w3.eth.contract(
+                address=SYMMIO_MULTIACCOUNT,
+                abi=BMX_POSITION_ROUTER_ABI  # same ABI covers addAccount & depositAndAllocateForAccount
+            )
+
             logging.info("✅ BMX contracts initialized for live keeper execution!")
         
         except Exception as e:
