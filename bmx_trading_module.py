@@ -959,23 +959,18 @@ class BMXTrader:
             # Step 3: Deposit and allocate
             logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC...")
             
-            deposit_txn = self.bmx_position_router.functions.depositAndAllocateForAccount(
-                trader_address,  # Account to deposit for
-                position_usdc    # Amount in USDC
-            ).build_transaction({
-                'from': trader_address,
-                'gas': 150000,
-                'gasPrice': self.w3.to_wei(0.1, 'gwei'),
-                'nonce': self.w3.eth.get_transaction_count(trader_address)
-            })
-            
+            # -- SYMMIO: deposit USDC into MultiAccount
+            logger.info(f"💰 Depositing ${position_usdc_dollars:.2f} USDC to SYMMIO...")
+            deposit_txn = self.symmio_multi.functions.depositAndAllocateForAccount(
+                trader_address,
+                position_usdc  # 6-decimals already applied above
+            ).build_transaction(_tx_args(self.w3, trader_address))
+
             signed_deposit = self.w3.eth.account.sign_transaction(deposit_txn, TradingConfig.PRIVATE_KEY)
             deposit_hash = self.w3.eth.send_raw_transaction(signed_deposit.rawTransaction)
-            logger.info(f"✅ Deposit submitted: {deposit_hash.hex()}")
-            
-            # Wait for deposit
+            logger.info(f"✅ Deposit tx: {deposit_hash.hex()}")
             self.w3.eth.wait_for_transaction_receipt(deposit_hash)
-            
+
             # Step 4: Send trading quote (intent)
             logger.info(f"📝 Sending trading quote...")
             
