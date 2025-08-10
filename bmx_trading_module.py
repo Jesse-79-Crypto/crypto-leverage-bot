@@ -926,22 +926,16 @@ class BMXTrader:
             # Step 1: Create sub-account if needed
             logger.info("👤 Creating SYMMIO sub-account...")
             try:
-                account_txn = self.bmx_position_router.functions.addAccount(
+                # -- SYMMIO: create (or reuse) a sub-account on MultiAccount
+                account_txn = self.symmio_multi.functions.addAccount(
                     f"BMXBot_{int(time.time())}"
-                ).build_transaction({
-                    'from': trader_address,
-                    'gas': 100000,
-                    'gasPrice': self.w3.to_wei(0.1, 'gwei'),
-                    'nonce': self.w3.eth.get_transaction_count(trader_address)
-                })
-                
+                ).build_transaction(_tx_args(self.w3, trader_address))
+
                 signed_account = self.w3.eth.account.sign_transaction(account_txn, TradingConfig.PRIVATE_KEY)
                 account_hash = self.w3.eth.send_raw_transaction(signed_account.rawTransaction)
-                logger.info(f"✅ Sub-account created: {account_hash.hex()}")
-                
-                # Wait for confirmation
+                logger.info(f"✅ Sub-account tx sent: {account_hash.hex()}")
                 self.w3.eth.wait_for_transaction_receipt(account_hash)
-                
+
             except Exception as e:
                 logger.warning(f"⚠️ Sub-account creation failed (may already exist): {e}")
             
