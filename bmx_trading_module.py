@@ -590,6 +590,16 @@ def _tx_args(w3, from_addr):
         'maxFeePerGas': base_fee * 2,
         'maxPriorityFeePerGas': w3.to_wei(0.05, 'gwei')
     }
+
+def _tx_args(w3, from_addr):
+    base_fee = w3.eth.gas_price
+    return {
+        'from': from_addr,
+        'nonce': w3.eth.get_transaction_count(from_addr),
+        'maxFeePerGas': base_fee * 2,
+        'maxPriorityFeePerGas': w3.to_wei(0.05, 'gwei')
+    }
+
 # ============================================================================
 # 🎯 BMX TRADING ENGINE - UPDATED FOR LIVE KEEPER EXECUTION
 # ============================================================================
@@ -1313,15 +1323,11 @@ def webhook():
         try:
             result = asyncio.run(signal_processor.process_signal(trade_data))
             
-            # Update ACTIVE_TRADES based on result
+            # Always unlock the symbol after the attempt (success OR failure)
             with ACTIVE_TRADES_LOCK:
-                if result.get('status') == 'success':
-                    ACTIVE_TRADES[symbol] = False
-                    logger.info(f"🔓 {symbol} marked as INACTIVE after successful trade")
-                else:
-                    # Keep active on failure for safety
-                    logger.info(f"🔒 {symbol} remains ACTIVE (trade failed)")
-            
+                ACTIVE_TRADES[symbol] = False
+                logger.info(f"🔓 {symbol} marked as INACTIVE after trade attempt ({result.get('status')})")
+
             return {
                 "status": "completed",
                 "result": result,
