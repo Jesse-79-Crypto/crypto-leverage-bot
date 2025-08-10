@@ -973,13 +973,6 @@ class BMXTrader:
 
             # Step 4: Send trading quote (intent)
             logger.info(f"📝 Sending trading quote...")
-            
-            # Calculate quote parameters
-            # DEBUGGING: Let's check contract activity first
-            logger.error(f"🔍 DEBUGGING CONTRACT VALIDATION")
-            logger.error(f"Current contract: {BMX_POSITION_ROUTER}")
-            logger.error(f"This contract has 2,444 transactions - seems low for active trading")
-            logger.error(f"Most transactions are 'Approve Plugin' not actual trades")
 
             # Don't send quote yet - return debug info
             return {
