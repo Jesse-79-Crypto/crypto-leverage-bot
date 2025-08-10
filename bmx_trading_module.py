@@ -32,6 +32,22 @@ import requests
 USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # ✅ CORRECT
 USDC_DECIMALS = 6  # ✅ CRITICAL: USDC uses 6 decimals, not 18!
 
+# === SYMMIO MODE & ADDRESSES ===
+EXECUTION_MODE = os.getenv("EXECUTION_MODE", "SYMMIO")
+
+# Main SYMMIO Diamond (Base)
+SYMMIO_DIAMOND = Web3.to_checksum_address(
+    os.getenv("SYMMIO_DIAMOND_ADDRESS", "0x91Cf2D8Ed503EC52768999aA6D8DBeA6e52dbe43")
+)
+
+# MultiAccount contract (used for approve + deposit)
+SYMMIO_MULTIACCOUNT = Web3.to_checksum_address(
+    os.getenv("SYMMIO_MULTIACCOUNT_ADDRESS", "0x6D63921D8203044f6AbaD8F346d3AEa9A2719dDD")
+)
+
+# Spender for USDC approvals (same as MultiAccount)
+SYMMIO_USDC_SPENDER = SYMMIO_MULTIACCOUNT
+
 # BMX Protocol Contracts on Base Network - CORRECTED ADDRESSES
 BMX_TOKEN_CONTRACT = Web3.to_checksum_address("0x548f93779fbc992010c07467cbaf329dd5f059b7")  # ✅ BMX Token (CORRECT)
 WBLT_TOKEN_CONTRACT = Web3.to_checksum_address("0x4e74d4db6c0726ccded4656d0bce448876bb4c7a")  # ✅ wBLT Vault (CORRECT)
