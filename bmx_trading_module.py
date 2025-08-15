@@ -582,15 +582,6 @@ class GoogleSheetsManager:
 # Initialize Google Sheets manager
 sheets_manager = GoogleSheetsManager()
 
-def _tx_args(w3, from_addr):
-    base_fee = w3.eth.gas_price
-    return {
-        'from': from_addr,
-        'nonce': w3.eth.get_transaction_count(from_addr),
-        'maxFeePerGas': base_fee * 2,
-        'maxPriorityFeePerGas': w3.to_wei(0.05, 'gwei')
-    }
-
 def _tx_args(w3, from_addr, gas_limit=None):
     base = w3.eth.gas_price or w3.to_wei(0.1, "gwei")  # auto gas
     priority = w3.to_wei(0.001, "gwei")                # tiny tip
